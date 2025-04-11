@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Warmup(iterations = 4, time = 2)
 @Measurement(iterations = 4, time = 2)
-@Fork(value = 3)
+@Fork(value = 1, jvmArgs = {"-XX:CompileCommand=igvprintlevel,*::process,6", "-XX:+PrintIdealGraph"})
 public class ChainMrefUnbound extends ChainBase {
 
     public Level start1;
