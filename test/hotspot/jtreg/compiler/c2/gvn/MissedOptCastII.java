@@ -24,54 +24,44 @@
 /*
  * @test
  * @bug 8320909
- * @summary Similar to MissingOptWithShiftConvAnd, but with Cast_II on the way.
- * @library /test/lib
+ * @summary Missed optimization in IGVN because `CastIINode::Value` used to
+ *          look for deep structures. Reported in 8320909. Fixed in 8319372.
  *
  * @run main/othervm
- *          -XX:CompileOnly=MissingOptWithShiftConvCastAnd::test
- *          -XX:-TieredCompilation -Xbatch
- *          -XX:+IgnoreUnrecognizedVMOptions -XX:VerifyIterativeGVN=10
- *          MissingOptWithShiftConvCastAnd
+ *           -XX:CompileCommand=quiet
+ *           -XX:CompileCommand=compileonly,MissedOptCastII::*
+ *           -XX:-TieredCompilation -Xcomp
+ *           -XX:+StressIGVN -XX:VerifyIterativeGVN=10
+ *           MissedOptCastII
  */
 
 /*
  * @test
  * @bug 8320909
- * @library /test/lib
  *
- * @run main/othervm MissingOptWithShiftConvCastAnd
+ * @run main/othervm MissedOptCastII
  */
 
-import jdk.test.lib.Utils;
+public class MissedOptCastII {
+    static long res = 0;
 
-public class MissingOptWithShiftConvCastAnd {
-    static long instanceCount;
-
-    public static void main(String[] args) throws Exception {
-        Thread thread = new Thread() {
-            public void run() {
-                test(0);
-            }
-        };
-        // Give thread some time to trigger compilation
-        thread.setDaemon(true);
-        thread.start();
-        Thread.sleep(Utils.adjustTimeout(500));
-    }
-
-    static void test(int x) {
-        for (int i = 3; ; ++i) {
-            for (int j = 5; j > 1; --j) {
-                instanceCount >>= x <<= 16;
-            }
-            x >>>= 16;
-            for (int j = 1; j < 5; j++) {
-                try {
-                    x = 1;
-                } catch (ArithmeticException a_e) {
+    static void test() {
+        int i, i1 = 0, k, l = -4;
+        for (i = 0; i < 100; i++) {
+            for (int j = 0; j < 10; j++) {
+                for (k = 1; k < 2; k++) {
+                    i1 = l;
+                    l += k * k;
+                    if (l != 0) {
+                        res = i + i1 + Float.floatToIntBits(2);
+                    }
                 }
             }
         }
+        res = i + i1;
+    }
+
+    public static void main(String[] args) {
+        test();
     }
 }
-
