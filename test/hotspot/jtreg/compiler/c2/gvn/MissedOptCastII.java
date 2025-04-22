@@ -31,6 +31,7 @@
  *           -XX:CompileCommand=quiet
  *           -XX:CompileCommand=compileonly,MissedOptCastII::*
  *           -XX:-TieredCompilation -Xcomp
+ *           -XX:+IgnoreUnrecognizedVMOptions
  *           -XX:+StressIGVN -XX:VerifyIterativeGVN=10
  *           MissedOptCastII
  */
