@@ -1796,8 +1796,9 @@ void PhaseStringOpts::replace_string_concat(StringConcat* sc) {
           // Negative int -> uncommon trap.
           PreserveJVMState pjvms(&kit);
           kit.set_control(__ IfFalse(iff));
-          kit.uncommon_trap(Deoptimization::Reason_intrinsic,
-                            Deoptimization::Action_maybe_recompile);
+          __ builtin_throw(Deoptimization::Reason_intrinsic,
+                        __ env()->NegativeArraySizeException_instance(),
+                        /*allow_too_many_traps*/ false);
         }
         kit.set_control(__ IfTrue(iff));
         break;

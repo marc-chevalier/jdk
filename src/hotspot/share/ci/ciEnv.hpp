@@ -99,6 +99,7 @@ private:
   ciInstance* _ArrayIndexOutOfBoundsException_instance;
   ciInstance* _ArrayStoreException_instance;
   ciInstance* _ClassCastException_instance;
+  ciInstance* _NegativeArraySizeException_instance;
 
   ciInstance* _the_null_string;      // The Java string "null"
   ciInstance* _the_min_jint_string; // The Java string "-2147483648"
@@ -407,6 +408,10 @@ public:
   ciInstance* ClassCastException_instance() {
     assert(_ClassCastException_instance != nullptr, "initialization problem");
     return _ClassCastException_instance;
+  }
+  ciInstance* NegativeArraySizeException_instance() {
+    assert(_NegativeArraySizeException_instance != nullptr, "initialization problem");
+    return _NegativeArraySizeException_instance;
   }
 
   ciInstance* the_null_string();

@@ -162,6 +162,9 @@ ciEnv::ciEnv(CompileTask* task)
   o = Universe::class_cast_exception_instance();
   assert(o != nullptr, "should have been initialized");
   _ClassCastException_instance = get_object(o)->as_instance();
+  o = Universe::negative_array_size_exception_instance();
+  assert(o != nullptr, "should have been initialized");
+  _NegativeArraySizeException_instance = get_object(o)->as_instance();
 
   _the_null_string = nullptr;
   _the_min_jint_string = nullptr;
@@ -283,6 +286,7 @@ ciEnv::ciEnv(Arena* arena) : _ciEnv_arena(mtCompiler, Arena::Tag::tag_cienv) {
   _ArrayIndexOutOfBoundsException_instance = nullptr;
   _ArrayStoreException_instance = nullptr;
   _ClassCastException_instance = nullptr;
+  _NegativeArraySizeException_instance = nullptr;
   _the_null_string = nullptr;
   _the_min_jint_string = nullptr;
 
