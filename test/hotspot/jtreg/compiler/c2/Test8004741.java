@@ -33,13 +33,13 @@
  * @run driver jdk.test.lib.helpers.ClassFileInstaller jdk.test.whitebox.WhiteBox
  *
  * @run main/othervm -Xmx128m -Xbatch -XX:+IgnoreUnrecognizedVMOptions -XX:+UnlockDiagnosticVMOptions
- *    -XX:-TieredCompilation -XX:+StressCompiledExceptionHandlers
+ *    -XX:-TieredCompilation
  *    -XX:+SafepointALot -XX:GuaranteedSafepointInterval=100
  *    -Xbootclasspath/a:. -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI
  *    compiler.c2.Test8004741
  *
  * @run main/othervm -Xmx128m -Xbatch -XX:+IgnoreUnrecognizedVMOptions -XX:+UnlockDiagnosticVMOptions
- *    -XX:-TieredCompilation -XX:+StressCompiledExceptionHandlers
+ *    -XX:-TieredCompilation
  *    -Xbootclasspath/a:. -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI
  *    compiler.c2.Test8004741
  */
