@@ -647,8 +647,9 @@ const int ObjectAlignmentInBytes = 8;
   develop(bool, PrintExceptionHandlers, false,                              \
           "Print exception handler tables for all nmethods when generated") \
                                                                             \
-  develop(bool, StressCompiledExceptionHandlers, false,                     \
-          "Exercise compiled exception handlers")                           \
+  product(bool, DeoptimizeOnAllocationException, true, DIAGNOSTIC,          \
+          "Deoptimize on exception during allocation instead of using the"  \
+          " compiled exception handlers")                                   \
                                                                             \
   develop(bool, InterceptOSException, false,                                \
           "Start debugger when an implicit OS (e.g. null pointer) "         \
