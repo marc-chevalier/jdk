@@ -1101,7 +1101,7 @@ void JavaThread::handle_async_exception(oop java_throwable) {
                           RegisterMap::ProcessFrames::include,
                           RegisterMap::WalkContinuation::skip);
       frame compiled_frame = f.sender(&reg_map);
-      if (!DeoptimizeOnAllocationException && compiled_frame.can_be_deoptimized()) {
+      if (!StressCompiledExceptionHandlers && compiled_frame.can_be_deoptimized()) {
         Deoptimization::deoptimize(this, compiled_frame);
       }
     }
