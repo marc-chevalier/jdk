@@ -899,18 +899,28 @@ public:
 // Make a direct subroutine call node into compiled C++ code, without
 // safepoints
 class CallLeafNode : public CallRuntimeNode {
+protected:
+  bool _is_pure;
+
+  uint size_of() const override; // Size is bigger
+  TupleNode* remove_unused_node(PhaseIterGVN* igvn);
+  ProjNode* proj_out_or_null(uint which_proj) const;
+  void extract_projections(Node*& ctrl_proj, Node*& data_proj) const;
+  TupleNode* remove_if_result_is_unused(PhaseIterGVN* igvn);
+
 public:
   CallLeafNode(const TypeFunc* tf, address addr, const char* name,
-               const TypePtr* adr_type)
-    : CallRuntimeNode(tf, addr, name, adr_type)
-  {
+               const TypePtr* adr_type, bool is_pure)
+      : CallRuntimeNode(tf, addr, name, adr_type), _is_pure(is_pure) {
     init_class_id(Class_CallLeaf);
   }
-  virtual int   Opcode() const;
-  virtual bool        guaranteed_safepoint()  { return false; }
+  int Opcode() const override;
+  Node* Ideal(PhaseGVN* phase, bool can_reshape) override;
+  bool guaranteed_safepoint() override { return false; }
 #ifndef PRODUCT
-  virtual void  dump_spec(outputStream *st) const;
+  void dump_spec(outputStream* st) const override;
 #endif
+  bool is_pure() const { return _is_pure; }
 };
 
 //------------------------------CallLeafNoFPNode-------------------------------
@@ -920,8 +930,7 @@ class CallLeafNoFPNode : public CallLeafNode {
 public:
   CallLeafNoFPNode(const TypeFunc* tf, address addr, const char* name,
                    const TypePtr* adr_type)
-    : CallLeafNode(tf, addr, name, adr_type)
-  {
+      : CallLeafNode(tf, addr, name, adr_type, false) {
     init_class_id(Class_CallLeafNoFP);
   }
   virtual int   Opcode() const;
@@ -938,8 +947,7 @@ protected:
 public:
   CallLeafVectorNode(const TypeFunc* tf, address addr, const char* name,
                    const TypePtr* adr_type, uint num_bits)
-    : CallLeafNode(tf, addr, name, adr_type), _num_bits(num_bits)
-  {
+      : CallLeafNode(tf, addr, name, adr_type, false), _num_bits(num_bits) {
   }
   virtual int   Opcode() const;
   virtual void  calling_convention( BasicType* sig_bt, VMRegPair *parm_regs, uint argcnt ) const;

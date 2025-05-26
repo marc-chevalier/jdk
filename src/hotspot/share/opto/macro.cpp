@@ -137,8 +137,8 @@ CallNode* PhaseMacroExpand::make_slow_call(CallNode *oldcall, const TypeFunc* sl
 
   // Slow-path call
  CallNode *call = leaf_name
-   ? (CallNode*)new CallLeafNode      ( slow_call_type, slow_call, leaf_name, TypeRawPtr::BOTTOM )
-   : (CallNode*)new CallStaticJavaNode( slow_call_type, slow_call, OptoRuntime::stub_name(slow_call), TypeRawPtr::BOTTOM );
+                       ? (CallNode*) new CallLeafNode(slow_call_type, slow_call, leaf_name, TypeRawPtr::BOTTOM, false)
+                       : (CallNode*) new CallStaticJavaNode(slow_call_type, slow_call, OptoRuntime::stub_name(slow_call), TypeRawPtr::BOTTOM);
 
   // Slow path call has no side-effects, uses few values
   copy_predefined_input_for_runtime_call(slow_path, oldcall, call );
@@ -1673,7 +1673,8 @@ void PhaseMacroExpand::expand_dtrace_alloc_probe(AllocateNode* alloc, Node* oop,
                                           CAST_FROM_FN_PTR(address,
                                           static_cast<int (*)(JavaThread*, oopDesc*)>(SharedRuntime::dtrace_object_alloc)),
                                           "dtrace_object_alloc",
-                                          TypeRawPtr::BOTTOM);
+                                          TypeRawPtr::BOTTOM,
+                                          true);
 
     // Get base of thread-local storage area
     Node* thread = new ThreadLocalNode();
@@ -2602,12 +2603,12 @@ bool PhaseMacroExpand::expand_macro_nodes() {
         CallNode* call = new CallLeafNode(mod_macro->tf(),
                                           is_drem ? CAST_FROM_FN_PTR(address, SharedRuntime::drem)
                                                   : CAST_FROM_FN_PTR(address, SharedRuntime::frem),
-                                          is_drem ? "drem" : "frem", TypeRawPtr::BOTTOM);
+                                          is_drem ? "drem" : "frem", TypeRawPtr::BOTTOM, true);
         call->init_req(TypeFunc::Control, mod_macro->in(TypeFunc::Control));
-        call->init_req(TypeFunc::I_O, mod_macro->in(TypeFunc::I_O));
-        call->init_req(TypeFunc::Memory, mod_macro->in(TypeFunc::Memory));
-        call->init_req(TypeFunc::ReturnAdr, mod_macro->in(TypeFunc::ReturnAdr));
-        call->init_req(TypeFunc::FramePtr, mod_macro->in(TypeFunc::FramePtr));
+        call->init_req(TypeFunc::I_O, C->top());
+        call->init_req(TypeFunc::Memory, C->top());
+        call->init_req(TypeFunc::ReturnAdr, C->top());
+        call->init_req(TypeFunc::FramePtr, C->top());
         for (unsigned int i = 0; i < mod_macro->tf()->domain()->cnt() - TypeFunc::Parms; i++) {
           call->init_req(TypeFunc::Parms + i, mod_macro->in(TypeFunc::Parms + i));
         }

@@ -1889,6 +1889,14 @@ Node* GraphKit::set_predefined_input_for_runtime_call(SafePointNode* call, Node*
   call->init_req( TypeFunc::ReturnAdr, top()      );
   return memory;
 }
+void GraphKit::set_predefined_input_for_pure_runtime_call(SafePointNode* call) const {
+  // Set fixed predefined input arguments
+  call->init_req(TypeFunc::Control, control());
+  call->init_req(TypeFunc::I_O, top());
+  call->init_req(TypeFunc::Memory, top());
+  call->init_req(TypeFunc::FramePtr, top());
+  call->init_req(TypeFunc::ReturnAdr, top());
+}
 
 //-------------------set_predefined_output_for_runtime_call--------------------
 // Set control and memory (not i_o) from the call.
@@ -1926,6 +1934,9 @@ void GraphKit::set_predefined_output_for_runtime_call(Node* call,
     // This is not a "slow path" call; all memory comes from the call.
     set_all_memory_call(call);
   }
+}
+void GraphKit::set_predefined_output_for_pure_runtime_call(Node* call) {
+  set_control(_gvn.transform(new ProjNode(call, TypeFunc::Control)));
 }
 
 // Keep track of MergeMems feeding into other MergeMems
@@ -2492,7 +2503,7 @@ Node* GraphKit::make_runtime_call(int flags,
     uint num_bits = call_type->range()->field_at(TypeFunc::Parms)->is_vect()->length_in_bytes() * BitsPerByte;
     call = new CallLeafVectorNode(call_type, call_addr, call_name, adr_type, num_bits);
   } else {
-    call = new CallLeafNode(call_type, call_addr, call_name, adr_type);
+    call = new CallLeafNode(call_type, call_addr, call_name, adr_type, flags & RC_PURE);
   }
 
   // The following is similar to set_edges_for_java_call,
