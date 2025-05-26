@@ -1303,6 +1303,77 @@ void CallLeafVectorNode::calling_convention( BasicType* sig_bt, VMRegPair *parm_
 
 
 //=============================================================================
+uint CallLeafNode::size_of() const { return sizeof(*this); }
+
+void CallLeafNode::extract_projections(Node*& ctrl_proj, Node*& data_proj) const {
+  for (DUIterator_Fast imax, i = fast_outs(imax); i < imax; i++) {
+    ProjNode* pn = fast_out(i)->as_Proj();
+    if (pn->outcnt() == 0) {
+      continue;
+    }
+    switch (pn->_con) {
+    case TypeFunc::Control:
+      ctrl_proj = pn;
+      break;
+    case TypeFunc::Parms:
+      data_proj = pn;
+      break;
+    default:
+      assert(false, "unexpected projection type for a pure function");
+    }
+  }
+}
+
+TupleNode* CallLeafNode::remove_unused_node(PhaseIterGVN* igvn) {
+  precond(_is_pure);
+  Compile* C = igvn->C;
+  Node* ctrl_proj = nullptr;
+  Node* data_proj = nullptr;
+  extract_projections(ctrl_proj, data_proj);
+  assert(data_proj == nullptr, "result is not unused");
+  if (ctrl_proj == nullptr) {
+    return nullptr;
+  }
+  TupleNode* tuple = TupleNode::make(in(TypeFunc::Control));
+  C->remove_macro_node(this);
+  return tuple;
+}
+
+TupleNode* CallLeafNode::remove_if_result_is_unused(PhaseIterGVN* igvn) {
+  precond(_is_pure);
+  bool result_is_unused = proj_out_or_null(TypeFunc::Parms) == nullptr;
+  bool not_dead = proj_out_or_null(TypeFunc::Control) != nullptr;
+  if (result_is_unused && not_dead) {
+    return remove_unused_node(igvn);
+  }
+  return nullptr;
+}
+
+ProjNode* CallLeafNode::proj_out_or_null(uint which_proj) const {
+  for (DUIterator_Fast imax, i = fast_outs(imax); i < imax; i++) {
+    Node* p = fast_out(i);
+    if (p->is_Proj()) {
+      ProjNode* proj = p->as_Proj();
+      if (proj->_con == which_proj) {
+        return proj;
+      }
+    } else {
+      assert(p == this && is_Start(), "else must be proj");
+    }
+  }
+  return nullptr;
+}
+Node* CallLeafNode::Ideal(PhaseGVN* phase, bool can_reshape) {
+  if (_is_pure && phase->is_IterGVN()) {
+    Node* tuple_node = remove_if_result_is_unused(phase->is_IterGVN());
+    if (tuple_node != nullptr) {
+      return tuple_node;
+    }
+  }
+
+  return CallRuntimeNode::Ideal(phase, can_reshape);
+}
+
 #ifndef PRODUCT
 void CallLeafNode::dump_spec(outputStream *st) const {
   st->print("# ");

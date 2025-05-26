@@ -2952,6 +2952,8 @@ bool Node::is_pure_function() const {
   case Op_ModD:
   case Op_ModF:
     return true;
+  case Op_CallLeaf:
+    return as_CallLeaf()->is_pure();
   default:
     return false;
   }
