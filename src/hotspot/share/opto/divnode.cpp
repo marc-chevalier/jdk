@@ -42,7 +42,7 @@
 
 #include <math.h>
 
-ModFloatingNode::ModFloatingNode(Compile* C, const TypeFunc* tf, const char* name) : CallLeafNode(tf, nullptr, name, TypeRawPtr::BOTTOM) {
+ModFloatingNode::ModFloatingNode(Compile* C, const TypeFunc* tf, const char* name) : CallLeafNode(tf, nullptr, name, TypeRawPtr::BOTTOM, true) {
   add_flag(Flag_is_macro);
   C->add_macro_node(this);
 }
@@ -1522,10 +1522,9 @@ Node* ModFNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   }
   PhaseIterGVN* igvn = phase->is_IterGVN();
 
-  bool result_is_unused = proj_out_or_null(TypeFunc::Parms) == nullptr;
-  bool not_dead = proj_out_or_null(TypeFunc::Control) != nullptr;
-  if (result_is_unused && not_dead) {
-    return replace_with_con(igvn, TypeF::make(0.));
+  TupleNode* tuple_node = remove_if_result_is_unused(igvn);
+  if (tuple_node != nullptr) {
+    return tuple_node;
   }
 
   // Either input is TOP ==> the result is TOP
@@ -1574,10 +1573,9 @@ Node* ModDNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   }
   PhaseIterGVN* igvn = phase->is_IterGVN();
 
-  bool result_is_unused = proj_out_or_null(TypeFunc::Parms) == nullptr;
-  bool not_dead = proj_out_or_null(TypeFunc::Control) != nullptr;
-  if (result_is_unused && not_dead) {
-    return replace_with_con(igvn, TypeD::make(0.));
+  TupleNode* tuple_node = remove_if_result_is_unused(igvn);
+  if (tuple_node != nullptr) {
+    return tuple_node;
   }
 
   // Either input is TOP ==> the result is TOP
@@ -1623,25 +1621,12 @@ Node* ModDNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 Node* ModFloatingNode::replace_with_con(PhaseIterGVN* phase, const Type* con) {
   Compile* C = phase->C;
   Node* con_node = phase->makecon(con);
-  CallProjections projs;
-  extract_projections(&projs, false, false);
-  phase->replace_node(projs.fallthrough_proj, in(TypeFunc::Control));
-  if (projs.fallthrough_catchproj != nullptr) {
-    phase->replace_node(projs.fallthrough_catchproj, in(TypeFunc::Control));
-  }
-  if (projs.fallthrough_memproj != nullptr) {
-    phase->replace_node(projs.fallthrough_memproj, in(TypeFunc::Memory));
-  }
-  if (projs.catchall_memproj != nullptr) {
-    phase->replace_node(projs.catchall_memproj, C->top());
-  }
-  if (projs.fallthrough_ioproj != nullptr) {
-    phase->replace_node(projs.fallthrough_ioproj, in(TypeFunc::I_O));
-  }
-  assert(projs.catchall_ioproj == nullptr, "no exceptions from floating mod");
-  assert(projs.catchall_catchproj == nullptr, "no exceptions from floating mod");
-  if (projs.resproj != nullptr) {
-    phase->replace_node(projs.resproj, con_node);
+  Node* ctrl_proj = nullptr;
+  Node* data_proj = nullptr;
+  extract_projections(ctrl_proj, data_proj);
+  phase->replace_node(ctrl_proj, in(TypeFunc::Control));
+  if (data_proj != nullptr) {
+    phase->replace_node(data_proj, con_node);
   }
   phase->replace_node(this, C->top());
   C->remove_macro_node(this);
