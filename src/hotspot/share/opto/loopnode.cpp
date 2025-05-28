@@ -4026,31 +4026,69 @@ void PhaseIdealLoop::replace_parallel_iv(IdealLoopTree *loop) {
 
     PhiNode* phi2 = out->as_Phi();
     Node* incr2 = phi2->in(LoopNode::LoopBackControl);
-    // Look for induction variables of the form:  X += constant
-    if (phi2->region() != loop->_head ||
-        incr2->req() != 3 ||
-        incr2->in(1)->uncast() != phi2 ||
-        incr2 == incr ||
-        (incr2->Opcode() != Op_AddI && incr2->Opcode() != Op_AddL) ||
-        !incr2->in(2)->is_Con()) {
-      continue;
-    }
 
-    if (incr2->in(1)->is_ConstraintCast() &&
-        !(incr2->in(1)->in(0)->is_IfProj() && incr2->in(1)->in(0)->in(0)->is_RangeCheck())) {
-      // Skip AddI->CastII->Phi case if CastII is not controlled by local RangeCheck
-      continue;
-    }
-    // Check for parallel induction variable (parallel to trip counter)
-    // via an affine function.  In particular, count-down loops with
-    // count-up array indices are common. We only RCE references off
-    // the trip-counter, so we need to convert all these to trip-counter
-    // expressions.
+    jlong stride_con2;
+    BasicType stride_con2_bt;
     Node* init2 = phi2->in(LoopNode::EntryControl);
+    if (phi2->region() == loop->_head &&
+        incr2->req() == 3 &&
+        incr2->in(1)->uncast() == phi2 &&
+        incr2 != incr &&
+        (incr2->Opcode() == Op_AddI || incr2->Opcode() == Op_AddL) &&
+        incr2->in(2)->is_Con()) {
+      // Look for induction variables of the form:  X += constant
 
-    // Determine the basic type of the stride constant (and the iv being incremented).
-    BasicType stride_con2_bt = incr2->Opcode() == Op_AddI ? T_INT : T_LONG;
-    jlong stride_con2 = incr2->in(2)->get_integer_as_long(stride_con2_bt);
+      if (incr2->in(1)->is_ConstraintCast() &&
+          !(incr2->in(1)->in(0)->is_IfProj() && incr2->in(1)->in(0)->in(0)->is_RangeCheck())) {
+        // Skip AddI->CastII->Phi case if CastII is not controlled by local RangeCheck
+        continue;
+      }
+      // Check for parallel induction variable (parallel to trip counter)
+      // via an affine function.  In particular, count-down loops with
+      // count-up array indices are common. We only RCE references off
+      // the trip-counter, so we need to convert all these to trip-counter
+      // expressions.
+
+      // Determine the basic type of the stride constant (and the iv being incremented).
+      stride_con2_bt = incr2->Opcode() == Op_AddI ? T_INT : T_LONG;
+      stride_con2 = incr2->in(2)->get_integer_as_long(stride_con2_bt);
+    } else {
+      // Look for induction variable of the form: X = (X + constant) \/ (counter + constant)
+      // for cases of the form
+      // if (?) { counter += cst; X += cst } else { counter += cst; X = counter }
+      auto second_case = [phi2, phi, stride_con, loop, &stride_con2, &stride_con2_bt]() -> bool {
+        if (phi2->region() != loop->_head) return false;
+
+        Node* phi3 = phi2->in(LoopNode::LoopBackControl);
+        if (!phi3->is_Phi()) return false;
+        if (phi3 == phi2 && phi3 == phi) return false;
+
+        Node* add1 = phi3->in(1);
+        if (add1->Opcode() != Op_AddI && add1->Opcode() != Op_AddL) return false;
+
+        Node* add2 = phi3->in(2);
+        if (add1->Opcode() != add2->Opcode()) return false;
+
+        Node* add1_lhs = add1->in(1);
+        Node* add2_lhs = add2->in(1);
+        if (!((add1_lhs == phi && add2_lhs == phi2) || (add1_lhs == phi2 && add2_lhs == phi))) return false;
+
+        Node* con1 = add1->in(2);
+        if (!con1->is_Con()) return false;
+        Node* con2 = add2->in(2);
+        if (!con2->is_Con()) return false;
+
+        stride_con2_bt = add2->Opcode() == Op_AddI ? T_INT : T_LONG;
+        jlong constant1 = con1->get_integer_as_long(stride_con2_bt);
+        jlong constant2 = con2->get_integer_as_long(stride_con2_bt);
+        if (constant1 != constant2 || constant1 != stride_con) return false;
+        stride_con2 = constant1;
+        return true;
+      };
+      if (!second_case()) {
+        continue;
+      }
+    }
 
     // The ratio of the two strides cannot be represented as an int
     // if stride_con2 is min_jint (or min_jlong, respectively) and
