@@ -902,11 +902,9 @@ class CallLeafNode : public CallRuntimeNode {
 protected:
   bool _is_pure;
 
-  uint size_of() const override; // Size is bigger
-  TupleNode* remove_unused_node(PhaseIterGVN* igvn);
-  ProjNode* proj_out_or_null(uint which_proj) const;
+  uint size_of() const override; // Size is bigger, but no need for cmp: same function implies same `_is_pure`.
   void extract_projections(Node*& ctrl_proj, Node*& data_proj) const;
-  TupleNode* remove_if_result_is_unused(PhaseIterGVN* igvn);
+  TupleNode* remove_if_result_is_unused(const PhaseIterGVN* igvn);
 
 public:
   CallLeafNode(const TypeFunc* tf, address addr, const char* name,
