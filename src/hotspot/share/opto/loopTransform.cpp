@@ -3421,7 +3421,7 @@ bool IdealLoopTree::iteration_split_impl(PhaseIdealLoop *phase, Node_List &old_n
       phase->do_maximally_unroll(this, old_new);
       return true;
     }
-    if (StressDuplicateBackedge && phase->duplicate_loop_backedge(this, old_new)) {
+    if (phase->duplicate_loop_backedge(this, old_new)) {
       return false;
     }
   }

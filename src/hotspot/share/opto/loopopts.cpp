@@ -4145,6 +4145,82 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
   return true;
 }
 
+// CountedLoop -> Phi as x <- MergeMem <- Phi <- x  OR
+// CountedLoop -> Phi as x <- Phi <- x
+static bool duplicate_counted_loop_backedge_criterion(PhaseIdealLoop* phase, LoopNode* head, Node*& region, uint& inner) {
+  uint input = UINT_MAX;
+  for (DUIterator_Fast imax, i = head->fast_outs(imax); i < imax; i++) {
+    Node* u = head->fast_out(i);
+    if (u->is_Phi() && u->bottom_type() == Type::MEMORY) {
+      Node* backedge_in = u->in(LoopNode::LoopBackControl);
+      if (backedge_in->is_MergeMem()) {
+        for (uint j = 0; j < backedge_in->req(); ++j) {
+          const Node* in = backedge_in->in(j);
+          if (in != nullptr && !in->is_top()) {
+            if (in->is_Phi()) {
+              if (region == nullptr) {
+                assert(input == UINT_MAX, "");
+                for (uint k = 1; k < in->req(); k++) {
+                  if (in->in(k) == u) {
+                    input = k;
+                    break;
+                  }
+                }
+                if (input != UINT_MAX) {
+                  region = in->in(0);
+                } else {
+                  return false;
+                }
+              } else {
+                assert(input != UINT_MAX, "");
+                if (region != in->in(0) || in->in(input) != u) {
+                  return false;
+                }
+              }
+            }
+          }
+        }
+      } else if (backedge_in->is_Phi()) {
+        if (region == nullptr) {
+          assert(input == UINT_MAX, "");
+          for (uint j = 1; j < backedge_in->req(); j++) {
+            if (backedge_in->in(j) == u) {
+              input = j;
+              break;
+            }
+          }
+          if (input != UINT_MAX) {
+            region = backedge_in->in(0);
+          } else {
+            return false;
+          }
+        } else {
+          assert(input != UINT_MAX, "");
+          if (region != backedge_in->in(0) || backedge_in->in(input) != u) {
+            return false;
+          }
+        }
+      } else {
+        return false;
+      }
+    }
+  }
+  if (region == nullptr || !phase->is_dominator(region, head->in(LoopNode::LoopBackControl))) {
+    return false;
+  }
+
+  // Let's check this path is frequent enough.
+  PathFrequency pf(head, phase);
+  assert(region->in(input) != nullptr, "sanity");
+  if (pf.to(region->in(input)) < 0.5) {
+    // The path that doesn't modify memory is not frequent enough.
+    return false;
+  }
+
+  inner = input;
+  return true;
+}
+
 // Transform:
 //
 // loop<-----------------+
@@ -4197,7 +4273,6 @@ bool PhaseIdealLoop::duplicate_loop_backedge(IdealLoopTree *loop, Node_List &old
   if (!DuplicateBackedge) {
     return false;
   }
-  assert(!loop->_head->is_CountedLoop() || StressDuplicateBackedge, "Non-counted loop only");
   if (!loop->_head->is_Loop()) {
     return false;
   }
@@ -4207,12 +4282,15 @@ bool PhaseIdealLoop::duplicate_loop_backedge(IdealLoopTree *loop, Node_List &old
     return false;
   }
 
-  LoopNode *head = loop->_head->as_Loop();
+  LoopNode* head = loop->_head->as_Loop();
 
-  Node* region = nullptr;
-  IfNode* exit_test = nullptr;
+  // Must be set in the following branching
   uint inner;
+  Node* region = nullptr;
+  // Optional: exit_test != nullptr => f must be set
+  IfNode* exit_test = nullptr;
   float f;
+
   if (StressDuplicateBackedge) {
     if (head->is_strip_mined()) {
       return false;
@@ -4231,6 +4309,10 @@ bool PhaseIdealLoop::duplicate_loop_backedge(IdealLoopTree *loop, Node_List &old
     }
 
     inner = 1;
+  } else if (head->is_CountedLoop()) {
+    if (!duplicate_counted_loop_backedge_criterion(this, head, region, inner)) {
+      return false;
+    }
   } else {
     // Is the shape of the loop that of a counted loop...
     Node* back_control = loop_exit_control(head, loop);
@@ -4261,12 +4343,11 @@ bool PhaseIdealLoop::duplicate_loop_backedge(IdealLoopTree *loop, Node_List &old
     // if the extra phi is removed
     inner = 0;
     for (uint i = 1; i < incr->req(); ++i) {
-      Node* in = incr->in(i);
       Node* trunc1 = nullptr;
       Node* trunc2 = nullptr;
       const TypeInteger* iv_trunc_t = nullptr;
-      Node* orig_in = in;
-      if (!(in = CountedLoopNode::match_incr_with_optional_truncation(in, &trunc1, &trunc2, &iv_trunc_t, T_INT))) {
+      Node* in = CountedLoopNode::match_incr_with_optional_truncation(incr->in(i), &trunc1, &trunc2, &iv_trunc_t, T_INT);
+      if (in == nullptr) {
         continue;
       }
       assert(in->Opcode() == Op_AddI, "wrong increment code");
@@ -4319,8 +4400,6 @@ bool PhaseIdealLoop::duplicate_loop_backedge(IdealLoopTree *loop, Node_List &old
     }
     assert(!is_strict_dominator(c, region), "shouldn't go above region");
   }
-
-  Node* region_dom = idom(region);
 
   // Can't do the transformation if this would cause a membar pair to
   // be split
