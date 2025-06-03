@@ -4148,6 +4148,10 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
 // CountedLoop -> Phi as x <- MergeMem <- Phi <- x  OR
 // CountedLoop -> Phi as x <- Phi <- x
 static bool duplicate_counted_loop_backedge_criterion(PhaseIdealLoop* phase, LoopNode* head, Node*& region, uint& inner) {
+  if (head->in(LoopNode::EntryControl)->is_OuterStripMinedLoop()) {
+    return false;
+  }
+
   uint input = UINT_MAX;
   for (DUIterator_Fast imax, i = head->fast_outs(imax); i < imax; i++) {
     Node* u = head->fast_out(i);
