@@ -1522,9 +1522,8 @@ Node* ModFNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   }
   PhaseIterGVN* igvn = phase->is_IterGVN();
 
-  TupleNode* tuple_node = remove_if_result_is_unused(igvn);
-  if (tuple_node != nullptr) {
-    return tuple_node;
+  if (is_unused()) {
+    return remove_call(igvn);
   }
 
   // Either input is TOP ==> the result is TOP
@@ -1573,9 +1572,8 @@ Node* ModDNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   }
   PhaseIterGVN* igvn = phase->is_IterGVN();
 
-  TupleNode* tuple_node = remove_if_result_is_unused(igvn);
-  if (tuple_node != nullptr) {
-    return tuple_node;
+  if (is_unused()) {
+    return remove_call(igvn);
   }
 
   // Either input is TOP ==> the result is TOP
