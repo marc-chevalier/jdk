@@ -737,7 +737,7 @@ public:
   // Collect all the interesting edges from a call for use in
   // replacing the call by something else.  Used by macro expansion
   // and the late inlining support.
-  void extract_projections(CallProjections* projs, bool separate_io_proj, bool do_asserts = true);
+  void extract_projections(CallProjections* projs, bool separate_io_proj, bool do_asserts = true, bool maybe_no_ctrl_proj = false) const;
 
   virtual uint match_edge(uint idx) const;
 
@@ -914,7 +914,6 @@ public:
 
 class CallLeafPureNode : public CallLeafNode {
 protected:
-  void extract_projections(Node*& ctrl_proj, Node*& data_proj) const;
   TupleNode* remove_if_result_is_unused(const PhaseIterGVN* igvn);
 
 public:
