@@ -1621,12 +1621,12 @@ Node* ModDNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 Node* ModFloatingNode::replace_with_con(PhaseIterGVN* phase, const Type* con) {
   Compile* C = phase->C;
   Node* con_node = phase->makecon(con);
-  Node* ctrl_proj = nullptr;
-  Node* data_proj = nullptr;
-  extract_projections(ctrl_proj, data_proj);
-  phase->replace_node(ctrl_proj, in(TypeFunc::Control));
-  if (data_proj != nullptr) {
-    phase->replace_node(data_proj, con_node);
+  CallProjections projs;
+  extract_projections(&projs, false, false, true);
+
+  phase->replace_node(projs.fallthrough_proj, in(TypeFunc::Control));
+  if (projs.resproj != nullptr) {
+    phase->replace_node(projs.resproj, con_node);
   }
   phase->replace_node(this, C->top());
   C->remove_macro_node(this);

@@ -918,7 +918,7 @@ Node *CallNode::result_cast() {
 }
 
 
-void CallNode::extract_projections(CallProjections* projs, bool separate_io_proj, bool do_asserts) {
+void CallNode::extract_projections(CallProjections* projs, bool separate_io_proj, bool do_asserts, bool maybe_no_ctrl_proj) const {
   projs->fallthrough_proj      = nullptr;
   projs->fallthrough_catchproj = nullptr;
   projs->fallthrough_ioproj    = nullptr;
@@ -983,15 +983,15 @@ void CallNode::extract_projections(CallProjections* projs, bool separate_io_proj
   // The resproj may not exist because the result could be ignored
   // and the exception object may not exist if an exception handler
   // swallows the exception but all the other must exist and be found.
-  assert(projs->fallthrough_proj      != nullptr, "must be found");
+  assert(maybe_no_ctrl_proj || projs->fallthrough_proj != nullptr, "must be found");
   do_asserts = do_asserts && !Compile::current()->inlining_incrementally();
   assert(!do_asserts || projs->fallthrough_catchproj != nullptr, "must be found");
-  assert(!do_asserts || projs->fallthrough_memproj   != nullptr, "must be found");
-  assert(!do_asserts || projs->fallthrough_ioproj    != nullptr, "must be found");
-  assert(!do_asserts || projs->catchall_catchproj    != nullptr, "must be found");
+  assert(!do_asserts || projs->fallthrough_memproj != nullptr, "must be found");
+  assert(!do_asserts || projs->fallthrough_ioproj != nullptr, "must be found");
+  assert(!do_asserts || projs->catchall_catchproj != nullptr, "must be found");
   if (separate_io_proj) {
-    assert(!do_asserts || projs->catchall_memproj    != nullptr, "must be found");
-    assert(!do_asserts || projs->catchall_ioproj     != nullptr, "must be found");
+    assert(!do_asserts || projs->catchall_memproj != nullptr, "must be found");
+    assert(!do_asserts || projs->catchall_ioproj != nullptr, "must be found");
   }
 }
 
@@ -1303,31 +1303,11 @@ void CallLeafVectorNode::calling_convention( BasicType* sig_bt, VMRegPair *parm_
 
 
 //=============================================================================
-void CallLeafPureNode::extract_projections(Node*& ctrl_proj, Node*& data_proj) const {
-  for (DUIterator_Fast imax, i = fast_outs(imax); i < imax; i++) {
-    ProjNode* pn = fast_out(i)->as_Proj();
-    if (pn->outcnt() == 0) {
-      continue;
-    }
-    switch (pn->_con) {
-    case TypeFunc::Control:
-      ctrl_proj = pn;
-      break;
-    case TypeFunc::Parms:
-      data_proj = pn;
-      break;
-    default:
-      assert(false, "unexpected projection type for a pure function");
-    }
-  }
-}
-
 TupleNode* CallLeafPureNode::remove_if_result_is_unused(const PhaseIterGVN* igvn) {
-  Node* ctrl_proj = nullptr;
-  Node* data_proj = nullptr;
-  extract_projections(ctrl_proj, data_proj);
-  bool result_is_unused = data_proj == nullptr;
-  bool not_dead = ctrl_proj != nullptr;
+  CallProjections projs;
+  extract_projections(&projs, false, false, true);
+  bool result_is_unused = projs.resproj == nullptr;
+  bool not_dead = projs.fallthrough_proj != nullptr;
   if (result_is_unused && not_dead) {
     TupleNode* tuple = TupleNode::make(in(TypeFunc::Control));
     if (is_macro()) {
