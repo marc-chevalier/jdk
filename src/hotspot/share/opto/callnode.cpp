@@ -1311,7 +1311,10 @@ bool CallLeafPureNode::is_unused() const {
   return result_is_unused && not_dead;
 }
 TupleNode* CallLeafPureNode::remove_call(const PhaseIterGVN* igvn) {
-  TupleNode* tuple = TupleNode::make(in(TypeFunc::Control));
+  const Type** fields = static_cast<const Type**>(Compile::current()->type_arena()->AmallocWords(sizeof(Type*)));
+  fields[0] = in(TypeFunc::Control)->bottom_type(); // Or Type::CONTROL
+  const TypeTuple* tt = TypeTuple::make(1, fields);
+  TupleNode* tuple = TupleNode::make(tt, in(TypeFunc::Control));
   if (is_macro()) {
     igvn->C->remove_macro_node(this);
   }
