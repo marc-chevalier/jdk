@@ -1303,27 +1303,24 @@ void CallLeafVectorNode::calling_convention( BasicType* sig_bt, VMRegPair *parm_
 
 
 //=============================================================================
-TupleNode* CallLeafPureNode::remove_if_result_is_unused(const PhaseIterGVN* igvn) {
+bool CallLeafPureNode::is_unused() const {
   CallProjections projs;
   extract_projections(&projs, false, false, true);
   bool result_is_unused = projs.resproj == nullptr;
   bool not_dead = projs.fallthrough_proj != nullptr;
-  if (result_is_unused && not_dead) {
-    TupleNode* tuple = TupleNode::make(in(TypeFunc::Control));
-    if (is_macro()) {
-      igvn->C->remove_macro_node(this);
-    }
-    return tuple;
+  return result_is_unused && not_dead;
+}
+TupleNode* CallLeafPureNode::remove_call(const PhaseIterGVN* igvn) {
+  TupleNode* tuple = TupleNode::make(in(TypeFunc::Control));
+  if (is_macro()) {
+    igvn->C->remove_macro_node(this);
   }
-  return nullptr;
+  return tuple;
 }
 
 Node* CallLeafPureNode::Ideal(PhaseGVN* phase, bool can_reshape) {
-  if (phase->is_IterGVN()) {
-    Node* tuple_node = remove_if_result_is_unused(phase->is_IterGVN());
-    if (tuple_node != nullptr) {
-      return tuple_node;
-    }
+  if (phase->is_IterGVN() && is_unused()) {
+    return remove_call(phase->is_IterGVN());
   }
 
   return CallRuntimeNode::Ideal(phase, can_reshape);
