@@ -108,6 +108,8 @@ public:
 
 //------------------------------TupleNode---------------------------------------
 class TupleNode : public MultiNode {
+  const TypeTuple* _tf;
+
   template <typename... NN>
   static void make_helper(TupleNode* tn, uint i, Node* node, NN... nn) {
     tn->set_req(i, node);
@@ -117,20 +119,14 @@ class TupleNode : public MultiNode {
   static void make_helper(TupleNode*, uint) {}
 
 public:
-  TupleNode(uint required) : MultiNode(required) {}
+  TupleNode(uint required, const TypeTuple* tf) : MultiNode(required), _tf(tf) {}
 
-  virtual int Opcode() const;
-  virtual const Type* bottom_type() const {
-    const Type** fields = (const Type**) (Compile::current()->type_arena()->AmallocWords(req() * sizeof(Type*)));
-    for (uint i = 0; i < req(); i++) {
-      fields[i] = in(i)->bottom_type();
-    }
-    return TypeTuple::make(_cnt, fields);
-  }
+  int Opcode() const override;
+  const Type* bottom_type() const override { return _tf; }
 
   template <typename... NN>
-  static TupleNode* make(NN... nn) {
-    TupleNode* tn = new TupleNode(sizeof...(nn));
+  static TupleNode* make(const TypeTuple* tf, NN... nn) {
+    TupleNode* tn = new TupleNode(sizeof...(nn), tf);
     make_helper(tn, 0, nn...);
     return tn;
   }
