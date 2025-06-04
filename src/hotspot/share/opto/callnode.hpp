@@ -899,26 +899,32 @@ public:
 // Make a direct subroutine call node into compiled C++ code, without
 // safepoints
 class CallLeafNode : public CallRuntimeNode {
-protected:
-  bool _is_pure;
-
-  uint size_of() const override; // Size is bigger, but no need for cmp: same function implies same `_is_pure`.
-  void extract_projections(Node*& ctrl_proj, Node*& data_proj) const;
-  TupleNode* remove_if_result_is_unused(const PhaseIterGVN* igvn);
-
 public:
   CallLeafNode(const TypeFunc* tf, address addr, const char* name,
-               const TypePtr* adr_type, bool is_pure)
-      : CallRuntimeNode(tf, addr, name, adr_type), _is_pure(is_pure) {
+               const TypePtr* adr_type)
+      : CallRuntimeNode(tf, addr, name, adr_type) {
     init_class_id(Class_CallLeaf);
   }
   int Opcode() const override;
-  Node* Ideal(PhaseGVN* phase, bool can_reshape) override;
   bool guaranteed_safepoint() override { return false; }
 #ifndef PRODUCT
   void dump_spec(outputStream* st) const override;
 #endif
-  bool is_pure() const { return _is_pure; }
+};
+
+class CallLeafPureNode : public CallLeafNode {
+protected:
+  void extract_projections(Node*& ctrl_proj, Node*& data_proj) const;
+  TupleNode* remove_if_result_is_unused(const PhaseIterGVN* igvn);
+
+public:
+  CallLeafPureNode(const TypeFunc* tf, address addr, const char* name,
+                   const TypePtr* adr_type)
+      : CallLeafNode(tf, addr, name, adr_type) {
+    init_class_id(Class_CallLeafPure);
+  }
+  int Opcode() const override;
+  Node* Ideal(PhaseGVN* phase, bool can_reshape) override;
 };
 
 //------------------------------CallLeafNoFPNode-------------------------------
@@ -928,7 +934,7 @@ class CallLeafNoFPNode : public CallLeafNode {
 public:
   CallLeafNoFPNode(const TypeFunc* tf, address addr, const char* name,
                    const TypePtr* adr_type)
-      : CallLeafNode(tf, addr, name, adr_type, false) {
+      : CallLeafNode(tf, addr, name, adr_type) {
     init_class_id(Class_CallLeafNoFP);
   }
   virtual int   Opcode() const;
@@ -945,7 +951,7 @@ protected:
 public:
   CallLeafVectorNode(const TypeFunc* tf, address addr, const char* name,
                    const TypePtr* adr_type, uint num_bits)
-      : CallLeafNode(tf, addr, name, adr_type, false), _num_bits(num_bits) {
+      : CallLeafNode(tf, addr, name, adr_type), _num_bits(num_bits) {
   }
   virtual int   Opcode() const;
   virtual void  calling_convention( BasicType* sig_bt, VMRegPair *parm_regs, uint argcnt ) const;

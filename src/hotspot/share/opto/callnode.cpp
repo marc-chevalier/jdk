@@ -1303,9 +1303,7 @@ void CallLeafVectorNode::calling_convention( BasicType* sig_bt, VMRegPair *parm_
 
 
 //=============================================================================
-uint CallLeafNode::size_of() const { return sizeof(*this); }
-
-void CallLeafNode::extract_projections(Node*& ctrl_proj, Node*& data_proj) const {
+void CallLeafPureNode::extract_projections(Node*& ctrl_proj, Node*& data_proj) const {
   for (DUIterator_Fast imax, i = fast_outs(imax); i < imax; i++) {
     ProjNode* pn = fast_out(i)->as_Proj();
     if (pn->outcnt() == 0) {
@@ -1324,8 +1322,7 @@ void CallLeafNode::extract_projections(Node*& ctrl_proj, Node*& data_proj) const
   }
 }
 
-TupleNode* CallLeafNode::remove_if_result_is_unused(const PhaseIterGVN* igvn) {
-  precond(_is_pure);
+TupleNode* CallLeafPureNode::remove_if_result_is_unused(const PhaseIterGVN* igvn) {
   Node* ctrl_proj = nullptr;
   Node* data_proj = nullptr;
   extract_projections(ctrl_proj, data_proj);
@@ -1341,8 +1338,8 @@ TupleNode* CallLeafNode::remove_if_result_is_unused(const PhaseIterGVN* igvn) {
   return nullptr;
 }
 
-Node* CallLeafNode::Ideal(PhaseGVN* phase, bool can_reshape) {
-  if (_is_pure && phase->is_IterGVN()) {
+Node* CallLeafPureNode::Ideal(PhaseGVN* phase, bool can_reshape) {
+  if (phase->is_IterGVN()) {
     Node* tuple_node = remove_if_result_is_unused(phase->is_IterGVN());
     if (tuple_node != nullptr) {
       return tuple_node;

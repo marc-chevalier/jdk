@@ -2502,8 +2502,10 @@ Node* GraphKit::make_runtime_call(int flags,
   } else  if (flags & RC_VECTOR){
     uint num_bits = call_type->range()->field_at(TypeFunc::Parms)->is_vect()->length_in_bytes() * BitsPerByte;
     call = new CallLeafVectorNode(call_type, call_addr, call_name, adr_type, num_bits);
+  } else if (flags & RC_PURE) {
+    call = new CallLeafPureNode(call_type, call_addr, call_name, adr_type);
   } else {
-    call = new CallLeafNode(call_type, call_addr, call_name, adr_type, /* is_pure */ flags & RC_PURE);
+    call = new CallLeafNode(call_type, call_addr, call_name, adr_type);
   }
 
   // The following is similar to set_edges_for_java_call,
