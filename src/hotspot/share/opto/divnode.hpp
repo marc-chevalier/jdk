@@ -161,7 +161,7 @@ protected:
   Node* replace_with_con(PhaseIterGVN* phase, const Type* con);
 
 public:
-  ModFloatingNode(Compile* C, const TypeFunc* tf, const char *name);
+  ModFloatingNode(Compile* C, const TypeFunc* tf, address addr, const char* name);
 };
 
 // Float Modulus
