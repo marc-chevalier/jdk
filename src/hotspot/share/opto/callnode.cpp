@@ -918,7 +918,7 @@ Node *CallNode::result_cast() {
 }
 
 
-void CallNode::extract_projections(CallProjections* projs, bool separate_io_proj, bool do_asserts, bool maybe_no_ctrl_proj) const {
+void CallNode::extract_projections(CallProjections* projs, bool separate_io_proj, bool do_asserts) const {
   projs->fallthrough_proj      = nullptr;
   projs->fallthrough_catchproj = nullptr;
   projs->fallthrough_ioproj    = nullptr;
@@ -983,7 +983,7 @@ void CallNode::extract_projections(CallProjections* projs, bool separate_io_proj
   // The resproj may not exist because the result could be ignored
   // and the exception object may not exist if an exception handler
   // swallows the exception but all the other must exist and be found.
-  assert(maybe_no_ctrl_proj || projs->fallthrough_proj != nullptr, "must be found");
+  assert(is_CallLeafPure() || projs->fallthrough_proj != nullptr, "must be found");
   do_asserts = do_asserts && !Compile::current()->inlining_incrementally();
   assert(!do_asserts || projs->fallthrough_catchproj != nullptr, "must be found");
   assert(!do_asserts || projs->fallthrough_memproj != nullptr, "must be found");
@@ -1305,19 +1305,26 @@ void CallLeafVectorNode::calling_convention( BasicType* sig_bt, VMRegPair *parm_
 //=============================================================================
 bool CallLeafPureNode::is_unused() const {
   CallProjections projs;
-  extract_projections(&projs, false, false, true);
+  extract_projections(&projs, false, false);
   bool result_is_unused = projs.resproj == nullptr;
   bool not_dead = projs.fallthrough_proj != nullptr;
   return result_is_unused && not_dead;
 }
 TupleNode* CallLeafPureNode::remove_call(const PhaseIterGVN* igvn) {
-  const Type** fields = static_cast<const Type**>(Compile::current()->type_arena()->AmallocWords(sizeof(Type*)));
-  fields[0] = in(TypeFunc::Control)->bottom_type(); // Or Type::CONTROL
-  const TypeTuple* tt = TypeTuple::make(1, fields);
-  TupleNode* tuple = TupleNode::make(tt, in(TypeFunc::Control));
-  if (is_macro()) {
-    igvn->C->remove_macro_node(this);
+  igvn->C->remove_macro_node(this);
+
+  TupleNode* tuple = TupleNode::make(
+      tf()->range(),
+      in(TypeFunc::Control),
+      in(TypeFunc::I_O),
+      in(TypeFunc::Memory),
+      in(TypeFunc::FramePtr),
+      in(TypeFunc::ReturnAdr));
+
+  for (uint i = TypeFunc::Parms; i < tf()->range()->cnt(); i++) {
+    tuple->set_req(i, igvn->C->top());
   }
+
   return tuple;
 }
 

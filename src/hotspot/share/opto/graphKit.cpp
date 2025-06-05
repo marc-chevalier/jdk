@@ -1880,22 +1880,20 @@ Node* GraphKit::set_results_for_java_call(CallJavaNode* call, bool separate_io_p
 // after the call, if this call has restricted memory effects.
 Node* GraphKit::set_predefined_input_for_runtime_call(SafePointNode* call, Node* narrow_mem) {
   // Set fixed predefined input arguments
-  Node* memory = reset_memory();
-  Node* m = narrow_mem == nullptr ? memory : narrow_mem;
-  call->init_req( TypeFunc::Control,   control()  );
-  call->init_req( TypeFunc::I_O,       top()      ); // does no i/o
-  call->init_req( TypeFunc::Memory,    m          ); // may gc ptrs
-  call->init_req( TypeFunc::FramePtr,  frameptr() );
-  call->init_req( TypeFunc::ReturnAdr, top()      );
-  return memory;
-}
-void GraphKit::set_predefined_input_for_pure_runtime_call(SafePointNode* call) const {
-  // Set fixed predefined input arguments
   call->init_req(TypeFunc::Control, control());
-  call->init_req(TypeFunc::I_O, top());
-  call->init_req(TypeFunc::Memory, top());
-  call->init_req(TypeFunc::FramePtr, top());
+  call->init_req(TypeFunc::I_O, top()); // does no i/o
   call->init_req(TypeFunc::ReturnAdr, top());
+  if (call->is_CallLeafPure()) {
+    call->init_req(TypeFunc::Memory, top());
+    call->init_req(TypeFunc::FramePtr, top());
+    return nullptr;
+  } else {
+    Node* memory = reset_memory();
+    Node* m = narrow_mem == nullptr ? memory : narrow_mem;
+    call->init_req(TypeFunc::Memory, m); // may gc ptrs
+    call->init_req(TypeFunc::FramePtr, frameptr());
+    return memory;
+  }
 }
 
 //-------------------set_predefined_output_for_runtime_call--------------------
@@ -1913,6 +1911,9 @@ void GraphKit::set_predefined_output_for_runtime_call(Node* call,
                                                       const TypePtr* hook_mem) {
   // no i/o
   set_control(_gvn.transform( new ProjNode(call,TypeFunc::Control) ));
+  if (call->is_CallLeafPure()) {
+    return;
+  }
   if (keep_mem) {
     // First clone the existing memory state
     set_all_memory(keep_mem);
@@ -1934,9 +1935,6 @@ void GraphKit::set_predefined_output_for_runtime_call(Node* call,
     // This is not a "slow path" call; all memory comes from the call.
     set_all_memory_call(call);
   }
-}
-void GraphKit::set_predefined_output_for_pure_runtime_call(Node* call) {
-  set_control(_gvn.transform(new ProjNode(call, TypeFunc::Control)));
 }
 
 // Keep track of MergeMems feeding into other MergeMems
@@ -2503,7 +2501,7 @@ Node* GraphKit::make_runtime_call(int flags,
     uint num_bits = call_type->range()->field_at(TypeFunc::Parms)->is_vect()->length_in_bytes() * BitsPerByte;
     call = new CallLeafVectorNode(call_type, call_addr, call_name, adr_type, num_bits);
   } else if (flags & RC_PURE) {
-    call = new CallLeafPureNode(call_type, call_addr, call_name, adr_type);
+    call = new CallLeafPureNode(C, call_type, call_addr, call_name, adr_type);
   } else {
     call = new CallLeafNode(call_type, call_addr, call_name, adr_type);
   }
