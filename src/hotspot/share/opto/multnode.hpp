@@ -119,14 +119,14 @@ class TupleNode : public MultiNode {
   static void make_helper(TupleNode*, uint) {}
 
 public:
-  TupleNode(uint required, const TypeTuple* tf) : MultiNode(required), _tf(tf) {}
+  TupleNode(const TypeTuple* tf) : MultiNode(tf->cnt()), _tf(tf) {}
 
   int Opcode() const override;
   const Type* bottom_type() const override { return _tf; }
 
   template <typename... NN>
   static TupleNode* make(const TypeTuple* tf, NN... nn) {
-    TupleNode* tn = new TupleNode(sizeof...(nn), tf);
+    TupleNode* tn = new TupleNode(tf);
     make_helper(tn, 0, nn...);
     return tn;
   }

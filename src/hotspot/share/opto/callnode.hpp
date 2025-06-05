@@ -737,7 +737,7 @@ public:
   // Collect all the interesting edges from a call for use in
   // replacing the call by something else.  Used by macro expansion
   // and the late inlining support.
-  void extract_projections(CallProjections* projs, bool separate_io_proj, bool do_asserts = true, bool maybe_no_ctrl_proj = false) const;
+  void extract_projections(CallProjections* projs, bool separate_io_proj, bool do_asserts = true) const;
 
   virtual uint match_edge(uint idx) const;
 
@@ -918,10 +918,12 @@ protected:
   TupleNode* remove_call(const PhaseIterGVN* igvn);
 
 public:
-  CallLeafPureNode(const TypeFunc* tf, address addr, const char* name,
+  CallLeafPureNode(Compile* C, const TypeFunc* tf, address addr, const char* name,
                    const TypePtr* adr_type)
       : CallLeafNode(tf, addr, name, adr_type) {
     init_class_id(Class_CallLeafPure);
+    add_flag(Flag_is_macro);
+    C->add_macro_node(this);
   }
   int Opcode() const override;
   Node* Ideal(PhaseGVN* phase, bool can_reshape) override;

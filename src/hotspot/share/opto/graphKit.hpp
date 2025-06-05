@@ -698,9 +698,7 @@ class GraphKit : public Phase {
   void  set_predefined_output_for_runtime_call(Node* call,
                                                Node* keep_mem,
                                                const TypePtr* hook_mem);
-  void set_predefined_output_for_pure_runtime_call(Node* call);
   Node* set_predefined_input_for_runtime_call(SafePointNode* call, Node* narrow_mem = nullptr);
-  void set_predefined_input_for_pure_runtime_call(SafePointNode* call) const;
 
   // Replace the call with the current state of the kit.  Requires
   // that the call was generated with separate io_projs so that

@@ -42,19 +42,16 @@
 
 #include <math.h>
 
-ModFloatingNode::ModFloatingNode(Compile* C, const TypeFunc* tf, const char* name) : CallLeafPureNode(tf, nullptr, name, TypeRawPtr::BOTTOM) {
-  add_flag(Flag_is_macro);
-  C->add_macro_node(this);
-}
+ModFloatingNode::ModFloatingNode(Compile* C, const TypeFunc* tf, address addr, const char* name) : CallLeafPureNode(C, tf, addr, name, TypeRawPtr::BOTTOM) {}
 
-ModDNode::ModDNode(Compile* C, Node* a, Node* b) : ModFloatingNode(C, OptoRuntime::Math_DD_D_Type(), "drem") {
+ModDNode::ModDNode(Compile* C, Node* a, Node* b) : ModFloatingNode(C, OptoRuntime::Math_DD_D_Type(), CAST_FROM_FN_PTR(address, SharedRuntime::drem), "drem") {
   init_req(TypeFunc::Parms + 0, a);
   init_req(TypeFunc::Parms + 1, C->top());
   init_req(TypeFunc::Parms + 2, b);
   init_req(TypeFunc::Parms + 3, C->top());
 }
 
-ModFNode::ModFNode(Compile* C, Node* a, Node* b) : ModFloatingNode(C, OptoRuntime::modf_Type(), "frem") {
+ModFNode::ModFNode(Compile* C, Node* a, Node* b) : ModFloatingNode(C, OptoRuntime::modf_Type(), CAST_FROM_FN_PTR(address, SharedRuntime::frem), "frem") {
   init_req(TypeFunc::Parms + 0, a);
   init_req(TypeFunc::Parms + 1, b);
 }
@@ -1620,7 +1617,7 @@ Node* ModFloatingNode::replace_with_con(PhaseIterGVN* phase, const Type* con) {
   Compile* C = phase->C;
   Node* con_node = phase->makecon(con);
   CallProjections projs;
-  extract_projections(&projs, false, false, true);
+  extract_projections(&projs, false, false);
 
   phase->replace_node(projs.fallthrough_proj, in(TypeFunc::Control));
   if (projs.resproj != nullptr) {

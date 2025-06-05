@@ -2596,30 +2596,24 @@ bool PhaseMacroExpand::expand_macro_nodes() {
       expand_subtypecheck_node(n->as_SubTypeCheck());
       break;
     default:
-      switch (n->Opcode()) {
-      case Op_ModD:
-      case Op_ModF: {
-        bool is_drem = n->Opcode() == Op_ModD;
-        CallNode* mod_macro = n->as_Call();
-        CallNode* call = new CallLeafNode(mod_macro->tf(),
-                                          is_drem ? CAST_FROM_FN_PTR(address, SharedRuntime::drem)
-                                                  : CAST_FROM_FN_PTR(address, SharedRuntime::frem),
-                                          is_drem ? "drem" : "frem", TypeRawPtr::BOTTOM);
-        call->init_req(TypeFunc::Control, mod_macro->in(TypeFunc::Control));
+      if (n->is_CallLeafPure()) {
+        CallNode* macro_node_as_call = n->as_Call();
+        CallNode* call = new CallLeafNode(macro_node_as_call->tf(), macro_node_as_call->entry_point(),
+                                          macro_node_as_call->_name, macro_node_as_call->adr_type());
+        call->init_req(TypeFunc::Control, macro_node_as_call->in(TypeFunc::Control));
         call->init_req(TypeFunc::I_O, C->top());
         call->init_req(TypeFunc::Memory, C->top());
         call->init_req(TypeFunc::ReturnAdr, C->top());
         call->init_req(TypeFunc::FramePtr, C->top());
-        for (unsigned int i = 0; i < mod_macro->tf()->domain()->cnt() - TypeFunc::Parms; i++) {
-          call->init_req(TypeFunc::Parms + i, mod_macro->in(TypeFunc::Parms + i));
+        for (unsigned int i = 0; i < macro_node_as_call->tf()->domain()->cnt() - TypeFunc::Parms; i++) {
+          call->init_req(TypeFunc::Parms + i, macro_node_as_call->in(TypeFunc::Parms + i));
         }
-        _igvn.replace_node(mod_macro, call);
+        _igvn.replace_node(macro_node_as_call, call);
         transform_later(call);
-        break;
-      }
-      default:
+      } else {
         assert(false, "unknown node type in macro list");
       }
+      break;
     }
     assert(C->macro_count() == (old_macro_count - 1), "expansion must have deleted one node from macro list");
     if (C->failing())  return true;
