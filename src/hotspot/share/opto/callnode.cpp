@@ -983,7 +983,7 @@ void CallNode::extract_projections(CallProjections* projs, bool separate_io_proj
   // The resproj may not exist because the result could be ignored
   // and the exception object may not exist if an exception handler
   // swallows the exception but all the other must exist and be found.
-  assert(is_CallLeafPure() || projs->fallthrough_proj != nullptr, "must be found");
+  assert(projs->fallthrough_proj != nullptr, "must be found");
   do_asserts = do_asserts && !Compile::current()->inlining_incrementally();
   assert(!do_asserts || projs->fallthrough_catchproj != nullptr, "must be found");
   assert(!do_asserts || projs->fallthrough_memproj != nullptr, "must be found");
@@ -1304,11 +1304,7 @@ void CallLeafVectorNode::calling_convention( BasicType* sig_bt, VMRegPair *parm_
 
 //=============================================================================
 bool CallLeafPureNode::is_unused() const {
-  CallProjections projs;
-  extract_projections(&projs, false, false);
-  bool result_is_unused = projs.resproj == nullptr;
-  bool not_dead = projs.fallthrough_proj != nullptr;
-  return result_is_unused && not_dead;
+  return proj_out_or_null(TypeFunc::Parms) == nullptr;
 }
 TupleNode* CallLeafPureNode::remove_call(const PhaseIterGVN* igvn) {
   igvn->C->remove_macro_node(this);
@@ -1329,6 +1325,10 @@ TupleNode* CallLeafPureNode::remove_call(const PhaseIterGVN* igvn) {
 }
 
 Node* CallLeafPureNode::Ideal(PhaseGVN* phase, bool can_reshape) {
+  if (proj_out_or_null(TypeFunc::Control) == nullptr) { // dead node
+    return nullptr;
+  }
+
   if (phase->is_IterGVN() && is_unused()) {
     return remove_call(phase->is_IterGVN());
   }
