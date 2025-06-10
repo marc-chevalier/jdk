@@ -2443,7 +2443,8 @@ void PhaseMacroExpand::eliminate_macro_nodes() {
         break;
       default:
         assert(n->Opcode() == Op_LoopLimit ||
-               n->is_CallLeafPure()        ||
+               n->Opcode() == Op_ModD      ||
+               n->Opcode() == Op_ModF      ||
                n->is_OpaqueNotNull()       ||
                n->is_OpaqueInitializedAssertionPredicate() ||
                n->Opcode() == Op_MaxL      ||
@@ -2595,24 +2596,27 @@ bool PhaseMacroExpand::expand_macro_nodes() {
       expand_subtypecheck_node(n->as_SubTypeCheck());
       break;
     default:
-      if (n->is_CallLeafPure()) {
-        CallNode* macro_node_as_call = n->as_Call();
-        CallNode* call = new CallLeafNode(macro_node_as_call->tf(), macro_node_as_call->entry_point(),
-                                          macro_node_as_call->_name, macro_node_as_call->adr_type());
-        call->init_req(TypeFunc::Control, macro_node_as_call->in(TypeFunc::Control));
+      switch (n->Opcode()) {
+      case Op_ModD:
+      case Op_ModF: {
+        CallNode* mod_macro = n->as_Call();
+        CallNode* call = new CallLeafPureNode(mod_macro->tf(), mod_macro->entry_point(),
+                                              mod_macro->_name, TypeRawPtr::BOTTOM);
+        call->init_req(TypeFunc::Control, mod_macro->in(TypeFunc::Control));
         call->init_req(TypeFunc::I_O, C->top());
         call->init_req(TypeFunc::Memory, C->top());
         call->init_req(TypeFunc::ReturnAdr, C->top());
         call->init_req(TypeFunc::FramePtr, C->top());
-        for (unsigned int i = 0; i < macro_node_as_call->tf()->domain()->cnt() - TypeFunc::Parms; i++) {
-          call->init_req(TypeFunc::Parms + i, macro_node_as_call->in(TypeFunc::Parms + i));
+        for (unsigned int i = 0; i < mod_macro->tf()->domain()->cnt() - TypeFunc::Parms; i++) {
+          call->init_req(TypeFunc::Parms + i, mod_macro->in(TypeFunc::Parms + i));
         }
-        _igvn.replace_node(macro_node_as_call, call);
+        _igvn.replace_node(mod_macro, call);
         transform_later(call);
-      } else {
+        break;
+      }
+      default:
         assert(false, "unknown node type in macro list");
       }
-      break;
     }
     assert(C->macro_count() == (old_macro_count - 1), "expansion must have deleted one node from macro list");
     if (C->failing())  return true;
