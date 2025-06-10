@@ -915,7 +915,7 @@ public:
 class CallLeafPureNode : public CallLeafNode {
 protected:
   bool is_unused() const;
-  TupleNode* remove_call(const PhaseIterGVN* igvn);
+  TupleNode* make_tuple_of_input_state_and_top_return_values(const PhaseIterGVN* igvn) const;
 
 public:
   CallLeafPureNode(Compile* C, const TypeFunc* tf, address addr, const char* name,

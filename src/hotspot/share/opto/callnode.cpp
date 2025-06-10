@@ -1306,9 +1306,9 @@ void CallLeafVectorNode::calling_convention( BasicType* sig_bt, VMRegPair *parm_
 bool CallLeafPureNode::is_unused() const {
   return proj_out_or_null(TypeFunc::Parms) == nullptr;
 }
-TupleNode* CallLeafPureNode::remove_call(const PhaseIterGVN* igvn) {
-  igvn->C->remove_macro_node(this);
-
+// We make a tuple of the global input state + TOP for the output values.
+TupleNode* CallLeafPureNode::make_tuple_of_input_state_and_top_return_values(const PhaseIterGVN* igvn) const {
+  // Transparently propagate input state but parameters
   TupleNode* tuple = TupleNode::make(
       tf()->range(),
       in(TypeFunc::Control),
@@ -1317,6 +1317,7 @@ TupleNode* CallLeafPureNode::remove_call(const PhaseIterGVN* igvn) {
       in(TypeFunc::FramePtr),
       in(TypeFunc::ReturnAdr));
 
+  // And add TOPs for the return values
   for (uint i = TypeFunc::Parms; i < tf()->range()->cnt(); i++) {
     tuple->set_req(i, igvn->C->top());
   }
@@ -1330,7 +1331,7 @@ Node* CallLeafPureNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   }
 
   if (phase->is_IterGVN() && is_unused()) {
-    return remove_call(phase->is_IterGVN());
+    return make_tuple_of_input_state_and_top_return_values(phase->is_IterGVN());
   }
 
   return CallRuntimeNode::Ideal(phase, can_reshape);
