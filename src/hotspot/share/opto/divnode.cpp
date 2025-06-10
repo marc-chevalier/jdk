@@ -1517,6 +1517,10 @@ Node* ModFNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   if (!can_reshape) {
     return nullptr;
   }
+  if (proj_out_or_null(TypeFunc::Control) == nullptr) { // dead node
+    return nullptr;
+  }
+
   PhaseIterGVN* igvn = phase->is_IterGVN();
 
   if (is_unused()) {
@@ -1567,6 +1571,10 @@ Node* ModDNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   if (!can_reshape) {
     return nullptr;
   }
+  if (proj_out_or_null(TypeFunc::Control) == nullptr) { // dead node
+    return nullptr;
+  }
+
   PhaseIterGVN* igvn = phase->is_IterGVN();
 
   if (is_unused()) {
