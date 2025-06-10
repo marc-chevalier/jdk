@@ -42,7 +42,10 @@
 
 #include <math.h>
 
-ModFloatingNode::ModFloatingNode(Compile* C, const TypeFunc* tf, address addr, const char* name) : CallLeafPureNode(C, tf, addr, name, TypeRawPtr::BOTTOM) {}
+ModFloatingNode::ModFloatingNode(Compile* C, const TypeFunc* tf, address addr, const char* name) : CallLeafPureNode(tf, addr, name, TypeRawPtr::BOTTOM) {
+  add_flag(Flag_is_macro);
+  C->add_macro_node(this);
+}
 
 ModDNode::ModDNode(Compile* C, Node* a, Node* b) : ModFloatingNode(C, OptoRuntime::Math_DD_D_Type(), CAST_FROM_FN_PTR(address, SharedRuntime::drem), "drem") {
   init_req(TypeFunc::Parms + 0, a);

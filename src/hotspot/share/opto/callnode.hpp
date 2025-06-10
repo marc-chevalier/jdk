@@ -918,12 +918,10 @@ protected:
   TupleNode* make_tuple_of_input_state_and_top_return_values(const PhaseIterGVN* igvn) const;
 
 public:
-  CallLeafPureNode(Compile* C, const TypeFunc* tf, address addr, const char* name,
+  CallLeafPureNode(const TypeFunc* tf, address addr, const char* name,
                    const TypePtr* adr_type)
       : CallLeafNode(tf, addr, name, adr_type) {
     init_class_id(Class_CallLeafPure);
-    add_flag(Flag_is_macro);
-    C->add_macro_node(this);
   }
   int Opcode() const override;
   Node* Ideal(PhaseGVN* phase, bool can_reshape) override;
