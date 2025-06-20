@@ -120,10 +120,6 @@ const TypePtr *ProjNode::adr_type() const {
   if (bottom_type() == Type::MEMORY) {
     // in(0) might be a narrow MemBar; otherwise we will report TypePtr::BOTTOM
     Node* ctrl = in(0);
-    if (ctrl->Opcode() == Op_Tuple) {
-      // Jumping over Tuples: the i-th projection of a Tuple is the i-th input of the Tuple.
-      ctrl = ctrl->in(_con);
-    }
     if (ctrl == nullptr)  return nullptr; // node is dead
     const TypePtr* adr_type = ctrl->adr_type();
     #ifdef ASSERT
