@@ -498,7 +498,7 @@ struct OuterStripMinedLoopInvariants : PatternBasedCheck {
                                 new HasAtLeastNInputs(1),
                                 new AtInput(
                                     0,
-                                    new HasType(&Node::is_CountedLoopEnd)))))),
+                                    new HasType(&Node::is_CountedLoop)))))),
                 new AtSingleOutputOfType(
                     &Node::is_IfTrue,
                     new AtSingleOutputOfType(
