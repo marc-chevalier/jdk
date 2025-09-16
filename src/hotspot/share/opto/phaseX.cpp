@@ -1020,7 +1020,25 @@ void PhaseIterGVN::optimize() {
   NOT_PRODUCT(init_verifyPhaseIterGVN();)
   NOT_PRODUCT(C->reset_igv_phase_iter(PHASE_AFTER_ITER_GVN_STEP);)
   C->print_method(PHASE_BEFORE_ITER_GVN, 3);
-  if (StressIGVN) {
+  if (UseNewCode) {
+    constexpr node_idx_t idx[] = {
+        87,31,101,67,117,48,46,100,89,53,88,116,99,38,54,115,69,68,39,40,41,42,51,70
+    };
+    _worklist.dump();
+    constexpr uint l = sizeof(idx) / sizeof(node_idx_t);
+    for (uint i = 0; i < l; i++) {
+      for (uint j = i; j < _worklist.size(); j++) {
+        if (_worklist[j]->_idx == idx[i]) {
+          if (i != j) {
+            swap(_worklist.adr()[i], _worklist.adr()[j]);
+          }
+          break;
+        }
+      }
+    }
+    _worklist.dump();
+  }
+  else if (StressIGVN) {
     shuffle_worklist();
   }
 

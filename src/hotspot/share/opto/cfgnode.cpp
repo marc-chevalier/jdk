@@ -1449,6 +1449,39 @@ Node* PhiNode::is_cmove_id(PhaseTransform* phase, int true_path) {
   return id;
 }
 
+// Find the unique input, try to look recursively through input Phis
+Node* PhiNode::unique_input_recursive(PhaseGVN* phase) {
+  if (!phase->is_IterGVN()) {
+    return nullptr;
+  }
+
+  ResourceMark rm;
+  Node* unique = nullptr;
+  Unique_Node_List visited;
+  visited.push(this);
+
+  for (uint visited_idx = 0; visited_idx < visited.size(); visited_idx++) {
+    Node* current = visited.at(visited_idx);
+    for (uint i = 1; i < current->req(); i++) {
+      Node* phi_in = current->in(i);
+      if (phi_in == nullptr) {
+        continue;
+      }
+
+      if (phi_in->is_Phi()) {
+        visited.push(phi_in);
+      } else {
+        if (unique == nullptr) {
+          unique = phi_in;
+        } else if (unique != phi_in) {
+          return nullptr;
+        }
+      }
+    }
+  }
+  return unique;
+}
+
 //------------------------------Identity---------------------------------------
 // Check for Region being Identity.
 Node* PhiNode::Identity(PhaseGVN* phase) {
@@ -1460,9 +1493,24 @@ Node* PhiNode::Identity(PhaseGVN* phase) {
   // It would check for a tributary phi on the backedge that the main phi
   // trivially, perhaps with a single cast.  The unique_input method
   // does all this and more, by reducing such tributaries to 'this'.)
-  Node* uin = unique_input(phase, false);
-  if (uin != nullptr) {
-    return uin;
+  {
+    Node* uin = unique_input(phase, false);
+    if (uin != nullptr) {
+      return uin;
+    }
+  }
+  {
+    Node* uin = unique_input_recursive(phase);
+    if (uin != nullptr) {
+      if (!uin->is_dead_loop_safe()) {
+        for (DUIterator_Fast imax, i = fast_outs(imax); i < imax; i++) {
+          if (fast_out(i) == uin) {
+            return phase->C->top();
+          }
+        }
+      }
+      return uin;
+    }
   }
 
   int true_path = is_diamond_phi();
