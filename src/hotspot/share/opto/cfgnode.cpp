@@ -1319,6 +1319,18 @@ const Type* PhiNode::Value(PhaseGVN* phase) const {
   // It is not possible to see Type::BOTTOM values as phi inputs,
   // because the ciTypeFlow pre-pass produces verifier-quality types.
   const Type* ft = t->filter_speculative(_type);  // Worst case type
+  const Type* ft_ = t->filter_speculative(ft);
+  if (!Type::equals(ft, ft_)) {
+    stringStream ss;
+    ss.print("Filter once: ");
+    ft->dump_on(&ss);
+    ss.print_cr("");
+    ss.print("Filter twice: ");
+    ft_->dump_on(&ss);
+    ss.print_cr("");
+    tty->print("%s", ss.base());
+    assert(false, "Ventrebleu!");
+  }
 
 #ifdef ASSERT
   // The following logic has been moved into TypeOopPtr::filter.
