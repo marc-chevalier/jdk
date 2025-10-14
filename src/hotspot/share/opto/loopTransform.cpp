@@ -1926,8 +1926,16 @@ void PhaseIdealLoop::do_unroll(IdealLoopTree *loop, Node_List &old_new, bool adj
     if (opaq == nullptr) {
       return;
     }
-    // Zero-trip test uses an 'opaque' node which is not shared.
-    assert(StressLoopPeeling || (opaq->outcnt() == 1 && opaq->in(1) == limit), "");
+    // Zero-trip test uses an 'opaque' node which is not shared, otherwise bailout.
+    if (opaq->outcnt() != 1 || opaq->in(1) != limit) {
+#ifdef ASSERT
+      // If this is not verified, let's give them a change if they are recorded for IGVN.
+      // In rare case, peeling can break this, but IGVN should clean it up.
+      Unique_Node_List& worklist = loop->_phase->_igvn._worklist;
+      assert(worklist.member(opaq->in(1)) || worklist.member(limit), "");
+#endif
+      return;
+    }
   }
 
   C->set_major_progress();
@@ -1976,7 +1984,7 @@ void PhaseIdealLoop::do_unroll(IdealLoopTree *loop, Node_List &old_new, bool adj
     // adjustment underflows or overflows, then the main loop is skipped.
     Node* cmp = loop_end->cmp_node();
     assert(cmp->in(2) == limit, "sanity");
-    assert(StressLoopPeeling || (opaq != nullptr && opaq->in(1) == limit), "sanity");
+    assert(opaq != nullptr && opaq->in(1) == limit, "sanity");
 
     // Verify that policy_unroll result is still valid.
     const TypeInt* limit_type = _igvn.type(limit)->is_int();
