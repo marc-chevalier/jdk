@@ -1061,6 +1061,7 @@ void Compile::Init(bool aliasing) {
   set_has_boxed_value(false);
   _trap_can_recompile = false;  // no traps emitted yet
   _major_progress = true; // start out assuming good things will happen
+  _old_major_progress = true; // start out assuming good things will happen
   set_has_unsafe_access(false);
   set_max_vector_size(0);
   set_clear_upper_avx(false);  //false as default for clear upper bits of ymm registers
@@ -2182,6 +2183,7 @@ void Compile::inline_incrementally(PhaseIterGVN& igvn) {
         if (failing())  return;
         low_live_nodes = live_nodes();
         _major_progress = true;
+        _old_major_progress = true;
       }
 
       if (live_nodes() > (uint)LiveNodeCountInliningCutoff) {
