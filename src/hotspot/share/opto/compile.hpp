@@ -332,6 +332,7 @@ class Compile : public Phase {
    * This is not 100% accurate, the semantics of major progress has become less clear over time, but this is the general idea.
    */
   bool                  _major_progress;
+  int _old_major_progress;
   bool                  _inlining_progress;     // progress doing incremental inlining?
   bool                  _inlining_incrementally;// Are we doing incremental inlining (post parse)
   bool                  _do_cleanup;            // Cleanup is needed before proceeding with incremental inlining
@@ -598,10 +599,19 @@ public:
   int               inlining_incrementally() const { return _inlining_incrementally; }
   void          set_do_cleanup(bool z)          { _do_cleanup = z; }
   int               do_cleanup() const          { return _do_cleanup; }
-  bool              major_progress() const      { return _major_progress; }
-  void          set_major_progress()            { _major_progress = true; }
-  void          restore_major_progress(bool progress) { _major_progress = _major_progress || progress; }
-  void        clear_major_progress()            { _major_progress = false; }
+  bool              major_progress() const {
+#ifdef ASSERT
+    if ((_old_major_progress > 0) != _major_progress) {
+      tty->print_cr("_old_major_progress: %d; _major_progress: %d", _old_major_progress, _major_progress);
+      assert((_old_major_progress > 0) == _major_progress, "should match");
+    }
+#endif
+    return _major_progress;
+  }
+  int old_major_progress() const { return _old_major_progress;  }
+  void          set_major_progress()            { _old_major_progress++; _major_progress = true; }
+  void          restore_major_progress(bool progress, int old_progress) { _old_major_progress += old_progress; _major_progress = _major_progress || progress; }
+  void        clear_major_progress()            { _old_major_progress = 0; _major_progress = false; }
   int               max_inline_size() const     { return _max_inline_size; }
   void          set_freq_inline_size(int n)     { _freq_inline_size = n; }
   int               freq_inline_size() const    { return _freq_inline_size; }
