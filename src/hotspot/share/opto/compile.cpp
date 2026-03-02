@@ -2342,7 +2342,7 @@ void Compile::Optimize() {
 
     if (failing())  return;
 
-    if (AlwaysIncrementalInline || StressIncrementalInlining) {
+    if (C->directive()->should_delay_inline_anything() || StressIncrementalInlining) {
       inline_incrementally(igvn);
     }
 

@@ -154,6 +154,9 @@ class CompilerOracle : AllStatic {
   // Tells whether we want to delay inlining of this method
   static bool should_delay_inline(const methodHandle& method);
 
+  // Tells whether we want to delay inlining of any method
+  static bool should_delay_inline_anything();
+
   // Tells whether this method changes Thread.currentThread()
   static bool changes_current_thread(const methodHandle& method);
 

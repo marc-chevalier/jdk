@@ -767,9 +767,6 @@
   product(bool, IncrementalInlineVirtual, true, DIAGNOSTIC,                 \
           "do post parse inlining of virtual calls")                        \
                                                                             \
-  develop(bool, AlwaysIncrementalInline, false,                             \
-          "do all inlining incrementally")                                  \
-                                                                            \
   product(bool, IncrementalInlineForceCleanup, false, DIAGNOSTIC,           \
           "do cleanup after every iteration of incremental inlining")       \
                                                                             \

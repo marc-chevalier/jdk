@@ -419,7 +419,7 @@ bool LateInlineMHCallGenerator::do_late_inline_check(Compile* C, JVMState* jvms)
                                   "late method handle call resolution");
     }
     assert(!cg->is_late_inline() || cg->is_mh_late_inline() || cg->is_virtual_late_inline() ||
-           AlwaysIncrementalInline || StressIncrementalInlining, "we're doing late inlining");
+           C->directive()->should_delay_inline(method()) || StressIncrementalInlining, "we're doing late inlining");
     _inline_cg = cg;
     return true;
   } else {
@@ -534,7 +534,7 @@ bool LateInlineVirtualCallGenerator::do_late_inline_check(Compile* C, JVMState* 
     if (!allow_inline) {
       C->inline_printer()->record(cg->method(), call_node()->jvms(), InliningResult::FAILURE, "late call devirtualization");
     }
-    assert(!cg->is_late_inline() || cg->is_mh_late_inline() || AlwaysIncrementalInline || StressIncrementalInlining, "we're doing late inlining");
+    assert(!cg->is_late_inline() || cg->is_mh_late_inline() || C->directive()->should_delay_inline(callee_method()) || StressIncrementalInlining, "we're doing late inlining");
     _inline_cg = cg;
     return true;
   } else {
@@ -985,7 +985,7 @@ CallGenerator* CallGenerator::for_method_handle_call(JVMState* jvms, ciMethod* c
   bool input_not_const;
   CallGenerator* cg = CallGenerator::for_method_handle_inline(jvms, caller, callee, allow_inline, input_not_const);
   Compile* C = Compile::current();
-  bool should_delay = C->should_delay_inlining();
+  bool should_delay = C->should_delay_inlining(callee);
   if (cg != nullptr) {
     if (should_delay && IncrementalInlineMH) {
       return CallGenerator::for_mh_late_inline(caller, callee, input_not_const);

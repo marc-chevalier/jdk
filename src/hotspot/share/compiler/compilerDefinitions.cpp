@@ -611,9 +611,6 @@ void CompilerConfig::ergo_initialize() {
     StressIncrementalInlining = false;
   }
 #ifndef PRODUCT
-  if (!IncrementalInline) {
-    AlwaysIncrementalInline = false;
-  }
   if (FLAG_IS_CMDLINE(PrintIdealGraph) && !PrintIdealGraph) {
     FLAG_SET_ERGO(PrintIdealGraphLevel, -1);
   }
