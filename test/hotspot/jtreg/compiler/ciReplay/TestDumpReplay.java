@@ -29,7 +29,7 @@
  * @run driver jdk.test.lib.helpers.ClassFileInstaller jdk.test.whitebox.WhiteBox
  * @run main/othervm -XX:+UnlockDiagnosticVMOptions -XX:+IgnoreUnrecognizedVMOptions
  *                   -Xbootclasspath/a:. -XX:+WhiteBoxAPI
- *                   -Xbatch -XX:-TieredCompilation -XX:+AlwaysIncrementalInline
+ *                   -Xbatch -XX:-TieredCompilation -XX:CompileCommand=delayinline,*::*
  *                   -XX:CompileCommand=compileonly,compiler.ciReplay.TestDumpReplay::*
  *                   compiler.ciReplay.TestDumpReplay
  */

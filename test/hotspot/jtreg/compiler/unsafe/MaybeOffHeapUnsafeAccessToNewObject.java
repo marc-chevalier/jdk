@@ -27,7 +27,7 @@
  * @summary "failed: unexpected type" assert failure in ConnectionGraph::split_unique_types() with unsafe accesses
  *
  * @modules java.base/jdk.internal.misc
- * @run main/othervm -XX:-UseOnStackReplacement -XX:-BackgroundCompilation -XX:-TieredCompilation -Xcomp -XX:CompileOnly=MaybeOffHeapUnsafeAccessToNewObject::test1 -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline MaybeOffHeapUnsafeAccessToNewObject
+ * @run main/othervm -XX:-UseOnStackReplacement -XX:-BackgroundCompilation -XX:-TieredCompilation -Xcomp -XX:CompileOnly=MaybeOffHeapUnsafeAccessToNewObject::test1 -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::* MaybeOffHeapUnsafeAccessToNewObject
  */
 
 import java.lang.reflect.Field;

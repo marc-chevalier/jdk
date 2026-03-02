@@ -26,7 +26,7 @@
  * @bug 8220416
  * @summary This test uses a class pointer comparison optimization which was not applied anymore since JDK-6964458 resulting in a better IR.
  *
- * @run main/othervm -Xbatch -XX:-TieredCompilation -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline
+ * @run main/othervm -Xbatch -XX:-TieredCompilation -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::*
  *                   -XX:CompileOnly=compiler.c2.CompareKlassPointersTest::test compiler.c2.CompareKlassPointersTest
  */
 

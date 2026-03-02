@@ -29,7 +29,7 @@
  * @run main/othervm -Xcomp
  *                   -XX:CompileCommand=compileonly,compiler.unsafe.TestUnsafeLoadWithZeroAddress::*
  *                   compiler.unsafe.TestUnsafeLoadWithZeroAddress
- * @run main/othervm -Xcomp -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline
+ * @run main/othervm -Xcomp -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::*
  *                   -XX:CompileCommand=compileonly,compiler.unsafe.TestUnsafeLoadWithZeroAddress::*
  *                   compiler.unsafe.TestUnsafeLoadWithZeroAddress
  */

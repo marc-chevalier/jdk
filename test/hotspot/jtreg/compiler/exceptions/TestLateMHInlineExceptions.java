@@ -27,8 +27,8 @@
  * @summary GraphKit::combine_exception_states fails with "matching stack sizes" assert
  *
  * @run main/othervm -XX:-BackgroundCompilation -XX:-UseOnStackReplacement -XX:CompileCommand=dontinline,TestLateMHInlineExceptions::m
- *                   -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline TestLateMHInlineExceptions
- * @run main/othervm -XX:-BackgroundCompilation -XX:-UseOnStackReplacements -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline
+ *                   -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::* TestLateMHInlineExceptions
+ * @run main/othervm -XX:-BackgroundCompilation -XX:-UseOnStackReplacements -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::*
  *                   TestLateMHInlineExceptions
  *
  */

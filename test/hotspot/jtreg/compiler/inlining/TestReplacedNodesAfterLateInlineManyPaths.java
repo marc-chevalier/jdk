@@ -27,7 +27,7 @@
  * @summary C2: "malformed control flow" created during incremental inlining
  * @requires vm.compiler2.enabled
  * @run main/othervm  -XX:CompileCommand=compileonly,TestReplacedNodesAfterLateInlineManyPaths::* -XX:-BackgroundCompilation
- *                    -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline TestReplacedNodesAfterLateInlineManyPaths
+ *                    -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::* TestReplacedNodesAfterLateInlineManyPaths
  */
 
 public class TestReplacedNodesAfterLateInlineManyPaths {

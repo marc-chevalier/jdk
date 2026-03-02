@@ -27,7 +27,7 @@
  * @bug 8146999
  * @summary ReduceFieldZeroing doesn't check for dependent load and can lead to incorrect execution
  *
- * @run main/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline
+ * @run main/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::*
  *      -XX:-UseOnStackReplacement -XX:-BackgroundCompilation
  *      compiler.c2.Test8007294
  */
