@@ -561,6 +561,21 @@ bool DirectiveSet::should_not_inline(ciMethod* inlinee) {
   return false;
 }
 
+bool DirectiveSet::should_delay_inline_anything() {
+  if (_inlinematchers == nullptr) {
+    return false;
+  }
+  if (!CompilerDirectivesIgnoreCompileCommandsOption) {
+    return CompilerOracle::should_delay_inline_anything();
+  }
+  for (InlineMatcher* current = _inlinematchers; current != nullptr; current = current->next()) {
+    if (current->inline_action() == InlineMatcher::delay_inline) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool DirectiveSet::should_delay_inline(ciMethod* inlinee) {
   inlinee->check_is_loaded();
   VM_ENTRY_MARK;

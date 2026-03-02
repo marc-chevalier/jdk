@@ -484,6 +484,22 @@ bool CompilerOracle::should_delay_inline(const methodHandle& method) {
   return (check_predicate(CompileCommandEnum::DelayInline, method));
 }
 
+bool CompilerOracle::should_delay_inline_anything() {
+  if (!has_command(CompileCommandEnum::DelayInline)) {
+    return false;
+  }
+  if (option_list != nullptr) {
+    TypedMethodOptionMatcher* current = option_list;
+    while (current != nullptr) {
+      if (current->option() == CompileCommandEnum::DelayInline) {
+        return true;
+      }
+      current = current->next();
+    }
+  }
+  return false;
+}
+
 bool CompilerOracle::should_print(const methodHandle& method) {
   return check_predicate(CompileCommandEnum::Print, method);
 }
