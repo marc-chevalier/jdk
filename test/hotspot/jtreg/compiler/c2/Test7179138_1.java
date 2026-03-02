@@ -32,7 +32,7 @@
  * @run main/othervm -Xbatch -XX:+IgnoreUnrecognizedVMOptions -XX:-TieredCompilation
  *      -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN compiler.c2.Test7179138_1
  * @run main/othervm -Xbatch -XX:+IgnoreUnrecognizedVMOptions -XX:-TieredCompilation
- *      -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN -XX:+AlwaysIncrementalInline
+ *      -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN -XX:CompileCommand=delayinline,*::*
  *      compiler.c2.Test7179138_1
  *
  * @author Skip Balk

@@ -28,7 +28,7 @@
  * @summary Verify consistency of safepoint debug info when boxes are scalar
  *          replaced during incremental inlining.
  * @library /test/lib
- * @run main/othervm -Xbatch -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline
+ * @run main/othervm -Xbatch -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::*
  *                   -XX:CompileCommand=compileonly,compiler.eliminateAutobox.TestSafepointDebugInfo::test*
  *                   compiler.eliminateAutobox.TestSafepointDebugInfo
  */

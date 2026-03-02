@@ -49,7 +49,7 @@
  *      -XX:VerifyIterativeGVN=1110
  *      -XX:-EliminateAutoBox
  *      -XX:-DoEscapeAnalysis
- *      -XX:+AlwaysIncrementalInline
+ *      -XX:CompileCommand=delayinline,*::*
  *      ${test.main.class}
  * @run main ${test.main.class}
  *

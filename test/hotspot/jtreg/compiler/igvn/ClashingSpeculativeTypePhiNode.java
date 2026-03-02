@@ -34,7 +34,7 @@
  *                   -XX:CompileOnly=${test.main.class}::test1
  *                   -XX:CompileCommand=quiet
  *                   -XX:TypeProfileLevel=222
- *                   -XX:+AlwaysIncrementalInline
+ *                   -XX:CompileCommand=delayinline,*::*
  *                   -XX:VerifyIterativeGVN=10
  *                   -XX:CompileCommand=dontinline,${test.main.class}::notInlined1
  *                   ${test.main.class}
@@ -48,7 +48,7 @@
  *                   -XX:CompileOnly=${test.main.class}::inlined3
  *                   -XX:CompileCommand=quiet
  *                   -XX:TypeProfileLevel=200
- *                   -XX:+AlwaysIncrementalInline
+ *                   -XX:CompileCommand=delayinline,*::*
  *                   -XX:VerifyIterativeGVN=10
  *                   -XX:CompileCommand=dontinline,${test.main.class}::notInlined1
  *                   -XX:+StressIncrementalInlining

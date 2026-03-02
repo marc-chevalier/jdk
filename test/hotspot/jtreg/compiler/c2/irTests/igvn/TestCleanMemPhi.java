@@ -40,7 +40,7 @@ public class TestCleanMemPhi {
     public static void main(String[] args) {
         TestFramework testFramework = new TestFramework();
         testFramework.setDefaultWarmup(0);
-        testFramework.addFlags("-XX:+AlwaysIncrementalInline", "-XX:-PartialPeelLoop", "-XX:-LoopUnswitching");
+        testFramework.addFlags("-XX:CompileCommand=delayinline,*::*", "-XX:-PartialPeelLoop", "-XX:-LoopUnswitching");
         testFramework.addScenarios(new Scenario(1, "-XX:-StressIGVN"),
                                    new Scenario(2, "-XX:+StressIGVN"));
         testFramework.start();

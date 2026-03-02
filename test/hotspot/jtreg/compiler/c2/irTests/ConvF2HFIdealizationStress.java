@@ -48,7 +48,7 @@ public class ConvF2HFIdealizationStress {
     public static void main(String[] args) {
         TestFramework.runWithFlags("-XX:-TieredCompilation",
                                    "-XX:+IgnoreUnrecognizedVMOptions",
-                                   "-XX:+AlwaysIncrementalInline",
+                                   "-XX:CompileCommand=delayinline,*::*",
                                    "-XX:VerifyIterativeGVN=1110");
     }
 

@@ -29,26 +29,26 @@
  * @modules java.base/jdk.internal.vm.annotation
  * @build jdk.test.whitebox.WhiteBox
  *
- * @run main/bootclasspath/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline
+ * @run main/bootclasspath/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::*
  *                                 -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xcomp
  *                                 -XX:-TieredCompilation
  *                                 -XX:+FoldStableValues
  *                                 -XX:CompileOnly=*TestStableUByte*::get*
  *                                 compiler.stable.TestStableUByte
- * @run main/bootclasspath/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline
+ * @run main/bootclasspath/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::*
  *                                 -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xcomp
  *                                 -XX:-TieredCompilation
  *                                 -XX:-FoldStableValues
  *                                 -XX:CompileOnly=*TestStableUByte*::get*
  *                                 compiler.stable.TestStableUByte
  *
- * @run main/bootclasspath/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline
+ * @run main/bootclasspath/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::*
  *                                 -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xcomp
  *                                 -XX:+TieredCompilation -XX:TieredStopAtLevel=1
  *                                 -XX:+FoldStableValues
  *                                 -XX:CompileOnly=*TestStableUByte*::get*
  *                                 compiler.stable.TestStableUByte
- * @run main/bootclasspath/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:+AlwaysIncrementalInline
+ * @run main/bootclasspath/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:CompileCommand=delayinline,*::*
  *                                 -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xcomp
  *                                 -XX:+TieredCompilation -XX:TieredStopAtLevel=1
  *                                 -XX:-FoldStableValues
