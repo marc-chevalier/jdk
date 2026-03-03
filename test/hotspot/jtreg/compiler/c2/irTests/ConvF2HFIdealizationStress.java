@@ -32,7 +32,7 @@ import jdk.test.lib.Utils;
  * @bug 8375633
  * @key randomness
  * @summary Test that ConvF2HF::Ideal optimization is not missed with incremental inlining.
- *          AlwaysIncrementalInline is not required but deterministically defers even
+ *          CompileCommand=delayinline,*::* is not required but deterministically defers even
  *          small methods, making this test reliable.
  * @library /test/lib /
  * @run driver ${test.main.class}
@@ -57,7 +57,7 @@ public class ConvF2HFIdealizationStress {
         twoBits = Float.floatToFloat16(2.0f);
     }
 
-    // Deferred by AlwaysIncrementalInline; ConvHF2F appears only after inlining.
+    // Deferred by CompileCommand=delayinline,*::*; ConvHF2F appears only after inlining.
     static float toFloat(short hf) {
         return Float.float16ToFloat(hf);
     }

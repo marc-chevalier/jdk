@@ -32,7 +32,7 @@ import jdk.test.lib.Utils;
  * @bug 8375633
  * @key randomness
  * @summary Test that ConvD2F::Ideal optimization is not missed with incremental inlining.
- *          AlwaysIncrementalInline is not required but deterministically defers even
+ *          CompileCommand=delayinline,*::* is not required but deterministically defers even
  *          small methods, making this test reliable.
  * @library /test/lib /
  * @run driver ${test.main.class}
@@ -48,7 +48,7 @@ public class ConvD2FIdealizationStress {
                                    "-XX:VerifyIterativeGVN=1110");
     }
 
-    // Deferred by AlwaysIncrementalInline; ConvF2D appears only after inlining.
+    // Deferred by CompileCommand=delayinline,*::*; ConvF2D appears only after inlining.
     static double toDouble(float x) {
         return (double) x;
     }
