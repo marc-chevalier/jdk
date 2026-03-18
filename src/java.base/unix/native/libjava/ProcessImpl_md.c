@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1995, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -47,6 +47,7 @@
 #include <spawn.h>
 
 #include "childproc.h"
+#include "childproc_errorcodes.h"
 
 /*
  *
@@ -678,7 +679,6 @@ Java_java_lang_ProcessImpl_forkAndExec(JNIEnv *env,
                                        jintArray std_fds,
                                        jboolean redirectErrorStream)
 {
-    int errnum;
     int resultPid = -1;
     int in[2], out[2], err[2], fail[2], childenv[2];
     jint *fds = NULL;
@@ -729,12 +729,13 @@ Java_java_lang_ProcessImpl_forkAndExec(JNIEnv *env,
 
     if ((fds[0] == -1 && pipe(in)  < 0) ||
         (fds[1] == -1 && pipe(out) < 0) ||
-        (fds[2] == -1 && pipe(err) < 0) ||
+        (fds[2] == -1 && !redirectErrorStream && pipe(err) < 0) || // if not redirecting create the pipe
         (pipe(childenv) < 0) ||
         (pipe(fail) < 0)) {
         throwInternalIOException(env, errno, "Bad file descriptor", mode);
         goto Catch;
     }
+
     c->fds[0] = fds[0];
     c->fds[1] = fds[1];
     c->fds[2] = fds[2];
@@ -764,24 +765,28 @@ Java_java_lang_ProcessImpl_forkAndExec(JNIEnv *env,
     assert(resultPid != 0);
 
     if (resultPid < 0) {
+        char * failMessage = "unknown";
         switch (c->mode) {
           case MODE_VFORK:
-            throwInternalIOException(env, errno, "vfork failed", c->mode);
+            failMessage = "vfork failed";
             break;
           case MODE_FORK:
-            throwInternalIOException(env, errno, "fork failed", c->mode);
+            failMessage = "fork failed";
             break;
           case MODE_POSIX_SPAWN:
-            throwInternalIOException(env, errno, "posix_spawn failed", c->mode);
+            failMessage = "posix_spawn failed";
             break;
         }
+        throwInternalIOException(env, errno, failMessage, c->mode);
         goto Catch;
     }
     close(fail[1]); fail[1] = -1; /* See: WhyCantJohnnyExec  (childproc.c)  */
 
+    errcode_t errcode;
+
     /* If we expect the child to ping aliveness, wait for it. */
     if (c->sendAlivePing) {
-        switch(readFully(fail[0], &errnum, sizeof(errnum))) {
+        switch(readFully(fail[0], &errcode, sizeof(errcode))) {
         case 0: /* First exec failed; */
             {
                 int tmpStatus = 0;
@@ -789,13 +794,15 @@ Java_java_lang_ProcessImpl_forkAndExec(JNIEnv *env,
                 throwExitCause(env, p, tmpStatus, c->mode);
                 goto Catch;
             }
-        case sizeof(errnum):
-            if (errnum != CHILD_IS_ALIVE) {
-                /* This can happen if the spawn helper encounters an error
-                 * before or during the handshake with the parent. */
-                throwInternalIOException(env, 0,
-                                         "Bad code from spawn helper (Failed to exec spawn helper)",
-                                         c->mode);
+        case sizeof(errcode):
+            if (errcode.step != ESTEP_CHILD_ALIVE) {
+                /* This can happen if the child process encounters an error
+                 * before or during initial handshake with the parent. */
+                char msg[256];
+                snprintf(msg, sizeof(msg),
+                         "Bad early code from spawn helper " ERRCODE_FORMAT " (Failed to exec spawn helper)",
+                         ERRCODE_FORMAT_ARGS(errcode));
+                throwInternalIOException(env, 0, msg, c->mode);
                 goto Catch;
             }
             break;
@@ -805,11 +812,29 @@ Java_java_lang_ProcessImpl_forkAndExec(JNIEnv *env,
         }
     }
 
-    switch (readFully(fail[0], &errnum, sizeof(errnum))) {
+    switch (readFully(fail[0], &errcode, sizeof(errcode))) {
     case 0: break; /* Exec succeeded */
-    case sizeof(errnum):
+    case sizeof(errcode):
+        /* Always reap first! */
         waitpid(resultPid, NULL, 0);
-        throwIOException(env, errnum, "Exec failed");
+        /* Most of these errors are implementation errors and should result in an internal IOE, but
+         * a few can be caused by bad user input and need to be communicated to the end user. */
+        switch(errcode.step) {
+        case ESTEP_CHDIR_FAIL:
+            throwIOException(env, errcode.errno_, "Failed to access working directory");
+            break;
+        case ESTEP_EXEC_FAIL:
+            throwIOException(env, errcode.errno_, "Exec failed");
+            break;
+        default: {
+            /* Probably implementation error */
+            char msg[256];
+            snprintf(msg, sizeof(msg),
+                     "Bad code from spawn helper " ERRCODE_FORMAT " (Failed to exec spawn helper)",
+                     ERRCODE_FORMAT_ARGS(errcode));
+            throwInternalIOException(env, 0, msg, c->mode);
+        }
+        };
         goto Catch;
     default:
         throwInternalIOException(env, errno, "Read failed", c->mode);
