@@ -1225,7 +1225,7 @@ bool ConnectionGraph::has_reducible_merge_base(AddPNode* n, Unique_Node_List &re
 // reference is a regular reference.
 bool ConnectionGraph::reduce_phi_on_safepoints(PhiNode* ophi) {
   PhiNode* selector = create_selector(ophi);
-  Unique_Node_List safepoints;
+  Unique_Node_List_<SafePointNode> safepoints;
   Unique_Node_List casts;
 
   // Just collect the users of the Phis for later processing
@@ -1233,7 +1233,7 @@ bool ConnectionGraph::reduce_phi_on_safepoints(PhiNode* ophi) {
   for (uint i = 0; i < ophi->outcnt(); i++) {
     Node* use = ophi->raw_out(i);
     if (use->is_SafePoint()) {
-      safepoints.push(use);
+      safepoints.push(use->as_SafePoint());
     } else if (use->is_CastPP()) {
       casts.push(use);
     } else {
@@ -1249,12 +1249,12 @@ bool ConnectionGraph::reduce_phi_on_safepoints(PhiNode* ophi) {
   // Now process CastPP->safepoints
   for (uint i = 0; i < casts.size(); i++) {
     Node* cast = casts.at(i);
-    Unique_Node_List cast_sfpts;
+    Unique_Node_List_<SafePointNode> cast_sfpts;
 
     for (DUIterator_Fast jmax, j = cast->fast_outs(jmax); j < jmax; j++) {
       Node* use_use = cast->fast_out(j);
       if (use_use->is_SafePoint()) {
-        cast_sfpts.push(use_use);
+        cast_sfpts.push(use_use->as_SafePoint());
       } else {
         assert(use_use->outcnt() == 0, "Only SafePoint users should be left.");
       }
@@ -1273,7 +1273,7 @@ bool ConnectionGraph::reduce_phi_on_safepoints(PhiNode* ophi) {
 // SafePointScalarObjectNode for each scalar replaceable input. Each
 // SafePointScalarMergeNode may describe multiple scalar replaced objects -
 // check detailed description in SafePointScalarMergeNode class header.
-bool ConnectionGraph::reduce_phi_on_safepoints_helper(Node* ophi, Node* cast, Node* selector, Unique_Node_List& safepoints) {
+bool ConnectionGraph::reduce_phi_on_safepoints_helper(Node* ophi, Node* cast, Node* selector, Unique_Node_List_<SafePointNode>& safepoints) {
   PhaseMacroExpand mexp(*_igvn);
   Node* original_sfpt_parent =  cast != nullptr ? cast : ophi;
   const TypeOopPtr* merge_t = _igvn->type(original_sfpt_parent)->make_oopptr();
@@ -3986,7 +3986,7 @@ bool ConnectionGraph::split_AddP(Node *addp, Node *base) {
 // created phi or an existing phi.  Sets create_new to indicate whether a new
 // phi was created.  Cache the last newly created phi in the node map.
 //
-PhiNode* ConnectionGraph::create_split_phi(PhiNode* orig_phi, int alias_idx, Unique_Node_List& orig_phi_worklist, bool& new_created) {
+PhiNode* ConnectionGraph::create_split_phi(PhiNode* orig_phi, int alias_idx, Unique_Node_List_<PhiNode>& orig_phi_worklist, bool& new_created) {
   Compile *C = _compile;
   PhaseGVN* igvn = _igvn;
   new_created = false;
@@ -4037,7 +4037,7 @@ PhiNode* ConnectionGraph::create_split_phi(PhiNode* orig_phi, int alias_idx, Uni
 // Return a new version of Memory Phi "orig_phi" with the inputs having the
 // specified alias index.
 //
-PhiNode* ConnectionGraph::split_memory_phi(PhiNode* orig_phi, int alias_idx, Unique_Node_List& orig_phi_worklist, uint rec_depth) {
+PhiNode* ConnectionGraph::split_memory_phi(PhiNode* orig_phi, int alias_idx, Unique_Node_List_<PhiNode>& orig_phi_worklist, uint rec_depth) {
   assert(alias_idx != Compile::AliasIdxBot, "can't split out bottom memory");
   Compile *C = _compile;
   PhaseGVN* igvn = _igvn;
@@ -4046,7 +4046,7 @@ PhiNode* ConnectionGraph::split_memory_phi(PhiNode* orig_phi, int alias_idx, Uni
   if (!new_phi_created) {
     return result;
   }
-  Unique_Node_List phi_list;
+  Unique_Node_List_<PhiNode> phi_list;
   GrowableArray<uint>  cur_input;
   PhiNode *phi = orig_phi;
   uint idx = 1;
@@ -4088,7 +4088,7 @@ PhiNode* ConnectionGraph::split_memory_phi(PhiNode* orig_phi, int alias_idx, Uni
     // we have finished processing a Phi, see if there are any more to do
     finished = (phi_list.size() == 0);
     if (!finished) {
-      phi = phi_list.pop()->as_Phi();
+      phi = phi_list.pop();
       idx = cur_input.pop();
       PhiNode *prev_result = get_map_phi(phi->_idx);
       prev_result->set_req(idx++, result);
@@ -4119,7 +4119,7 @@ Node* ConnectionGraph::step_through_mergemem(MergeMemNode *mmem, int alias_idx, 
 //
 // Move memory users to their memory slices.
 //
-void ConnectionGraph::move_inst_mem(Node* n, Unique_Node_List& orig_phis) {
+void ConnectionGraph::move_inst_mem(Node* n, Unique_Node_List_<PhiNode>& orig_phis) {
   Compile* C = _compile;
   PhaseGVN* igvn = _igvn;
   const TypePtr* tp = igvn->type(n->in(MemNode::Address))->isa_ptr();
@@ -4192,7 +4192,7 @@ void ConnectionGraph::move_inst_mem(Node* n, Unique_Node_List& orig_phis) {
 // is the specified alias index.
 //
 #define FIND_INST_MEM_RECURSION_DEPTH_LIMIT 1000
-Node* ConnectionGraph::find_inst_mem(Node* orig_mem, int alias_idx, Unique_Node_List& orig_phis, uint rec_depth) {
+Node* ConnectionGraph::find_inst_mem(Node* orig_mem, int alias_idx, Unique_Node_List_<PhiNode>& orig_phis, uint rec_depth) {
   if (rec_depth > FIND_INST_MEM_RECURSION_DEPTH_LIMIT) {
     _compile->record_failure(_invocation > 0 ? C2Compiler::retry_no_iterative_escape_analysis() : C2Compiler::retry_no_escape_analysis());
     return nullptr;
@@ -4285,7 +4285,7 @@ Node* ConnectionGraph::find_inst_mem(Node* orig_mem, int alias_idx, Unique_Node_
                C->get_alias_index(result->as_Phi()->adr_type()) != alias_idx) {
       Node *un = result->as_Phi()->unique_input(igvn);
       if (un != nullptr) {
-        orig_phis.push(result);
+        orig_phis.push(result->as_Phi());
         result = un;
       } else {
         break;
@@ -4445,7 +4445,7 @@ void ConnectionGraph::split_unique_types(GrowableArray<Node *>  &alloc_worklist,
                                          Unique_Node_List &reducible_merges) {
   DEBUG_ONLY(Unique_Node_List reduced_merges;)
   Unique_Node_List memnode_worklist;
-  Unique_Node_List orig_phis;
+  Unique_Node_List_<PhiNode> orig_phis;
   PhaseIterGVN  *igvn = _igvn;
   uint new_index_start = (uint) _compile->num_alias_types();
   VectorSet visited;
@@ -4834,7 +4834,7 @@ void ConnectionGraph::split_unique_types(GrowableArray<Node *>  &alloc_worklist,
       if ((uint) _compile->get_alias_index(n->adr_type()) < new_index_start) {
         // Push memory phis on the orig_phis worklist to update
         // during Phase 4 if needed.
-        orig_phis.push(n);
+        orig_phis.push(n->as_Phi());
       }
     } else if (n->is_ClearArray()) {
      // we don't need to do anything, but the users must be pushed

@@ -612,7 +612,7 @@ Node* PhaseMacroExpand::value_from_mem(Node* origin, Node* ctl, BasicType ft, co
 }
 
 // Check the possibility of scalar replacement.
-bool PhaseMacroExpand::can_eliminate_allocation(PhaseIterGVN* igvn, AllocateNode* alloc, Unique_Node_List* safepoints) {
+bool PhaseMacroExpand::can_eliminate_allocation(PhaseIterGVN* igvn, AllocateNode* alloc, Unique_Node_List_<SafePointNode>* safepoints) {
   //  Scan the uses of the allocation to check for anything that would
   //  prevent us from eliminating it.
   NOT_PRODUCT( const char* fail_eliminate = nullptr; )
@@ -759,7 +759,7 @@ bool PhaseMacroExpand::can_eliminate_allocation(PhaseIterGVN* igvn, AllocateNode
   return can_eliminate;
 }
 
-void PhaseMacroExpand::undo_previous_scalarizations(Unique_Node_List& safepoints_done, AllocateNode* alloc) {
+void PhaseMacroExpand::undo_previous_scalarizations(Unique_Node_List_<SafePointNode>& safepoints_done, AllocateNode* alloc) {
   Node* res = alloc->result_cast();
   int nfields = 0;
   assert(res == nullptr || res->is_CheckCastPP(), "unexpected AllocateNode result");
@@ -780,7 +780,7 @@ void PhaseMacroExpand::undo_previous_scalarizations(Unique_Node_List& safepoints
 
   // rollback processed safepoints
   while (safepoints_done.size() > 0) {
-    SafePointNode* sfpt_done = safepoints_done.pop()->as_SafePoint();
+    SafePointNode* sfpt_done = safepoints_done.pop();
 
     SafePointNode::NodeEdgeTempStorage non_debug_edges_worklist(igvn());
 
@@ -978,14 +978,14 @@ SafePointScalarObjectNode* PhaseMacroExpand::create_scalarized_object_descriptio
 }
 
 // Do scalar replacement.
-bool PhaseMacroExpand::scalar_replacement(AllocateNode* alloc, Unique_Node_List& safepoints) {
-  Unique_Node_List safepoints_done;
+bool PhaseMacroExpand::scalar_replacement(AllocateNode* alloc, Unique_Node_List_<SafePointNode>& safepoints) {
+  Unique_Node_List_<SafePointNode> safepoints_done;
   Node* res = alloc->result_cast();
   assert(res == nullptr || res->is_CheckCastPP(), "unexpected AllocateNode result");
 
   // Process the safepoint uses
   while (safepoints.size() > 0) {
-    SafePointNode* sfpt = safepoints.pop()->as_SafePoint();
+    SafePointNode* sfpt = safepoints.pop();
 
     SafePointNode::NodeEdgeTempStorage non_debug_edges_worklist(igvn());
 
@@ -1199,7 +1199,7 @@ bool PhaseMacroExpand::eliminate_allocate_node(AllocateNode *alloc) {
 
   alloc->extract_projections(&_callprojs, false /*separate_io_proj*/, false /*do_asserts*/);
 
-  Unique_Node_List safepoints;
+  Unique_Node_List_<SafePointNode> safepoints;
   if (!can_eliminate_allocation(&_igvn, alloc, &safepoints)) {
     return false;
   }
