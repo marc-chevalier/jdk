@@ -271,13 +271,42 @@ Node *MulINode::Ideal(PhaseGVN *phase, bool can_reshape) {
       Node *n1 = phase->transform(new LShiftINode(in(1), phase->intcon(log2i_exact(bit1))));
       Node *n2 = phase->transform(new LShiftINode(in(1), phase->intcon(log2i_exact(bit2))));
       res = new AddINode(n2, n1);
-    } else if (is_power_of_2(abs_con + 1)) {
-      // Sleezy: power-of-2 - 1.  Next time be generic.
-      unsigned int temp = abs_con + 1;
-      Node *n1 = phase->transform(new LShiftINode(in(1), phase->intcon(log2i_exact(temp))));
-      res = new SubINode(n1, in(1));
     } else {
-      return MulNode::Ideal(phase, can_reshape);
+      // Let's detect cases such as 2^n - 2^m. Since abs_con > 0, we have n > m.
+      // But also, since abs_con isn't a power of 2 at this point, n > m + 1 (because 2^(m+1) - 2^m = 2^m).
+      // Such a number has the shape:
+      // 00000...00001111...1111000000....00000000
+      // ^ sign bit  |          |                |
+      // (always 0)  |          ^----m zeroes----+
+      //             ^----------n digits---------^
+      // In particular, the extrem case where m = 0, we indeed have
+      // 00000...0000111111...11111
+      //             |            |
+      //             ^---n ones---+
+      //                          ^ 0 zeroes
+      // In any case, we have n - m ones. By adding the number of trailing zeroes and ones, we get n.
+      //
+      // So, we can do                                                 regex-like binary representation
+      // let m = count_trailing_zeros(abs_con)                         0{k}1{n-m}0{m}
+      // let abs_con_without_lower_zeroes = abs_con >> m               0{k+m}1{n-m}
+      // let temp = abs_con_without_lower_zeroes + 1                   0{k+m-1}10{n-m}
+      // if is_power_of_2(temp) then
+      //   let n = m + log2i_exact(temp)                               = m + (n - m) = n
+      //   replace with (in(1) << n) - (in(1) << m)
+      int m = count_trailing_zeros(abs_con);
+      unsigned int abs_con_without_lower_zeroes = abs_con >> m;
+      unsigned int temp = abs_con_without_lower_zeroes + 1;
+      if (is_power_of_2(temp)) {
+        int n = m + log2i_exact(temp);
+        Node* lhs = phase->transform(new LShiftINode(in(1), phase->intcon(n)));
+        Node* rhs =
+            m == 1
+              ? phase->transform(new LShiftINode(in(1), phase->intcon(m)))
+              : in(1);
+        res = new SubINode(lhs, rhs);
+      } else {
+        return MulNode::Ideal(phase, can_reshape);
+      }
     }
   }
 
