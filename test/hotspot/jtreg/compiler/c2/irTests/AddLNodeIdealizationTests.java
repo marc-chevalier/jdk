@@ -92,8 +92,8 @@ public class AddLNodeIdealizationTests {
     }
 
     @Test
-    @IR(counts = {IRNode.ADD, "2"})
-    // Checks (x + x) + (x + x) => a=(x + x); r=a+a
+    @IR(counts = {IRNode.LSHIFT_L, "1"}, failOn = { IRNode.ADD })
+    // Checks (x + x) + (x + x) = 4 * a = 2^2 * a => a << 2
     public long additions(long x) {
         return (x + x) + (x + x);
     }

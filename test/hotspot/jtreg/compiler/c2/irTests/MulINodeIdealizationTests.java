@@ -38,7 +38,7 @@ public class MulINodeIdealizationTests {
     }
 
     @Run(test = {"combineConstants", "moveConstants", "moveConstantsAgain",
-                 "multiplyZero", "multiplyZeroAgain", "distribute",
+                 "multiplyZero", "multiplyZeroAgain", "distribute", "distributePowerOfTwoDiff",
                  "identity",  "identityAgain", "powerTwo",
                  "powerTwoAgain", "powerTwoPlusOne", "powerTwoMinusOne",
                  "negativeCancelledOut", "maxMin"})
@@ -62,7 +62,8 @@ public class MulINodeIdealizationTests {
         Asserts.assertEQ(a * (b * 13)                   , moveConstantsAgain(a, b));
         Asserts.assertEQ(0 * a                          , multiplyZero(a));
         Asserts.assertEQ(a * 0                          , multiplyZeroAgain(a));
-        Asserts.assertEQ((13 + a) * 14                  , distribute(a));
+        Asserts.assertEQ((13 + a) * 11                  , distribute(a));
+        Asserts.assertEQ((13 + a) * 14                  , distributePowerOfTwoDiff(a));
         Asserts.assertEQ(1 * a                          , identity(a));
         Asserts.assertEQ(a * 1                          , identityAgain(a));
         Asserts.assertEQ(a * 64                         , powerTwo(a));
@@ -114,6 +115,17 @@ public class MulINodeIdealizationTests {
                  })
     // Checks (c1 + x) * c2 => x * c2 + c3 where c3 = c1 * c2
     public int distribute(int x) {
+        return (13 + x) * 11;
+    }
+
+    @Test
+    @IR(counts = {IRNode.SUB, "1",
+                  IRNode.ADD, "1",
+                  IRNode.LSHIFT, "2",
+    })
+    @IR(failOn = {IRNode.MUL})
+    // Checks (13 + x) * 14 = 13*14 + 14x = 13*14 + (2^4 - 2^2) x => (x << 4 - x << 2) + 13*14
+    public int distributePowerOfTwoDiff(int x) {
         return (13 + x) * 14;
     }
 

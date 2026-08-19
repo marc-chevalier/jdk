@@ -132,6 +132,7 @@ SubNode* SubNode::make(Node* in1, Node* in2, BasicType bt) {
 //=============================================================================
 //------------------------------Helper function--------------------------------
 
+#if 0
 static bool is_cloop_increment(Node* inc) {
   precond(inc->Opcode() == Op_AddI || inc->Opcode() == Op_AddL);
 
@@ -160,6 +161,7 @@ static bool is_cloop_increment(Node* inc) {
 static bool ok_to_convert(Node* inc, Node* var) {
   return !(is_cloop_increment(inc) || var->is_cloop_ind_var());
 }
+#endif
 
 static bool is_cloop_condition(BoolNode* bol) {
   for (DUIterator_Fast imax, i = bol->fast_outs(imax); i < imax; i++) {
@@ -188,6 +190,11 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
   }
 #endif
 
+  if (Node* r = AddNode::simplify_whole_tree(can_reshape, phase, T_INT, this); r != nullptr) {
+    return r;
+  }
+
+#if 0
   const Type *t2 = phase->type( in2 );
   if( t2 == Type::TOP ) return nullptr;
   // Convert "x-c0" into "x+ -c0".
@@ -231,7 +238,6 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
 
   const Type *t1 = phase->type( in1 );
   if( t1 == Type::TOP ) return nullptr;
-
 #ifdef ASSERT
   // Check for dead loop
   if ((op2 == Op_AddI || op2 == Op_SubI) &&
@@ -287,6 +293,7 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
     Node *add1 = phase->transform( new AddINode( in1, in2->in(2) ) );
     return new SubINode( add1, in2->in(1) );
   }
+#endif
 
   // Associative
   if (op1 == Op_MulI && op2 == Op_MulI) {
@@ -374,6 +381,10 @@ Node *SubLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   }
 #endif
 
+  if (Node* r = AddNode::simplify_whole_tree(can_reshape, phase, T_LONG, this); r != nullptr) {
+    return r;
+  }
+#if 0
   if( phase->type( in2 ) == Type::TOP ) return nullptr;
   const TypeLong *i = phase->type( in2 )->isa_long();
   // Convert "x-c0" into "x+ -c0".
@@ -464,6 +475,7 @@ Node *SubLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     Node *add1 = phase->transform( new AddLNode( in1, in2->in(2) ) );
     return new SubLNode( add1, in2->in(1) );
   }
+#endif
 
   // Associative
   if (op1 == Op_MulL && op2 == Op_MulL) {

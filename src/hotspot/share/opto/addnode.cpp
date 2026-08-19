@@ -300,51 +300,85 @@ struct LinearCombination {
 
   public:
     Worklist(Node* n) {
+      if (UseNewCode) {
+        tty->print_cr("New worklist");
+      }
       push_first_visit(n);
     }
 
     void push_first_visit(Node* n) {
-      assert(!waiting_.contains(n), "dead loop detected");
-      if (!enqueued_.contains(n) && !done_.contains(n)) {
+      assert(!waiting_.member(n), "dead loop detected");
+      if (!done_.member(n)) {
+        if (UseNewCode) {
+          tty->print("Push first visit: ");
+          n->dump();
+        }
         worklist_.push(StackItem::first_visit(n));
         enqueued_.push(n);
+      } else {
+        if (UseNewCode) {
+          tty->print("Already enqueued for first visit: ");
+          n->dump();
+        }
       }
     }
 
     void push_second_visit_to_replace(Node* n) {
-      assert(!enqueued_.contains(n), "");
-      assert(!waiting_.contains(n), "");
-      assert(!done_.contains(n), "");
+      assert(!enqueued_.member(n), "");
+      assert(!waiting_.member(n), "");
+      assert(!done_.member(n), "");
       worklist_.push(StackItem::second_visit(n, true));
+      if (UseNewCode) {
+        tty->print("Push second visit to replace: ");
+        n->dump();
+      }
     }
 
     void push_second_visit_without_replace(Node* n) {
-      assert(!enqueued_.contains(n), "");
-      assert(!waiting_.contains(n), "");
-      assert(!done_.contains(n), "");
+      assert(!enqueued_.member(n), "");
+      assert(!waiting_.member(n), "");
+      assert(!done_.member(n), "");
       worklist_.push(StackItem::second_visit(n, false));
+      if (UseNewCode) {
+        tty->print("Push second visit no replace: ");
+        n->dump();
+      }
     }
 
     StackItem pop() {
       StackItem item = worklist_.pop();
       enqueued_.remove(item.node);
       waiting_.remove(item.node);
-      if (item.state == StackItem::TraversalState::PostAndReplace || item.state == StackItem::TraversalState::PostNoReplace) {
-        done_.push(item.node);
+      if (UseNewCode) {
+        tty->print("Popping (state=%d): ", static_cast<int>(item.state));
+        item.node->dump();
       }
       return item;
     }
 
     void done(Node* n) {
       done_.push(n);
+      if (UseNewCode) {
+        tty->print("Done: ");
+        n->dump();
+      }
     }
 
+    [[nodiscard]] bool is_done(Node* n) const { return done_.member(n); }
     [[nodiscard]] bool is_nonempty() const { return worklist_.is_nonempty(); }
   };
 
   struct Term {
     jlong scalar_;
     Node* vector_;
+
+    [[nodiscard]] Term negate() const {
+      return {java_negate(scalar_), vector_};
+    }
+
+    void dump(outputStream* out) const {
+      out->print("%ld * <%d>", scalar_, vector_->_idx);
+    }
   };
 
   struct Combination {
@@ -352,7 +386,7 @@ struct LinearCombination {
     GrowableArray<Term> combination_;
     jlong constant_;
 
-    Combination(BasicType bt) : bt_(bt) {}
+    Combination(BasicType bt) : bt_(bt), constant_(0) {}
   private:
     Combination(BasicType bt, jlong constant) : bt_(bt), constant_(constant) {}
     Combination(BasicType bt, jlong scalar, Node* vector) : bt_(bt) {
@@ -360,14 +394,15 @@ struct LinearCombination {
         constant_ = java_multiply(scalar, vector->get_integer_as_long(bt_));
       } else {
         combination_.push(Term{scalar, vector});
+        constant_ = 0;
       }
     }
   public:
     static Combination make_term(BasicType bt, jlong scalar, Node* vector) {
-      return {bt, scalar, vector};
+      return Combination(bt, scalar, vector);
     }
     static Combination make_constant(BasicType bt, jlong constant) {
-      return {bt, constant};
+      return Combination(bt, constant);
     }
 
     static int compare(const Term& lhs, const Term& rhs) {
@@ -380,10 +415,14 @@ struct LinearCombination {
       for (const auto& new_term : other.combination_) {
         result.sum(new_term, neg, improves);
       }
-      if (constant_ != 0 || other.constant_ != 0) {
+      if ((constant_ != 0 && other.constant_ != 0) || (neg && other.constant_ != 0)) {
         improves = true;
       }
-      result.constant_ = constant_ + other.constant_;
+      if (neg) {
+        result.constant_ = java_subtract(constant_, other.constant_);
+      } else {
+        result.constant_ = java_add(constant_, other.constant_);
+      }
       return result;
     }
 
@@ -391,7 +430,11 @@ struct LinearCombination {
       bool found;
       int location = combination_.find_sorted<Term, compare>(new_term, found);
       if (!found) {
-        combination_.insert_before(location, new_term);
+        if (neg) {
+          combination_.insert_before(location, new_term.negate());
+        } else {
+          combination_.insert_before(location, new_term);
+        }
       } else {
         jlong& scalar = combination_.at(location).scalar_;
         if (neg) {
@@ -401,6 +444,21 @@ struct LinearCombination {
         }
         improves = true;
       }
+    }
+
+    void dump(outputStream* out) const {
+      bool first = true;
+      for (const Term& term: combination_) {
+        if (!first) {
+          out->print(" + ");
+        }
+        first = false;
+        term.dump(out);
+      }
+      if (!first) {
+        out->print(" + ");
+      }
+      out->print("%ld", constant_);
     }
   };
 
@@ -417,14 +475,27 @@ struct LinearCombination {
         combination_(std::move(combination)),
         canonical_node_(canonical_node),
         improved_(improved) {}
+
+    void dump(outputStream* out) const {
+      out->print("%d => ", node_->_idx);
+      combination_.dump(out);
+      out->print(" = [%d] (improved=%d)", canonical_node_->_idx, improved_);
+    }
   };
 
   void map_node_to_term(GrowableArray<Result>& computed, Node* n, jlong scalar, Node* vector) const {
+    if (UseNewCode) {
+      tty->print("Mapping node %d to term %ld * ", n->_idx, scalar);
+      vector->dump();
+    }
     Combination combination = Combination::make_term(bt_, scalar, vector);
     computed.push(Result(n, combination, n, false));
   }
 
   void map_node_to_constant(GrowableArray<Result>& computed, Node* n, jlong constant) const {
+    if (UseNewCode) {
+      tty->print_cr("Mapping node %d to constant %ld", n->_idx, constant);
+    }
     Combination combination = Combination::make_constant(bt_, constant);
     Node* canonical = bt_ == T_INT ? static_cast<Node*>(igvn_.intcon(static_cast<jint>(constant))) : igvn_.longcon(constant);
     computed.push(Result(n, combination, canonical, false));
@@ -433,58 +504,134 @@ struct LinearCombination {
   static Result find_result(GrowableArray<Result> computed, const Node* n) {
     int idx = computed.find_if([&](const Result& r) -> bool { return r.node_ == n; });
     assert(idx >= 0, "");
-    return computed.at(idx);
+    Result r = computed.at(idx);
+    if (UseNewCode) {
+      tty->print("Looking up result for node %d: ", n->_idx);
+      r.dump(tty);
+      tty->cr();
+    }
+    return r;
   }
 
-  Node* node_of_combination(const Combination& c) {
-    GrowableArray<Term> negative_terms;
+  Node* make_con(jlong con) const {
+    if (bt_ == T_INT) {
+      return igvn_.intcon(static_cast<jint>(con));
+    }
+    return igvn_.longcon(con);
+  }
 
-    Node* result = nullptr;
+  Node* make_lshift(Node* op, int con, bool& fresh) const {
+    if (con == 0) {
+      return op;
+    }
+    fresh = true;
+    return igvn_.register_new_node_with_optimizer(LShiftNode::make(op, igvn_.intcon(con), bt_));
+  }
+
+  Node* add_node(Node* result, Node* new_node, bool& fresh) const {
+    if (result == nullptr) {
+      return new_node;
+    }
+    fresh = true;
+    return igvn_.register_new_node_with_optimizer(AddNode::make(result, new_node, bt_));
+  }
+
+  [[nodiscard]] Pair<Node*, bool> node_of_combination(const Combination& c) const {
+    Node* positive_terms_node = nullptr;
+    Node* negative_terms_node = nullptr;
+    Node* constant_node = nullptr;
+
+    bool is_positive_fresh = false;
+    bool is_negative_fresh = false;
     for (const auto& term: c.combination_) {
-      if (term.scalar_ < 0) {
-        negative_terms.push(term);
-      } else if (term.scalar_ > 0) {
-        if (result == nullptr) {
-          result = term.vector_;
+      if ((bt_ == T_INT && static_cast<jint>(term.scalar_) == 0) || (bt_ == T_LONG && term.scalar_ == 0)) {
+        continue;
+      }
+
+      MulNode::IntegerAsSumOrDiffOfPowerOf2 decomposed =
+          bt_ == T_INT
+            ? MulNode::decompose_integer(static_cast<jint>(term.scalar_))
+            : MulNode::decompose_integer(term.scalar_);
+
+      if (decomposed.does_not_have_nice_shape()) {
+        Node* con = make_con(term.scalar_);
+        Node* mul = igvn_.register_new_node_with_optimizer(MulNode::make(con, term.vector_, bt_));
+        is_positive_fresh = true;
+        positive_terms_node = add_node(positive_terms_node, mul, is_positive_fresh);
+        continue;
+      }
+
+      Node* term_node;
+      bool must_go_in_negative_term = false;
+      if (decomposed.is_simple_power_of_two()) {
+        term_node = make_lshift(term.vector_, decomposed.high_bit(), is_negative_fresh);
+        must_go_in_negative_term = decomposed.sign_flip();
+      } else {
+        bool _fresh = false;
+        Node* h = make_lshift(term.vector_, decomposed.high_bit(), _fresh);
+        Node* l = make_lshift(term.vector_, decomposed.low_bit(), _fresh);
+        if (decomposed.is_sum()) {
+          term_node = igvn_.register_new_node_with_optimizer(AddNode::make(h, l, bt_));
+          is_negative_fresh = true;
+          must_go_in_negative_term = decomposed.sign_flip();
         } else {
-          Node* con;
-          if (bt_ == T_INT) {
-            con = igvn_.intcon(static_cast<jint>(term.scalar_));
+          if (decomposed.sign_flip()) {
+            term_node = igvn_.register_new_node_with_optimizer(SubNode::make(l, h, bt_));
           } else {
-            con = igvn_.longcon(term.scalar_);
+            term_node = igvn_.register_new_node_with_optimizer(SubNode::make(h, l, bt_));
           }
-          result = AddNode::make(result, MulNode::make(con, term.vector_, bt_), bt_);
+          is_positive_fresh = true;
+          must_go_in_negative_term = false;
+        }
+      }
+
+      if (must_go_in_negative_term) {
+        negative_terms_node = add_node(negative_terms_node, term_node, is_negative_fresh);
+      } else {
+        positive_terms_node = add_node(positive_terms_node, term_node, is_positive_fresh);
+      }
+    }
+    if ((bt_ == T_INT && static_cast<jint>(c.constant_) == 0) || (bt_ == T_LONG && c.constant_ == 0)) {
+      constant_node = nullptr;
+    } else {
+      constant_node = make_con(c.constant_);
+    }
+
+    if (constant_node == nullptr) {
+      if (positive_terms_node == nullptr) {
+        if (negative_terms_node == nullptr) {  // 0
+           return {igvn_.zerocon(bt_), false};
+        } else {  // 0 - n
+          Node* ret = igvn_.register_new_node_with_optimizer(SubNode::make(igvn_.zerocon(bt_), negative_terms_node, bt_));
+          return {ret, true};
+        }
+      } else {
+        if (negative_terms_node == nullptr) {  // p
+          return {positive_terms_node, is_positive_fresh};
+        } else {  // p - n
+          Node* ret = igvn_.register_new_node_with_optimizer(SubNode::make(positive_terms_node, negative_terms_node, bt_));
+          return {ret, true};
+        }
+      }
+    } else {
+      if (positive_terms_node == nullptr) {
+        if (negative_terms_node == nullptr) {  // c
+          return {constant_node, false};
+        } else {  // c - n
+          Node* ret = igvn_.register_new_node_with_optimizer(SubNode::make(constant_node, negative_terms_node, bt_));
+          return {ret, true};
+        }
+      } else {
+        if (negative_terms_node == nullptr) {  // p + c
+          Node* ret = igvn_.register_new_node_with_optimizer(AddNode::make(positive_terms_node, constant_node, bt_));
+          return {ret, true};
+        } else {  // p - n + c
+          Node* diff = igvn_.register_new_node_with_optimizer(SubNode::make(positive_terms_node, negative_terms_node, bt_));
+          Node* ret = igvn_.register_new_node_with_optimizer(AddNode::make(diff, constant_node, bt_));
+          return {ret, true};
         }
       }
     }
-    for (int i = 0; i < negative_terms.length(); ++i) {
-      const Term& term = negative_terms.at(negative_terms.length() - i - 1);
-      if (result == nullptr) {
-        result = igvn_.zerocon(bt_);
-      }
-      Node* con;
-      if (bt_ == T_INT) {
-        con = igvn_.intcon(static_cast<jint>(java_negate(term.scalar_)));
-      } else {
-        con = igvn_.longcon(java_negate(term.scalar_));
-      }
-      result = SubNode::make(result, MulNode::make(con, term.vector_, bt_), bt_);
-    }
-      Node* con;
-      if (bt_ == T_INT) {
-        con = igvn_.intcon(static_cast<jint>(c.constant_));
-      } else {
-        con = igvn_.longcon(c.constant_);
-      }
-    if (result == nullptr) {
-      result = con;
-    } else {
-      result = AddNode::make(result, con, bt_);
-    }
-    if (result == nullptr) {
-      result = igvn_.zerocon(bt_);
-    }
-    return result;
   }
 
   static bool is_cloop_increment(const Node* inc) {
@@ -516,7 +663,52 @@ struct LinearCombination {
     return !(is_cloop_increment(inc) || var->is_cloop_ind_var());
   }
 
-  static bool ok_to_convert(const Node* n, BasicType bt) {
+  bool ok_to_convert_multiplication_as_shift(const Node* n) const {
+    int op = n->Opcode();
+    if (op != Op_Add(bt_) && op != Op_Sub(bt_)) {
+      return true;
+    }
+
+    Node* lhs = n->in(1);
+    int op_lhs = n->in(1)->Opcode();
+    Node* rhs = n->in(2);
+    int op_rhs = n->in(2)->Opcode();
+    // Do not transform shapes generated by MulNode::Ideal
+    // (1) (x << con1) + (x << con2) => simplified from a multiplication by a constant with only two set bits
+    // (2) (x << con1) + x => special case of above, when con2 = 0
+    // (3) (x << con1) - (x << con2) => simplified from a multiplication by a constant of the form 2^con1 - 2^con2
+    // (4) (x << con1) - x => special case of above when con2 = 1
+    if (op == Op_Add(bt_) || op == Op_Sub(bt_)) {
+      // Case (1) and (3)
+      if (
+        op_lhs == Op_LShift(bt_) &&
+        lhs->in(2)->Opcode() == Op_ConI &&
+        op_rhs == Op_LShift(bt_) &&
+        rhs->in(2)->Opcode() == Op_ConI &&
+        lhs->in(1) == rhs->in(1) &&
+        lhs->in(2) != rhs->in(2)
+      ) {
+        return false;
+      }
+    }
+    if (op == Op_Add(bt_)) {
+      // Case (2)
+      if (
+        (op_lhs == Op_LShift(bt_) && lhs->in(2)->Opcode() == Op_ConI && lhs->in(1) == rhs) ||
+        (op_rhs == Op_LShift(bt_) && rhs->in(2)->Opcode() == Op_ConI && rhs->in(1) == lhs)
+      ) {
+        return false;
+      }
+    } else if (op == Op_Sub(bt_)) {
+      if (op_lhs == Op_LShift(bt_) && lhs->in(2)->Opcode() == Op_ConI && lhs->in(1) == rhs) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  bool ok_to_convert(const Node* n, bool as_root) const {
     int op = n->Opcode();
     Node* lhs = n->in(1);
     int op_lhs = n->in(1)->Opcode();
@@ -524,48 +716,114 @@ struct LinearCombination {
     int op_rhs = n->in(2)->Opcode();
     // Do not transform (x + c0) - y if "+" is a loop increment or
     // if "y" is a loop induction variable.
-    if (op == Op_Sub(bt)) {
-      if (op_lhs == Op_Add(bt)) {
-        return ok_to_convert(lhs, rhs);
+    if (op == Op_Sub(bt_)) {
+      if (op_lhs == Op_Add(bt_)) {
+        if (!ok_to_convert(lhs, rhs)) {
+          return false;
+        }
       }
       // Same with y - (x + c0)
-      if (op_rhs == Op_Add(bt)) {
-        return ok_to_convert(rhs, lhs);
+      if (op_rhs == Op_Add(bt_)) {
+        if (!ok_to_convert(rhs, lhs)) {
+          return false;
+        }
       }
     }
-    // Do not transform shapes generated by MulNode::Ideal
-    // (1) (x << con1) + (x << con2) => simplified from a multiplication by a constant with only two set bits
-    // (2) (x << con1) + x => special case of above, when con2 = 0
-    // (3) (x << con1) - x => simplified from a multiplication by 2^n - 1
-    if (op == Op_Add(bt)) {
-      // Case (2)
-      if (
-        (op_lhs == Op_LShift(bt) && lhs->in(2)->Opcode() == Op_ConIL(bt) && lhs->in(1) == rhs) ||
-        (op_rhs == Op_LShift(bt) && rhs->in(2)->Opcode() == Op_ConIL(bt) && rhs->in(1) == lhs)
-      ) {
-        return false;
-      }
-      // Case (1)
-      if (
-        op_lhs == Op_LShift(bt) &&
-        lhs->in(2)->Opcode() == Op_ConIL(bt) &&
-        op_rhs == Op_LShift(bt) &&
-        rhs->in(2)->Opcode() == Op_ConIL(bt) &&
-        lhs->in(1) == rhs->in(1) &&
-        lhs->in(2) != rhs->in(2)
-      ) {
-        return false;
-      }
-    } else if (op == Op_Sub(bt) && op_lhs == Op_LShift(bt) && lhs->in(2)->Opcode() == Op_ConIL(bt) && lhs->in(1) == rhs) {
+
+    // cases alike `x << con1 + x << con2` to compute x * (2^con1 + 2^con2)
+    if (!ok_to_convert_multiplication_as_shift(n)) {
       return false;
+    }
+    if (op == Op_Sub(bt_) && op_lhs == Op_ConIL(bt_) && lhs->get_integer_as_long(bt_) == 0) {
+      // 0 - [the cases above]
+      if (!ok_to_convert_multiplication_as_shift(rhs)) {
+        return false;
+      }
+
+      // 0 - (x << con)
+      if (as_root && op_rhs == Op_LShift(bt_)) {
+        return false;
+      }
     }
     return true;
   }
 
-  Node* collect_and_replace(PhaseIterGVN& igvn, Node* n, BasicType bt) {
+  void dump_sub_graph(outputStream* out, Node* n) const {
+    int op = n->Opcode();
+    if (op == Op_Add(bt_)) {
+      out->print("[%d](", n->_idx);
+      dump_sub_graph(out,n->in(1));
+      out->print(" + ");
+      dump_sub_graph(out, n->in(2));
+      out->print(")");
+    } else if (op == Op_Sub(bt_)) {
+      out->print("[%d](", n->_idx);
+      dump_sub_graph(out,n->in(1));
+      out->print(" - ");
+      dump_sub_graph(out, n->in(2));
+      out->print(")");
+    } else if (op == Op_LShift(bt_) && n->in(2)->Opcode() == Op_ConI) {
+      out->print("[%d](", n->_idx);
+      dump_sub_graph(out,n->in(1));
+      out->print(" << ");
+      dump_sub_graph(out, n->in(2));
+      out->print(")");
+    } else if (op == Op_Mul(bt_) && (n->in(1)->Opcode() == Op_ConIL(bt_) || n->in(2)->Opcode() == Op_ConIL(bt_))) {
+      out->print("[%d](", n->_idx);
+      dump_sub_graph(out,n->in(1));
+      out->print(" * ");
+      dump_sub_graph(out, n->in(2));
+      out->print(")");
+    } else if (op == Op_ConL) {
+      out->print("[%d]%ldL", n->_idx, n->get_integer_as_long(bt_));
+    } else if (op == Op_ConI) {
+      out->print("[%d]%d", n->_idx, n->get_int());
+    } else {
+      out->print("<%d %s>", n->_idx, n->Name());
+    }
+  }
+
+  static bool skip_it(BasicType bt, Node* n) {
+    auto skip_operand = [&bt](const Node* n) -> bool {
+      int op = n->Opcode();
+      if (op == Op_Add(bt) || op == Op_Sub(bt)) {
+        return false;
+      }
+      if (op == Op_LShift(bt) && n->in(2)->Opcode() == Op_ConI) {
+        return false;
+      }
+      if (op == Op_Mul(bt) && (n->in(1)->Opcode() == Op_ConIL(bt) || n->in(2)->Opcode() == Op_ConIL(bt))) {
+        return false;
+      }
+      return true;
+    };
+
+    if (n->Opcode() == Op_Sub(bt) && n->in(2)->Opcode() == Op_ConIL(bt)) {
+      return false;
+    }
+    return skip_operand(n->in(1)) && skip_operand(n->in(2));
+  }
+
+  bool skip_it(Node* n) const {
+    return skip_it(bt_, n);
+  }
+
+  Node* collect_and_replace(Node* n) const {
     GrowableArray<Result> computed;
     bool progress = false;
     Node* new_n = nullptr;
+    bool is_new_n_fresh = false;
+    if (UseNewCode) {
+      tty->print("Subgraph: ");
+      dump_sub_graph(tty, n);
+      tty->cr();
+    }
+    if (skip_it(n)) {
+      if (UseNewCode) {
+        tty->print_cr("Skip it\n\n");
+      }
+      return nullptr;
+    }
     Worklist worklist(n);
 
     while (worklist.is_nonempty()) {
@@ -573,49 +831,69 @@ struct LinearCombination {
       Node* node = item.node;
       int op = node->Opcode();
 
+      if (worklist.is_done(node)) {
+        if (UseNewCode) {
+          tty->print_cr("Node %d already done", node->_idx);
+        }
+        continue;
+      }
+      if (item.state == StackItem::TraversalState::PostAndReplace || item.state == StackItem::TraversalState::PostNoReplace) {
+        worklist.done(node);
+      }
+
       if (item.state == StackItem::TraversalState::Pre) {
-        if (op == Op_Add(bt) || op == Op_Sub(bt)) {
-          worklist.push_first_visit(node->in(1));
-          worklist.push_first_visit(node->in(2));
-          if (ok_to_convert(node, bt)) {
+        if (op == Op_Add(bt_) || op == Op_Sub(bt_)) {
+          if (ok_to_convert(node, true)) {
             worklist.push_second_visit_to_replace(node);
           } else {
             worklist.push_second_visit_without_replace(node);
           }
-        } else if (op == Op_LShift(bt) && node->in(2)->Opcode() == Op_ConIL(bt)) {
-          jlong scalar = java_shift_left(1L, static_cast<jint>(node->in(2)->get_integer_as_long(T_LONG)), bt);
+          worklist.push_first_visit(node->in(1));
+          worklist.push_first_visit(node->in(2));
+        } else if (op == Op_LShift(bt_) && node->in(2)->Opcode() == Op_ConI) {
+          jlong scalar = java_shift_left(1L, node->in(2)->get_int(), bt_);
           map_node_to_term(computed, node, scalar, node->in(1));
-          worklist.done(n);
-        } else if (op == Op_Mul(bt) && (node->in(1)->Opcode() == Op_ConIL(bt) || node->in(2)->Opcode() == Op_ConIL(bt))) {
-          if (node->in(1)->Opcode() != Op_ConIL(bt)) {
-            jlong scalar = node->in(2)->get_integer_as_long(bt);
+          worklist.done(node);
+        } else if (op == Op_Mul(bt_) && (node->in(1)->Opcode() == Op_ConIL(bt_) || node->in(2)->Opcode() == Op_ConIL(bt_))) {
+          if (node->in(1)->Opcode() != Op_ConIL(bt_)) {
+            jlong scalar = node->in(2)->get_integer_as_long(bt_);
             map_node_to_term(computed, node, scalar, node->in(1));
-          } else if (node->in(1)->Opcode() != Op_ConIL(bt)) {
-            jlong scalar = node->in(1)->get_integer_as_long(bt);
+          } else if (node->in(2)->Opcode() != Op_ConIL(bt_)) {
+            jlong scalar = node->in(1)->get_integer_as_long(bt_);
             map_node_to_term(computed, node, scalar, node->in(2));
           } else {
-            jlong constant = java_multiply(node->in(1)->get_integer_as_long(bt), node->in(2)->get_integer_as_long(bt));
+            jlong constant = java_multiply(node->in(1)->get_integer_as_long(bt_), node->in(2)->get_integer_as_long(bt_));
             map_node_to_constant(computed, node, constant);
           }
-          worklist.done(n);
+          worklist.done(node);
         } else {
-          map_node_to_term(computed, n, 1L, n);
-          worklist.done(n);
+          map_node_to_term(computed, node, 1L, node);
+          worklist.done(node);
         }
       } else if (item.state == StackItem::TraversalState::PostNoReplace) {
-        assert(op == Op_Add(bt) || op == Op_Sub(bt), "only add and sub should reach the post state");
+        assert(op == Op_Add(bt_) || op == Op_Sub(bt_), "only add and sub should reach the post state");
 
-        if (op == Op_Add(bt) || op == Op_Sub(bt)) {
+        if (op == Op_Add(bt_) || op == Op_Sub(bt_)) {
           Result lhs = find_result(computed, node->in(1));
           Result rhs = find_result(computed, node->in(2));
-          bool improved = false;
-          Combination combination = lhs.combination_.sum(rhs.combination_, op == Op_Sub(bt), improved);
-          computed.push(Result(node, combination, node, improved));
+          bool _improved = false;  // We ignore, since we don't want to reshape locally anway.
+          Combination combination = lhs.combination_.sum(rhs.combination_, op == Op_Sub(bt_), _improved);
+          if (UseNewCode) {
+            tty->print("Mapping node %d to combination ", node->_idx);
+            combination.dump(tty);
+            tty->cr();
+          }
+          if (UseNewCode) {
+            tty->print("Mapping node %d to combination ", node->_idx);
+            combination.dump(tty);
+            tty->cr();
+          }
+          computed.push(Result(node, combination, node, lhs.improved_ || rhs.improved_));
         } else {
           ShouldNotReachHere();
         }
       } else if (item.state == StackItem::TraversalState::PostAndReplace) {
-        assert(op == Op_Add(bt) || op == Op_Sub(bt), "only add and sub should reach the post state");
+        assert(op == Op_Add(bt_) || op == Op_Sub(bt_), "only add and sub should reach the post state");
 
         Result lhs = find_result(computed, node->in(1));
         Result rhs = find_result(computed, node->in(2));
@@ -623,54 +901,96 @@ struct LinearCombination {
         bool must_transform = false;
         int op_l = lhs.canonical_node_->Opcode();
         int op_r = rhs.canonical_node_->Opcode();
-        if (op == Op_Add(bt)) {
-          if ((op_l == Op_Sub(bt) && op_r != Op_ConIL(bt)) || (op_r == Op_Sub(bt) && op_l != Op_ConIL(bt))) {
+        if (op == Op_Add(bt_)) {
+          if ((op_l == Op_Sub(bt_) && op_r != Op_ConIL(bt_) && ok_to_convert(lhs.canonical_node_, false)) ||
+              (op_r == Op_Sub(bt_) && op_l != Op_ConIL(bt_) && ok_to_convert(rhs.canonical_node_, false))) {
             must_transform = true;
+            if (UseNewCode) {
+              tty->print_cr("Must transform node %d: substract inside something that is not constant addition", node->_idx);
+            }
           } else if (
-            (op_l == Op_Add(bt) && (lhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt) || lhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt))) ||
-            (op_r == Op_Add(bt) && (rhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt) || rhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt)))
+            (op_l == Op_Add(bt_) && ok_to_convert(lhs.canonical_node_, false) && (lhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) || lhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt_))) ||
+            (op_r == Op_Add(bt_) && ok_to_convert(rhs.canonical_node_, false) && (rhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) || rhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt_)))
           ) {
             must_transform = true;
+            if (UseNewCode) {
+              tty->print_cr("Must transform node %d: operand of addition is a constant addition", node->_idx);
+            }
           }
-        } else if (op == Op_Sub(bt)) {
-          if (!(
-            (op_l == Op_Sub(bt) || (op_l == Op_Add(bt) && lhs.canonical_node_->in(1)->Opcode() != Op_ConIL(bt) && lhs.canonical_node_->in(2)->Opcode() != Op_ConIL(bt))) ||
-            (op_r == Op_Sub(bt) || (op_r == Op_Add(bt) && rhs.canonical_node_->in(1)->Opcode() != Op_ConIL(bt) && rhs.canonical_node_->in(2)->Opcode() != Op_ConIL(bt)))
-          )) {
+        } else if (op == Op_Sub(bt_)) {
+          if (
+            (op_l == Op_Add(bt_) && ok_to_convert(lhs.canonical_node_, false) && (lhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) || lhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt_))) ||
+            (op_r == Op_Add(bt_) && ok_to_convert(rhs.canonical_node_, false) && (rhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) || rhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt_)))
+          ) {
             must_transform = true;
+            if (UseNewCode) {
+              tty->print_cr("Must transform node %d: operand of subtract is a constant addition", node->_idx);
+            }
+          } else if (
+            (op_l == Op_Sub(bt_) && ok_to_convert(lhs.canonical_node_, false)) ||
+            (op_r == Op_Sub(bt_) && ok_to_convert(rhs.canonical_node_, false))
+          ) {
+            must_transform = true;
+            if (UseNewCode) {
+              tty->print_cr("Must transform node %d: operand of subtract is a subtraction", node->_idx);
+            }
           }
         } else {
           ShouldNotReachHere();
         }
 
         bool improved = false;
-        Combination combination = lhs.combination_.sum(rhs.combination_, op == Op_Sub(bt), improved);
+        Combination combination = lhs.combination_.sum(rhs.combination_, op == Op_Sub(bt_), improved);
 
         Node* combination_as_node = nullptr;
+        bool is_fresh_node = false;
         if ((lhs.improved_ || rhs.improved_) && !improved && !must_transform) {
-          if (op == Op_Add(bt)) {
-            combination_as_node = AddNode::make(lhs.canonical_node_, rhs.canonical_node_, bt);
-          } else if (op == Op_Sub(bt)) {
-            combination_as_node = SubNode::make(lhs.canonical_node_, rhs.canonical_node_, bt);
+          if (op == Op_Add(bt_)) {
+            combination_as_node = igvn_.register_new_node_with_optimizer(AddNode::make(lhs.canonical_node_, rhs.canonical_node_, bt_));
+            is_fresh_node = true;
+          } else if (op == Op_Sub(bt_)) {
+            combination_as_node = igvn_.register_new_node_with_optimizer(SubNode::make(lhs.canonical_node_, rhs.canonical_node_, bt_));
+            is_fresh_node = true;
           } else {
             ShouldNotReachHere();
           }
+          if (UseNewCode) {
+            tty->print_cr("Rebuilding root for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; must_transform=%d", node->_idx, lhs.improved_, rhs.improved_, improved, must_transform);
+          }
           improved = true;
         } else if (lhs.improved_ || rhs.improved_ || improved || must_transform) {
-          combination_as_node = node_of_combination(combination);
+          Pair<Node*, bool> node_and_is_fresh = node_of_combination(combination);
+          combination_as_node = node_and_is_fresh.first;
+          is_fresh_node = node_and_is_fresh.second;
+          if (UseNewCode) {
+            tty->print_cr("Rebuilding everything for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; must_transform=%d", node->_idx, lhs.improved_, rhs.improved_, improved, must_transform);
+          }
         } else {
           combination_as_node = node;
+          is_fresh_node = false;
         }
 
         if (combination_as_node != node) {
           if (node == n) {
             new_n = combination_as_node;
+            is_new_n_fresh = is_fresh_node;
+            if (UseNewCode) {
+              tty->print_cr("Replacing root node %d by %d", node->_idx, combination_as_node->_idx);
+            }
+          } else {
+            if (UseNewCode) {
+              tty->print_cr("Replacing node %d by %d", node->_idx, combination_as_node->_idx);
+            }
+            igvn_.replace_node(node, combination_as_node);
           }
-          igvn.replace_node(node, combination_as_node);
           progress = true;
         }
-
-        computed.push(Result(node, combination, combination_as_node, improved));
+        if (UseNewCode) {
+          tty->print("Mapping node %d to combination ", node->_idx);
+          combination.dump(tty);
+          tty->cr();
+        }
+        computed.push(Result(combination_as_node, combination, combination_as_node, improved));
       } else {
         ShouldNotReachHere();
       }
@@ -678,7 +998,18 @@ struct LinearCombination {
     if (new_n == nullptr) {
       new_n = n;
     }
-    return progress ? new_n : nullptr;
+    if (UseNewCode) {
+      tty->print_cr("Done: progress=%d; is_new_n_fresh=%d; %d->%d", progress, is_new_n_fresh, n->_idx, new_n->_idx);
+      dump_sub_graph(tty, new_n);
+      tty->print_cr("\n\n");
+    }
+    if (!progress) {
+      return nullptr;
+    }
+    if (is_new_n_fresh || new_n == n) {
+      return new_n;
+    }
+    return AddINode::make(new_n, igvn_.zerocon(bt_), bt_);
   }
 };
 
@@ -687,6 +1018,7 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
   Node* in2 = in(2);
   int op1 = in1->Opcode();
   int op2 = in2->Opcode();
+#if 0
   // Fold (con1-x)+con2 into (con1+con2)-x
   if (op1 == Op_Add(bt) && op2 == Op_Sub(bt)) {
     // Swap edges to try optimizations below
@@ -752,6 +1084,7 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
       && in2 != in2->in(2) && !(in2->in(2)->is_Phi() && in2->in(2)->as_Phi()->is_tripcount(bt))) {
     return AddNode::make(phase->transform(SubNode::make(in1, in2->in(2), bt)), in2->in(1), bt);
   }
+#endif
 
   // Associative
   if (op1 == Op_Mul(bt) && op2 == Op_Mul(bt)) {
@@ -806,13 +1139,34 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
     }
   }
 
+#if 0
   // Collapse addition of the same terms into multiplications.
   Node* collapsed = Ideal_collapse_variable_times_con(phase, bt);
   if (collapsed != nullptr) {
     return collapsed; // Skip AddNode::Ideal() since it may now be a multiplication node.
   }
+#endif
+
+  if (Node* r = simplify_whole_tree(can_reshape, phase, bt, this); r != nullptr) {
+    return r;
+  }
 
   return AddNode::Ideal(phase, can_reshape);
+}
+
+Node* AddNode::simplify_whole_tree(bool can_reshape, PhaseGVN* phase, BasicType bt, Node* n) {
+  if (can_reshape) {
+    LinearCombination lc{bt, *phase->is_IterGVN()};
+    Node* new_this = lc.collect_and_replace(n);
+    if (new_this != nullptr) {
+      return new_this; // Skip AddNode::Ideal() since it may now be a multiplication node.
+    }
+  } else {
+    if (!LinearCombination::skip_it(bt, n)) {
+      phase->record_for_igvn(n);
+    }
+  }
+  return nullptr;
 }
 
 // Try to collapse addition of the same terms into a single multiplication. On success, a new MulNode is returned.

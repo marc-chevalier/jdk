@@ -2930,6 +2930,29 @@ void PhaseIterGVN::add_users_of_use_to_worklist(Node* n, Node* use, Unique_Node_
     const int add_op = (use_op == Op_SubI) ? Op_AddI : Op_AddL;
     add_users_to_worklist_if(worklist, use, [=](Node* u) { return u->Opcode() == add_op; });
   }
+
+  auto push_tree_of_add_sub_to_worklist = [&worklist](const Node* u) {
+    auto is_boundary = [](Node* n) {
+      return n->Opcode() != Op_AddI && n->Opcode() != Op_AddL && n->Opcode() != Op_SubI && n->Opcode() != Op_SubL;
+    };
+    auto push_to_worklist = [&worklist](Node* n){
+      if (n->Opcode() == Op_AddI || n->Opcode() == Op_AddL || n->Opcode() == Op_SubI || n->Opcode() == Op_SubL) {
+        worklist.push(n);
+      }
+    };
+    u->visit_uses(push_to_worklist, is_boundary);
+  };
+
+  if (use_op == Op_LShiftI || use_op == Op_LShiftL || use_op == Op_MulI || use_op == Op_MulL) {
+    for (DUIterator_Fast imax, i = n->fast_outs(imax); i < imax; i++) {
+      Node* u = n->fast_out(i);
+      push_tree_of_add_sub_to_worklist(u);
+    }
+  }
+
+  if (use_op == Op_AddI || use_op == Op_AddL || use_op == Op_SubI || use_op == Op_SubL) {
+    push_tree_of_add_sub_to_worklist(use);
+  }
 }
 
 /**

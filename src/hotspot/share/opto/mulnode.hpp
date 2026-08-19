@@ -86,6 +86,57 @@ public:
   static MulNode* make(Node* in1, Node* in2, BasicType bt);
   static MulNode* make_and(Node* in1, Node* in2, BasicType bt);
 
+  class IntegerAsSumOrDiffOfPowerOf2 {
+    int8_t bit1_;
+    int8_t bit2_;
+    bool is_sum_;
+    bool sign_flip_;
+
+    static constexpr int8_t UNDEF = -1;
+
+    IntegerAsSumOrDiffOfPowerOf2(int bit1, int bit2, bool is_sum, bool sign_flip):
+    bit1_(checked_cast<int8_t>(bit1)), bit2_(checked_cast<int8_t>(bit2)), is_sum_(is_sum), sign_flip_(sign_flip) {
+      precond(bit1 == UNDEF || bit1 >= 0);
+      precond(bit2 == UNDEF || bit2 >= 0);
+      precond(bit2 == UNDEF || bit1 != UNDEF);  // bit2 != UNDEF => bit1 != UNDEF
+      precond(bit2 == UNDEF || bit1 > bit2);
+    }
+
+  public:
+    static IntegerAsSumOrDiffOfPowerOf2 wrong_shape() {
+      return {UNDEF, UNDEF, true, false};
+    }
+
+    static IntegerAsSumOrDiffOfPowerOf2 power_of_2(int bit, bool sign_flip) {
+      precond(bit >= 0);
+      return {bit, UNDEF, true, sign_flip};
+    }
+
+    static IntegerAsSumOrDiffOfPowerOf2 sum_of_power_of_2(int bit1, int bit2, bool sign_flip) {
+      precond(bit1 >= 0);
+      precond(bit2 >= 0);
+      precond(bit1 > bit2);
+      return {bit1, bit2, true, sign_flip};
+    }
+
+    static IntegerAsSumOrDiffOfPowerOf2 difference_of_power_of_2(int bit1, int bit2, bool sign_flip) {
+      precond(bit1 >= 0);
+      precond(bit2 >= 0);
+      precond(bit1 > bit2);
+      return {bit1, bit2, false, sign_flip};
+    }
+
+    [[nodiscard]] bool does_not_have_nice_shape() const { return bit1_ == UNDEF; }
+    [[nodiscard]] bool is_simple_power_of_two() const { return bit2_ == UNDEF; }
+    [[nodiscard]] uint8_t high_bit() const { return bit1_; }
+    [[nodiscard]] uint8_t low_bit() const { return bit2_; }
+    [[nodiscard]] bool is_sum() const { return is_sum_; }
+    [[nodiscard]] bool sign_flip() const { return sign_flip_; }
+  };
+
+  template <typename Integer>
+  static IntegerAsSumOrDiffOfPowerOf2 decompose_integer(Integer con);
+
 protected:
   Node* AndIL_sum_and_mask(PhaseGVN* phase, BasicType bt);
 };
