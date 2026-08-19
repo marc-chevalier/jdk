@@ -155,9 +155,9 @@ public class XorLNodeIdealizationTests {
     }
 
     @Test
-    @IR(failOn = {IRNode.ADD, IRNode.XOR})
-    @IR(counts = {IRNode.SUB, "2"})
-    // Checks ~x - y => (-1 - x) -y
+    @IR(failOn = {IRNode.XOR})
+    @IR(counts = {IRNode.ADD, "1", IRNode.SUB, "1"})
+    // Checks ~x - y = (-1 - x) -y => -1 - (x + y)
     public long test9(long x, long y) {
         return ~x - y;
     }

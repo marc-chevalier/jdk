@@ -232,45 +232,31 @@ MulNode* MulNode::make_and(Node* in1, Node* in2, BasicType bt) {
   return nullptr;
 }
 
-
-//=============================================================================
-//------------------------------Ideal------------------------------------------
-// Check for power-of-2 multiply, then try the regular MulNode::Ideal
-Node *MulINode::Ideal(PhaseGVN *phase, bool can_reshape) {
-  const jint con = in(2)->find_int_con(0);
-  if (con == 0) {
-    // If in(2) is not a constant, call Ideal() of the parent class to
-    // try to move constant to the right side.
-    return MulNode::Ideal(phase, can_reshape);
-  }
-
-  // Now we have a constant Node on the right and the constant in con.
-  if (con == 1) {
-    // By one is handled by Identity call
-    return nullptr;
-  }
+template <typename Integer>
+MulNode::IntegerAsSumOrDiffOfPowerOf2 MulNode::decompose_integer(Integer con) {
+  typedef std::make_unsigned_t<Integer> UnsignedInteger;
 
   // Check for negative constant; if so negate the final result
   bool sign_flip = false;
-
-  unsigned int abs_con = g_uabs(con);
-  if (abs_con != (unsigned int)con) {
+  UnsignedInteger abs_con = g_uabs(con);
+  if (abs_con != (UnsignedInteger)con) {
     sign_flip = true;
   }
 
   // Get low bit; check for being the only bit
-  Node *res = nullptr;
-  unsigned int bit1 = submultiple_power_of_2(abs_con);
+  UnsignedInteger bit1 = submultiple_power_of_2(abs_con);
   if (bit1 == abs_con) {           // Found a power of 2?
-    res = new LShiftINode(in(1), phase->intcon(log2i_exact(bit1)));
+    int bit1_pos = log2i_exact(bit1);
+    return IntegerAsSumOrDiffOfPowerOf2::power_of_2(bit1_pos, sign_flip);
   } else {
     // Check for constant with 2 bits set
-    unsigned int bit2 = abs_con - bit1;
-    bit2 = bit2 & (0 - bit2);          // Extract 2nd bit
+    UnsignedInteger bit2 = abs_con - bit1;
+    bit2 = bit2 & (0-bit2);          // Extract 2nd bit
     if (bit2 + bit1 == abs_con) {    // Found all bits in con?
-      Node *n1 = phase->transform(new LShiftINode(in(1), phase->intcon(log2i_exact(bit1))));
-      Node *n2 = phase->transform(new LShiftINode(in(1), phase->intcon(log2i_exact(bit2))));
-      res = new AddINode(n2, n1);
+      int bit1_pos = log2i_exact(bit1);
+      int bit2_pos = log2i_exact(bit2);
+      assert(bit2_pos > bit1_pos, "");
+      return IntegerAsSumOrDiffOfPowerOf2::sum_of_power_of_2(bit2_pos, bit1_pos, sign_flip);
     } else {
       // Let's detect cases such as 2^n - 2^m. Since abs_con > 0, we have n > m.
       // But also, since abs_con isn't a power of 2 at this point, n > m + 1 (because 2^(m+1) - 2^m = 2^m).
@@ -285,37 +271,82 @@ Node *MulINode::Ideal(PhaseGVN *phase, bool can_reshape) {
       //             ^---n ones---+
       //                          ^ 0 zeroes
       // In any case, we have n - m ones. By adding the number of trailing zeroes and ones, we get n.
+      // To get the number of trailing ones, we can simply add 1, to get a power of 2, and take the exact
+      // log. This increment cannot overflow because the uppest bit is always 0. Indeed, the only value for
+      // `con` that would make the uppest bit at 1 is con -2^(size - 1), so that abs_con = 2^(size - 1).
+      // But then, we would enter the branch computing a power of 2.
       //
       // So, we can do                                                 regex-like binary representation
       // let m = count_trailing_zeros(abs_con)                         0{k}1{n-m}0{m}
       // let abs_con_without_lower_zeroes = abs_con >> m               0{k+m}1{n-m}
       // let temp = abs_con_without_lower_zeroes + 1                   0{k+m-1}10{n-m}
-      // if is_power_of_2(temp) then
+      // if is_power_of_2(temp) {
       //   let n = m + log2i_exact(temp)                               = m + (n - m) = n
       //   replace with (in(1) << n) - (in(1) << m)
+      // }
       int m = count_trailing_zeros(abs_con);
-      unsigned int abs_con_without_lower_zeroes = abs_con >> m;
-      unsigned int temp = abs_con_without_lower_zeroes + 1;
+      UnsignedInteger abs_con_without_lower_zeroes = abs_con >> m;
+      UnsignedInteger temp = abs_con_without_lower_zeroes + 1;
       if (is_power_of_2(temp)) {
         int n = m + log2i_exact(temp);
-        Node* lhs = phase->transform(new LShiftINode(in(1), phase->intcon(n)));
-        Node* rhs =
-            m == 1
-              ? phase->transform(new LShiftINode(in(1), phase->intcon(m)))
-              : in(1);
-        res = new SubINode(lhs, rhs);
-      } else {
-        return MulNode::Ideal(phase, can_reshape);
+        return IntegerAsSumOrDiffOfPowerOf2::difference_of_power_of_2(n, m, sign_flip);
       }
     }
   }
 
-  if (sign_flip) {             // Need to negate result?
-    res = phase->transform(res);// Transform, before making the zero con
-    res = new SubINode(phase->intcon(0),res);
+  return IntegerAsSumOrDiffOfPowerOf2::wrong_shape();
+}
+
+template <typename Integer>
+Node* transform_constant_mult(PhaseGVN* phase, Integer con, Node* operand, BasicType bt) {
+  MulNode::IntegerAsSumOrDiffOfPowerOf2 decomposed = MulNode::decompose_integer<Integer>(con);
+
+  if (decomposed.does_not_have_nice_shape()) {
+    return nullptr;
+  }
+  Node* res = nullptr;
+
+  if (decomposed.is_simple_power_of_two()) {
+    res = LShiftNode::make(operand, phase->intcon(decomposed.high_bit()), bt);
+  } else {
+    Node* operand_times_two_power_high_bit = phase->transform(LShiftNode::make(operand, phase->intcon(decomposed.high_bit()), bt));
+    Node *operand_times_two_power_low_bit = phase->transform(LShiftNode::make(operand, phase->intcon(decomposed.low_bit()), bt));
+    if (decomposed.is_sum()) {
+      res = AddNode::make(operand_times_two_power_high_bit, operand_times_two_power_low_bit, bt);
+    } else {
+      res = SubNode::make(operand_times_two_power_high_bit, operand_times_two_power_low_bit, bt);
+    }
   }
 
-  return res;                   // Return final result
+  if (decomposed.sign_flip()) {                // Need to negate result?
+    res = phase->transform(res);               // Transform, before making the zero con
+    res = SubNode::make(phase->zerocon(bt), res, bt);
+  }
+
+  return res;
+}
+
+// Check multiplication with simple constants (power of 2, sum or difference of powers of 2),
+// then try the regular MulNode::Ideal
+Node* MulINode::Ideal(PhaseGVN* phase, bool can_reshape) {
+  const jint con = in(2)->find_int_con(0);
+  if (con == 0) {
+    // If in(2) is not a constant, call Ideal() of the parent class to
+    // try to move constant to the right side.
+    return MulNode::Ideal(phase, can_reshape);
+  }
+
+  // Now we have a constant Node on the right and the constant in con.
+  if (con == 1) {
+    // By one is handled by Identity call
+    return nullptr;
+  }
+
+  if (Node* n = transform_constant_mult(phase, con, in(1), T_INT); n != nullptr) {
+    return n;
+  }
+
+  return MulNode::Ideal(phase, can_reshape);
 }
 
 // This template class performs type multiplication for MulI/MulLNode. NativeType is either jint or jlong.
@@ -498,10 +529,9 @@ const Type* MulLNode::mul_ring(const Type* type_left, const Type* type_right) co
   return integer_multiplication.compute();
 }
 
-//=============================================================================
-//------------------------------Ideal------------------------------------------
-// Check for power-of-2 multiply, then try the regular MulNode::Ideal
-Node *MulLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
+// Check multiplication with simple constants (power of 2, sum or difference of powers of 2),
+// then try the regular MulNode::Ideal
+Node* MulLNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   const jlong con = in(2)->find_long_con(0);
   if (con == 0) {
     // If in(2) is not a constant, call Ideal() of the parent class to
@@ -515,44 +545,11 @@ Node *MulLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     return nullptr;
   }
 
-  // Check for negative constant; if so negate the final result
-  bool sign_flip = false;
-  julong abs_con = g_uabs(con);
-  if (abs_con != (julong)con) {
-    sign_flip = true;
+  if (Node* n = transform_constant_mult(phase, con, in(1), T_LONG); n != nullptr) {
+    return n;
   }
 
-  // Get low bit; check for being the only bit
-  Node *res = nullptr;
-  julong bit1 = submultiple_power_of_2(abs_con);
-  if (bit1 == abs_con) {           // Found a power of 2?
-    res = new LShiftLNode(in(1), phase->intcon(log2i_exact(bit1)));
-  } else {
-
-    // Check for constant with 2 bits set
-    julong bit2 = abs_con-bit1;
-    bit2 = bit2 & (0-bit2);          // Extract 2nd bit
-    if (bit2 + bit1 == abs_con) {    // Found all bits in con?
-      Node *n1 = phase->transform(new LShiftLNode(in(1), phase->intcon(log2i_exact(bit1))));
-      Node *n2 = phase->transform(new LShiftLNode(in(1), phase->intcon(log2i_exact(bit2))));
-      res = new AddLNode(n2, n1);
-
-    } else if (is_power_of_2(abs_con+1)) {
-      // Sleezy: power-of-2 -1.  Next time be generic.
-      julong temp = abs_con + 1;
-      Node *n1 = phase->transform( new LShiftLNode(in(1), phase->intcon(log2i_exact(temp))));
-      res = new SubLNode(n1, in(1));
-    } else {
-      return MulNode::Ideal(phase, can_reshape);
-    }
-  }
-
-  if (sign_flip) {             // Need to negate result?
-    res = phase->transform(res);// Transform, before making the zero con
-    res = new SubLNode(phase->longcon(0),res);
-  }
-
-  return res;                   // Return final result
+  return MulNode::Ideal(phase, can_reshape);
 }
 
 //=============================================================================

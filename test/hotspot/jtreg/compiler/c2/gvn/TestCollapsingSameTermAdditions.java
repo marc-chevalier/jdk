@@ -27,10 +27,9 @@ import compiler.lib.generators.Generators;
 import compiler.lib.generators.RestrictableGenerator;
 import compiler.lib.ir_framework.Test;
 import compiler.lib.ir_framework.*;
+import static compiler.lib.ir_framework.IRNode.*;
 import jdk.test.lib.Asserts;
-import jdk.test.lib.Utils;
 
-import java.util.Random;
 
 /*
  * @test
@@ -60,12 +59,26 @@ public class TestCollapsingSameTermAdditions {
             "addTo16",
             "addAndShiftTo16",
             "addTo42",
+            "addAandBTo42",
+            "addATo42_BTo41",
             "mulAndAddTo42",
             "mulAndAddToMax",
             "mulAndAddToOverflow",
             "mulAndAddToZero",
             "mulAndAddToMinus1",
-            "mulAndAddToMinus42"
+            "mulAndAddToMinus42",
+            "rightPrecedence",
+            "rightPrecedenceShift",
+            "complexShiftPattern",
+            "nestedAddPattern",
+            "complexPrecedence",
+            "simplifyToParam",
+            "simplifyToConst",
+            "complexShiftPatternAddNotSimplified",
+            "complexShiftPatternAddNotSimplified2",
+            "complexShiftPatternSubNotSimplified",
+            "complexShiftPatternSubNotSimplified2",
+            "complexShiftPatternSubNotSimplified3",
     })
     private void runIntTests() {
         for (int a : new int[] { 0, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, GEN_INT.next() }) {
@@ -87,19 +100,47 @@ public class TestCollapsingSameTermAdditions {
             Asserts.assertEQ(0, mulAndAddToZero(a));
             Asserts.assertEQ(a * -1, mulAndAddToMinus1(a));
             Asserts.assertEQ(a * -42, mulAndAddToMinus42(a));
+            Asserts.assertEQ(a * 3, rightPrecedence(a));
+            Asserts.assertEQ(a * 4, rightPrecedenceShift(a));
+            Asserts.assertEQ(a * 7, complexShiftPattern(a));
+            Asserts.assertEQ(a * 4, nestedAddPattern(a));
+            Asserts.assertEQ(a * 6, complexShiftPatternAddNotSimplified(a));
+            Asserts.assertEQ(a * 33, complexShiftPatternAddNotSimplified2(a));
+            Asserts.assertEQ(a * 60, complexShiftPatternSubNotSimplified(a));
+            Asserts.assertEQ(a * 31, complexShiftPatternSubNotSimplified2(a));
+            Asserts.assertEQ(a * 60, complexShiftPatternSubNotSimplified3(a));
+
+            for (int b : new int[] { 0, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, GEN_INT.next() }) {
+                Asserts.assertEQ(a * 42 + b * 42, addAandBTo42(a, b));
+                Asserts.assertEQ(a * 42 + b * 41, addATo42_BTo41(a, b));
+                for (int c : new int[] { 0, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, GEN_INT.next() }) {
+                    Asserts.assertEQ(b, simplifyToParam(a, b, c));
+                    Asserts.assertEQ(0, simplifyToConst(a, b, c));
+                }
+            }
         }
     }
 
     @Run(test = {
             "mulAndAddToIntOverflowL",
             "mulAndAddToMaxL",
-            "mulAndAddToOverflowL"
+            "mulAndAddToOverflowL",
+            "rightPrecedenceL",
+            "rightPrecedenceShiftL",
+            "complexShiftPatternL",
+            "nestedAddPatternL",
+            "complexPrecedenceL",
     })
     private void runLongTests() {
         for (long a : new long[] { 0, 1, Long.MIN_VALUE, Long.MAX_VALUE, GEN_LONG.next() }) {
             Asserts.assertEQ(a * (Integer.MAX_VALUE + 1L), mulAndAddToIntOverflowL(a));
             Asserts.assertEQ(a * Long.MAX_VALUE, mulAndAddToMaxL(a));
             Asserts.assertEQ(a * Long.MIN_VALUE, mulAndAddToOverflowL(a));
+            Asserts.assertEQ(a * 3L, rightPrecedenceL(a));
+            Asserts.assertEQ(a * 4L, rightPrecedenceShiftL(a));
+            Asserts.assertEQ(a * 7L, complexShiftPatternL(a));
+            Asserts.assertEQ(a * 4L, nestedAddPatternL(a));
+            Asserts.assertEQ(a * 5L, complexPrecedenceL(a));
         }
     }
 
@@ -114,83 +155,83 @@ public class TestCollapsingSameTermAdditions {
 
     // ----- integer tests -----
     @Test
-    @IR(counts = { IRNode.ADD_I, "1" })
-    @IR(failOn = IRNode.LSHIFT_I)
+    @IR(counts = { ADD_I, "1" })
+    @IR(failOn = LSHIFT_I)
     private static int addTo2(int a) {
         return a + a; // Simple additions like a + a should be kept as-is
     }
 
     @Test
-    @IR(counts = { IRNode.ADD_I, "1", IRNode.LSHIFT_I, "1" })
+    @IR(counts = { ADD_I, "1", LSHIFT_I, "1" })
     private static int addTo3(int a) {
         return a + a + a; // a*3 => (a<<1) + a
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { LSHIFT_I, "1" })
     private static int addTo4(int a) {
         return a + a + a + a; // a*4 => a<<2
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { LSHIFT_I, "1" })
     private static int shiftAndAddTo4(int a) {
         return (a << 1) + a + a; // a*2 + a + a => a*3 + a => a*4 => a<<2
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { LSHIFT_I, "1" })
     private static int mulAndAddTo4(int a) {
         return a * 3 + a; // a*4 => a<<2
     }
 
     @Test
-    @IR(counts = { IRNode.ADD_I, "1", IRNode.LSHIFT_I, "1" })
+    @IR(counts = { ADD_I, "1", LSHIFT_I, "1" })
     private static int addTo5(int a) {
         return a + a + a + a + a; // a*5 => (a<<2) + a
     }
 
     @Test
-    @IR(counts = { IRNode.ADD_I, "1", IRNode.LSHIFT_I, "2" })
+    @IR(counts = { ADD_I, "1", LSHIFT_I, "2" })
     private static int addTo6(int a) {
         return a + a + a + a + a + a; // a*6 => (a<<1) + (a<<2)
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1", IRNode.SUB_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { LSHIFT_I, "1", SUB_I, "1" })
     private static int addTo7(int a) {
         return a + a + a + a + a + a + a; // a*7 => (a<<3) - a
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { LSHIFT_I, "1" })
     private static int addTo8(int a) {
         return a + a + a + a + a + a + a + a; // a*8 => a<<3
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { LSHIFT_I, "1" })
     private static int addTo16(int a) {
         return a + a + a + a + a + a + a + a + a + a
                 + a + a + a + a + a + a; // a*16 => a<<4
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { LSHIFT_I, "1" })
     private static int addAndShiftTo16(int a) {
         return (a + a) << 3; // a<<(3 + 1) => a<<4
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.MUL_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { MUL_I, "1" })
     private static int addTo42(int a) {
         return a + a + a + a + a + a + a + a + a + a
                 + a + a + a + a + a + a + a + a + a + a
@@ -200,8 +241,28 @@ public class TestCollapsingSameTermAdditions {
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.MUL_I, "1" })
+    @IR(counts = { ADD_I, "1", MUL_I, "1" })
+    private static int  addAandBTo42(int a, int b) {
+        return a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b
+                + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b
+                + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b
+                + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b
+                + a + b + a + b; // == a*42 + b*42 => 42 * (a + b)
+    }
+
+    @Test
+    @IR(counts = { ADD_I, "1", MUL_I, "2" })
+    private static int addATo42_BTo41(int a, int b) {
+        return a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b
+                + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b
+                + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b
+                + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b + a + b
+                + a + b + a; // == a*42 + b*41
+    }
+
+    @Test
+    @IR(failOn = ADD_I)
+    @IR(counts = { MUL_I, "1" })
     private static int mulAndAddTo42(int a) {
         return a * 40 + a + a; // a*41 + a => a*42
     }
@@ -209,44 +270,44 @@ public class TestCollapsingSameTermAdditions {
     private static final int INT_MAX_MINUS_ONE = Integer.MAX_VALUE - 1;
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1", IRNode.SUB_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { LSHIFT_I, "1", SUB_I, "1" })
     private static int mulAndAddToMax(int a) {
-        return a * INT_MAX_MINUS_ONE + a; // a*MAX => a*(MIN-1) => a*MIN - a => (a<<31) - a
+        return a * INT_MAX_MINUS_ONE + a; // = a * (MAX - 1) + a = a * MAX = a * (MIN - 1) = a * MIN - a => a << 63 - a
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { LSHIFT_I, "1" })
     private static int mulAndAddToOverflow(int a) {
         return a * Integer.MAX_VALUE + a; // a*(MAX+1) => a*(MIN) => a<<31
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.CON_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { CON_I, "1" })
     private static int mulAndAddToZero(int a) {
         return a * -1 + a; // 0
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1", IRNode.SUB_I, "1" })
+    @IR(failOn = { ADD_I, LSHIFT_I })
+    @IR(counts = { SUB_I, "1" })
     private static int mulAndAddToMinus1(int a) {
-        return a * -2 + a; // a*-1 => a - (a<<1)
+        return a * -2 + a; // = -a => 0 - a
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.MUL_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { MUL_I, "1" })
     private static int mulAndAddToMinus42(int a) {
         return a * -43 + a; // a*-42
     }
 
     // --- long tests ---
     @Test
-    @IR(failOn = IRNode.ADD_L)
-    @IR(counts = { IRNode.LSHIFT_L, "1" })
+    @IR(failOn = ADD_L)
+    @IR(counts = { LSHIFT_L, "1" })
     private static long mulAndAddToIntOverflowL(long a) {
         return a * Integer.MAX_VALUE + a; // a*(INT_MAX+1)
     }
@@ -254,22 +315,22 @@ public class TestCollapsingSameTermAdditions {
     private static final long LONG_MAX_MINUS_ONE = Long.MAX_VALUE - 1;
 
     @Test
-    @IR(failOn = IRNode.ADD_L)
-    @IR(counts = { IRNode.LSHIFT_L, "1", IRNode.SUB_L, "1" })
+    @IR(failOn = ADD_L)
+    @IR(counts = { LSHIFT_L, "1", SUB_L, "1" })
     private static long mulAndAddToMaxL(long a) {
-        return a * LONG_MAX_MINUS_ONE + a; // a*MAX => a*(MIN-1) => a*MIN - 1 => (a<<63) - 1
+        return a * LONG_MAX_MINUS_ONE + a; // a*MAX = a*(MIN-1) = a*MIN - 1 => (a<<63) - 1
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_L)
-    @IR(counts = { IRNode.LSHIFT_L, "1" })
+    @IR(failOn = ADD_L)
+    @IR(counts = { LSHIFT_L, "1" })
     private static long mulAndAddToOverflowL(long a) {
-        return a * Long.MAX_VALUE + a; // a*(MAX+1) => a*(MIN) => a<<63
+        return a * Long.MAX_VALUE + a; // a*(MAX+1) = a*(MIN) = a<<63
     }
 
     // --- bit shift tests ---
     @Test
-    @IR(failOn = {IRNode.ADD_I, IRNode.LSHIFT_I})
+    @IR(failOn = {ADD_I, LSHIFT_I})
     private static int bitShiftToOverflow() {
         int i, x = 0;
         for (i = 0; i < 32; i++) {
@@ -281,7 +342,7 @@ public class TestCollapsingSameTermAdditions {
     }
 
     @Test
-    @IR(failOn = {IRNode.ADD_L, IRNode.LSHIFT_L})
+    @IR(failOn = {ADD_L, LSHIFT_L})
     private static long bitShiftToOverflowL() {
         int i, x = 0;
         for (i = 0; i < 64; i++) {
@@ -314,11 +375,11 @@ public class TestCollapsingSameTermAdditions {
     })
     private void runRandomPowerOfTwoAddition() {
         for (int a : new int[] { 0, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, GEN_INT.next() }) {
-            Asserts.assertEQ(a * (CON1_I + CON2_I + CON3_I + CON4_I), randomPowerOfTwoAddition(a));
+            Asserts.assertEQ(a * (CON1_I + CON2_I + CON3_I + CON4_I), randomPowerOfTwoAddition(a), "CON1_I=" + CON1_I + "; CON2_I=" + CON2_I + "; CON3_I=" + CON3_I + "; CON4_I=" + CON4_I);
         }
 
         for (long a : new long[] { 0, 1, Long.MIN_VALUE, Long.MAX_VALUE, GEN_LONG.next() }) {
-            Asserts.assertEQ(a * (CON1_L + CON2_L + CON3_L + CON4_L), randomPowerOfTwoAdditionL(a));
+            Asserts.assertEQ(a * (CON1_L + CON2_L + CON3_L + CON4_L), randomPowerOfTwoAdditionL(a), "CON1_L=" + CON1_L + "; CON2_L=" + CON2_L + "; CON3_L=" + CON3_L + "; CON4_L=" + CON4_L);
         }
     }
 
@@ -333,98 +394,107 @@ public class TestCollapsingSameTermAdditions {
         return a * CON1_L + a * CON2_L + a * CON3_L + a * CON4_L;
     }
 
-    // Patterns that are originally cannot be recognized due to their right precedence making it difficult without
-    // recursion, but some are made possible with swapping lhs and rhs.
-    @Run(test = {
-        "rightPrecedence",
-        "rightPrecedenceL",
-        "rightPrecedenceShift",
-        "rightPrecedenceShiftL",
-    })
-    private void runLhsRhsSwaps() {
-        for (int a : new int[] { 0, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, GEN_INT.next() }) {
-            Asserts.assertEQ(a * 3, rightPrecedence(a));
-            Asserts.assertEQ(a * 4, rightPrecedenceShift(a));
-        }
-
-        for (long a : new long[] { 0, 1, Long.MIN_VALUE, Long.MAX_VALUE, GEN_LONG.next() }) {
-            Asserts.assertEQ(a * 3, rightPrecedenceL(a));
-            Asserts.assertEQ(a * 4, rightPrecedenceShiftL(a));
-        }
-    }
-
     @Test
-    @IR(counts = { IRNode.ADD_I, "1", IRNode.LSHIFT_I, "1" })
+    @IR(counts = { ADD_I, "1", LSHIFT_I, "1" })
     private static int rightPrecedence(int a) {
         return a + (a + a);
     }
 
     @Test
-    @IR(counts = { IRNode.ADD_L, "1", IRNode.LSHIFT_L, "1" })
+    @IR(counts = { ADD_L, "1", LSHIFT_L, "1" })
     private static long rightPrecedenceL(long a) {
         return a + (a + a);
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_I)
-    @IR(counts = { IRNode.LSHIFT_I, "1" })
+    @IR(failOn = ADD_I)
+    @IR(counts = { LSHIFT_I, "1" })
     private static int rightPrecedenceShift(int a) {
-        return a + (a << 1) + a; // a + a*2 + a => a*2 + a + a => a*3 + a => a*4 => a<<2
+        return a + (a << 1) + a; // a + a*2 + a == a * 4 => a<<2
     }
 
     @Test
-    @IR(failOn = IRNode.ADD_L)
-    @IR(counts = { IRNode.LSHIFT_L, "1" })
+    @IR(failOn = ADD_L)
+    @IR(counts = { LSHIFT_L, "1" })
     private static long rightPrecedenceShiftL(long a) {
-        return a + (a << 1) + a; // a + a*2 + a => a*2 + a + a => a*3 + a => a*4 => a<<2
+        return a + (a << 1) + a; // == a*4 => a<<2
     }
 
-    // JDK-8347555 only aims to cover cases minimally needed for patterns a + a + ... + a => n*a. However, some patterns
-    // like CON * a + a => (CON + 1) * a are considered unintended side-effects due to the way pattern matching is
-    // implemented.
-    //
-    // The followings are patterns that could be, mathematically speaking, optimized, but not implemented at this stage.
-    // These tests are to be updated if they are addressed in the future.
-
     @Test
-    @IR(counts = { IRNode.ADD_I, "2", IRNode.LSHIFT_I, "2" })
-    @Arguments(values = { Argument.RANDOM_EACH })
+    @IR(counts = { SUB_I, "1", LSHIFT_I, "1" })
     private static int complexShiftPattern(int a) {
-        return a + (a << 1) + (a << 2); // This could've been: a + a*2 + a*4 => a*7
+        return a + (a << 1) + (a << 2); // == a + a*2 + a*4 == a*7 == a * (2^3 - 1) => a << 3 - a
     }
 
     @Test
-    @IR(counts = { IRNode.ADD_I, "2" })  // b = a + a, c = b + b
-    @Arguments(values = { Argument.RANDOM_EACH })
+    @IR(counts = { ADD_I, "1", LSHIFT_I, "2" })
+    private static int complexShiftPatternAddNotSimplified(int a) {
+        return (a << 1) + (a << 2); // do no simplify since the form a * (2^x + 2^y) is transformed into a << x + a << y
+    }
+
+    @Test
+    @IR(counts = { ADD_I, "1", LSHIFT_I, "1" })
+    private static int complexShiftPatternAddNotSimplified2(int a) {
+        return (a << 5) + a; // special case of above with y == 0
+    }
+
+    @Test
+    @IR(counts = { SUB_I, "1", LSHIFT_I, "2" })
+    private static int complexShiftPatternSubNotSimplified(int a) {
+        return (a << 6) - (a << 2); // do no simplify since the form a * (2^x - 2^y) is transformed into a << x - a << y
+    }
+
+    @Test
+    @IR(counts = { SUB_I, "1", LSHIFT_I, "1" })
+    private static int complexShiftPatternSubNotSimplified2(int a) {
+        return (a << 5) - a; // special case of above with y == 0
+    }
+
+    @Test
+    @IR(counts = { SUB_I, "1", LSHIFT_I, "2" })
+    private static int complexShiftPatternSubNotSimplified3(int a) {
+        return a * 60;  // 2^6 - 2^2 == 64 - 4 = 60. The simplification happens, and is not reverted
+    }
+
+    @Test
+    @IR(failOn = { ADD_I }, counts = { LSHIFT_I, "1" })
     private static int nestedAddPattern(int a) {
-        return (a + a) + (a + a); // This could've been: 2*a + 2*a => 4*a
+        return (a + a) + (a + a); // == a * 4 => a << 2
     }
 
     @Test
-    @IR(counts = { IRNode.ADD_I, "3", IRNode.LSHIFT_I, "1" })
-    @Arguments(values = { Argument.RANDOM_EACH })
+    @IR(counts = { ADD_I, "1", LSHIFT_I, "1" })
     private static int complexPrecedence(int a) {
-        return a + a + ((a + a) + a); // This could've been: 2*a + (2*a + a) => 2*a + 3*a => 5*a
+        return a + a + ((a + a) + a);  // This is a * 5 == a * (2^2 + 1) => a << 2 + a
     }
 
     @Test
-    @IR(counts = { IRNode.ADD_L, "2", IRNode.LSHIFT_L, "2" })
-    @Arguments(values = { Argument.RANDOM_EACH })
+    @IR(counts = { SUB_L, "1", LSHIFT_L, "1" })
     private static long complexShiftPatternL(long a) {
-        return a + (a << 1) + (a << 2); // This could've been: a + a*2 + a*4 => a*7
+        return a + (a << 1) + (a << 2); // == a + a*2 + a*4 == a*7 == a * (2^3 - 1) => a << 3 - a
     }
 
     @Test
-    @IR(counts = { IRNode.ADD_L, "2" })  // b = a + a, c = b + b
-    @Arguments(values = { Argument.RANDOM_EACH })
+    @IR(failOn = { ADD_L}, counts = { LSHIFT_L, "1" })
     private static long nestedAddPatternL(long a) {
-        return (a + a) + (a + a); // This could've been: 2*a + 2*a => 4*a
+        return (a + a) + (a + a); // == a * 4 => a << 2
     }
 
     @Test
-    @IR(counts = { IRNode.ADD_L, "3", IRNode.LSHIFT_L, "1" })
-    @Arguments(values = { Argument.RANDOM_EACH })
+    @IR(counts = { ADD_L, "1", LSHIFT_L, "1" })
     private static long complexPrecedenceL(long a) {
-        return a + a + ((a + a) + a); // This could've been: 2*a + (2*a + a) => 2*a + 3*a => 5*a
+        return a + a + ((a + a) + a);  // This is a * 5 == a * (2^2 + 1) => a << 2 + a
+    }
+
+    @Test
+    @IR(failOn = { ADD_I, MUL_I, SUB_I })
+    private static int simplifyToParam(int a, int b, int c) {
+        return ((a + c) + (b + c)) - (a + (c + c));  // b
+    }
+
+    @Test
+    @IR(failOn = { ADD_I, MUL_I, SUB_I })
+    private static int simplifyToConst(int a, int b, int c) {
+        return ((a + c) + (b + c)) - a - b - c - c;  // 0
     }
 }

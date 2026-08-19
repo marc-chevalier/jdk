@@ -130,6 +130,8 @@ class AddNode : public Node {
 
   // Utility function to make a NOT operation, i.e., returning n ^ (-1).
   static AddNode* make_not(PhaseGVN* phase, Node* n, BasicType bt);
+
+  static Node* simplify_whole_tree(bool can_reshape, PhaseGVN* phase, BasicType bt, Node* n);
 };
 
 //------------------------------AddINode---------------------------------------
