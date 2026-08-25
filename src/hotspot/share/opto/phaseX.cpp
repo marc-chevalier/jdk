@@ -2933,7 +2933,13 @@ void PhaseIterGVN::add_users_of_use_to_worklist(Node* n, Node* use, Unique_Node_
 
   auto push_tree_of_add_sub_to_worklist = [&worklist](const Node* u) {
     auto is_boundary = [](Node* n) {
-      return n->Opcode() != Op_AddI && n->Opcode() != Op_AddL && n->Opcode() != Op_SubI && n->Opcode() != Op_SubL;
+      return
+          n->Opcode() != Op_AddI && n->Opcode() != Op_AddL
+          && n->Opcode() != Op_SubI && n->Opcode() != Op_SubL
+          && (n->Opcode() != Op_MulI || (n->in(1)->Opcode() != Op_ConI && n->in(2)->Opcode() != Op_ConI))
+          && (n->Opcode() != Op_MulL || (n->in(1)->Opcode() != Op_ConL && n->in(2)->Opcode() != Op_ConL))
+          && (n->Opcode() != Op_LShiftI || n->in(2)->Opcode() != Op_ConI)
+          && (n->Opcode() != Op_LShiftL || n->in(2)->Opcode() != Op_ConI);
     };
     auto push_to_worklist = [&worklist](Node* n){
       if (n->Opcode() == Op_AddI || n->Opcode() == Op_AddL || n->Opcode() == Op_SubI || n->Opcode() == Op_SubL) {

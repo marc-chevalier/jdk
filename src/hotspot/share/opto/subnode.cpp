@@ -295,7 +295,7 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
   }
 #endif
 
-  // Associative
+  // Distributive (also uses commutativity)
   if (op1 == Op_MulI && op2 == Op_MulI) {
     Node* sub_in1 = nullptr;
     Node* sub_in2 = nullptr;
