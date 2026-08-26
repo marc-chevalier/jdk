@@ -421,12 +421,31 @@ AddNode* AddNode::make_not(PhaseGVN* phase, Node* n, BasicType bt) {
  * - constant component of B is non-null, and we are computing A - B (since we want to replace 0 - c by (-c))
  *
  * # Examples
+ * In post-traversal state, with replacement, if we have:
+ * - op=AddX, l=(a + b), r=(c + d), no improvement in l and r =>
+ *   AddX(l, r) is canonical, n is not improved, we don't touch anthing
+ * - op=AddX, l=(a + b), r=(c + a), no improvement in l and r =>
+ *   the combination for n is 2*a + b + c which is an improvement, so we rebuild the node for this combination:
+ *   n':=AddX(AddX(2*a, b), c)
+ * - op=AddX, l=(a + b), r=(c - d), no improvement in l and r =>
+ *   the combination for n is a + b + c - d which is not an improvement. But n is not in canonical shape (Sub as
+ *   input of Add), so we rebuild the node for this combination:
+ *   n':=SubX(AddX(AddX((a, b), c), d)
+ * - op=AddX, l=(a + b), r=(c + d), improvement in l or r =>
+ *   AddX(l, r) is canonical, we build n':=AddX(l, r) and it replaces n.
  *
+ * # Debugging
+ * The working of all of that can look subtle, or complicated. In debug build, set print_steps_ to true to get
+ * more logging. It's a bit verbose. Beware!
  */
 class LinearCombination {
   BasicType bt_;
   PhaseGVN& gvn_;
-  NOT_PRODUCT(bool print_steps_ = false;)
+#ifndef PRODUCT
+public:
+  bool print_steps_ = false;
+private:
+#endif
 
   struct StackItem {
     enum class TraversalState { Pre, PostAndReplace, PostNoReplace };
@@ -1022,10 +1041,12 @@ public:
   LinearCombination(BasicType bt, PhaseGVN& gvn) : bt_(bt), gvn_(gvn) {}
 
   Node* collect_and_replace(Node* n) const {
+    ResourceMark rm;
     GrowableArray<Result> computed;
     bool progress = false;
     Node* new_n = nullptr;
     bool is_new_n_fresh = false;
+    uint old_unique = gvn_.C->unique();
 #ifndef PRODUCT
     if (print_steps_) {
       tty->print("Subgraph: ");
@@ -1129,7 +1150,7 @@ public:
 #endif
           computed.push(Result(node, combination, node, operand.improved_));
         } else if (op == Op_LShift(bt_)) {
-          assert(node->in(2)->Opcode() == Op_ConIL(bt_), "rhs of LShift must be constant");
+          assert(node->in(2)->Opcode() == Op_ConI, "rhs of LShift must be constant, but got %s", node->in(2)->Name());
 
           jint shift = node->in(2)->get_int();
           jlong scalar = java_shift_left(1L, shift, bt_);
@@ -1279,16 +1300,33 @@ public:
     if (print_steps_) {
       tty->print_cr("Done: progress=%d; is_new_n_fresh=%d; %d->%d", progress, is_new_n_fresh, n->_idx, new_n->_idx);
       dump_sub_graph(tty, new_n);
-      tty->print_cr("\n\n");
     }
 #endif
     if (!progress) {
+#ifndef PRODUCT
+      if (print_steps_) {
+        tty->print_cr("\n\n");
+      }
+#endif
       return nullptr;
     }
-    if (is_new_n_fresh || new_n == n) {
+    if (new_n->_idx >= old_unique || new_n == n) {
+#ifndef PRODUCT
+      if (print_steps_) {
+        tty->print_cr("\n\n");
+      }
+#endif
       return new_n;
     }
-    return AddNode::make(new_n, gvn_.zerocon(bt_), bt_);
+#ifndef PRODUCT
+    if (print_steps_) {
+      tty->print_cr("Old node detected. Will return artificial new node.");
+      tty->print_cr("\n\n");
+    }
+#endif
+    const TypeTuple* t = bt_ == T_INT ? TypeTuple::INT_UNARY_TUPLE : TypeTuple::LONG_UNARY_TUPLE;
+    Node* tuple = transform(TupleNode::make(t, new_n));
+    return new ProjNode(tuple, 0);
   }
 };
 
@@ -1435,6 +1473,8 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
 
 Node* AddNode::simplify_whole_tree(bool can_reshape, PhaseGVN* phase, BasicType bt, Node* n) {
   LinearCombination lc(bt, *phase);
+  NOT_PRODUCT(lc.print_steps_ = UseNewCode;)
+  NOT_PRODUCT(ttyLocker ttyl;)
   Node* new_this = lc.collect_and_replace(n);
   if (new_this != nullptr) {
     return new_this; // Skip AddNode::Ideal() since it may now be a multiplication node.

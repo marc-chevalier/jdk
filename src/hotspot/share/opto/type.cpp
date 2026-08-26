@@ -647,6 +647,14 @@ void Type::Initialize_shared(Compile* current) {
   floop[1] = TypeInt::INT;
   TypeTuple::LOOPBODY = TypeTuple::make( 2, floop );
 
+  const Type **int_unary =(const Type**)shared_type_arena->AmallocWords(sizeof(Type*));
+  int_unary[0] = TypeInt::INT;
+  TypeTuple::INT_UNARY_TUPLE = TypeTuple::make(1, int_unary);
+
+  const Type **long_unary =(const Type**)shared_type_arena->AmallocWords(sizeof(Type*));
+  long_unary[0] = TypeLong::LONG;
+  TypeTuple::LONG_UNARY_TUPLE = TypeTuple::make(1, long_unary);
+
   TypePtr::NULL_PTR= TypePtr::make(AnyPtr, TypePtr::Null, Offset(0));
   TypePtr::NOTNULL = TypePtr::make(AnyPtr, TypePtr::NotNull, Offset::bottom);
   TypePtr::BOTTOM  = TypePtr::make(AnyPtr, TypePtr::BotPTR, Offset::bottom);
@@ -2194,6 +2202,8 @@ const TypeTuple *TypeTuple::INT_PAIR;
 const TypeTuple *TypeTuple::LONG_PAIR;
 const TypeTuple *TypeTuple::INT_CC_PAIR;
 const TypeTuple *TypeTuple::LONG_CC_PAIR;
+const TypeTuple *TypeTuple::INT_UNARY_TUPLE;
+const TypeTuple *TypeTuple::LONG_UNARY_TUPLE;
 
 static void collect_inline_fields(ciInlineKlass* vk, const Type** field_array, uint& pos) {
   for (int i = 0; i < vk->nof_declared_nonstatic_fields(); i++) {

@@ -1010,6 +1010,8 @@ public:
   static const TypeTuple *LONG_PAIR;
   static const TypeTuple *INT_CC_PAIR;
   static const TypeTuple *LONG_CC_PAIR;
+  static const TypeTuple *INT_UNARY_TUPLE;
+  static const TypeTuple *LONG_UNARY_TUPLE;
 #ifndef PRODUCT
   virtual void dump2( Dict &d, uint, outputStream *st  ) const; // Specialized per-Type dumping
 #endif

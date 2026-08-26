@@ -2524,6 +2524,64 @@ static PhiNode* countedloop_phi_from_cmp(CmpNode* cmp, Node* n) {
   return nullptr;
 }
 
+/* The logic to enqueue the transitive usages for LinearCombination in addnode.cpp,
+ * without enqueuing intermediate nodes since the transitive input nodes of the node treated by
+ * LinearCombination are also replaced.
+ */
+static void add_transitive_usages_through_linear_trees(Node* use, Unique_Node_List& worklist) {
+  uint use_op = use->Opcode();
+  BasicType bt;
+  if (use_op == Op_AddI || use_op == Op_SubI || use_op == Op_LShiftI || use_op == Op_MulI) {
+    bt = T_INT;
+  }
+  else if (use_op == Op_AddL || use_op == Op_SubL || use_op == Op_LShiftL || use_op == Op_MulL) {
+    bt = T_LONG;
+  }
+  else {
+    return;
+  }
+
+  auto is_root_candidate = [&](const Node* n) -> bool {
+    int op = n->Opcode();
+    return op == Op_Add(bt) || op == Op_Sub(bt);
+  };
+
+  auto can_be_traversed_but_not_root = [&](const Node* n) -> bool {
+    int op = n->Opcode();
+    return op == Op_LShift(bt) || op == Op_Mul(bt);
+  };
+
+  ResourceMark rm;
+  Unique_Node_List traverse_list;
+  traverse_list.push(use);
+  for (uint i = 0; i < traverse_list.size(); i++) {
+    Node* n = traverse_list.at(i);
+    bool n_will_be_traversed_from_use = false;
+
+    for (DUIterator_Fast ioutmax, iout = n->fast_outs(ioutmax); iout < ioutmax; iout++) {
+      Node* u = n->fast_out(iout);
+      if (is_root_candidate(u)) {
+        n_will_be_traversed_from_use = true;
+        traverse_list.push(u);
+      } else {
+        auto is_boundary = [&](const Node* x) -> bool {
+          return !can_be_traversed_but_not_root(x);
+        };
+        auto push_to_worklist = [&](Node* x) -> void {
+          if (is_root_candidate(x)) {
+            n_will_be_traversed_from_use = true;
+            traverse_list.push(x);
+          }
+        };
+        u->visit_uses(push_to_worklist, is_boundary, false, &rm);
+      }
+    }
+    if (!n_will_be_traversed_from_use) {
+      worklist.push(n);
+    }
+  }
+}
+
 void PhaseIterGVN::add_users_to_worklist(Node *n) {
   add_users_to_worklist0(n, _worklist);
 
@@ -2931,34 +2989,7 @@ void PhaseIterGVN::add_users_of_use_to_worklist(Node* n, Node* use, Unique_Node_
     add_users_to_worklist_if(worklist, use, [=](Node* u) { return u->Opcode() == add_op; });
   }
 
-  auto push_tree_of_add_sub_to_worklist = [&worklist](const Node* u) {
-    auto is_boundary = [](Node* n) {
-      return
-          n->Opcode() != Op_AddI && n->Opcode() != Op_AddL
-          && n->Opcode() != Op_SubI && n->Opcode() != Op_SubL
-          && (n->Opcode() != Op_MulI || (n->in(1)->Opcode() != Op_ConI && n->in(2)->Opcode() != Op_ConI))
-          && (n->Opcode() != Op_MulL || (n->in(1)->Opcode() != Op_ConL && n->in(2)->Opcode() != Op_ConL))
-          && (n->Opcode() != Op_LShiftI || n->in(2)->Opcode() != Op_ConI)
-          && (n->Opcode() != Op_LShiftL || n->in(2)->Opcode() != Op_ConI);
-    };
-    auto push_to_worklist = [&worklist](Node* n){
-      if (n->Opcode() == Op_AddI || n->Opcode() == Op_AddL || n->Opcode() == Op_SubI || n->Opcode() == Op_SubL) {
-        worklist.push(n);
-      }
-    };
-    u->visit_uses(push_to_worklist, is_boundary);
-  };
-
-  if (use_op == Op_LShiftI || use_op == Op_LShiftL || use_op == Op_MulI || use_op == Op_MulL) {
-    for (DUIterator_Fast imax, i = n->fast_outs(imax); i < imax; i++) {
-      Node* u = n->fast_out(i);
-      push_tree_of_add_sub_to_worklist(u);
-    }
-  }
-
-  if (use_op == Op_AddI || use_op == Op_AddL || use_op == Op_SubI || use_op == Op_SubL) {
-    push_tree_of_add_sub_to_worklist(use);
-  }
+  add_transitive_usages_through_linear_trees(use, worklist);
 }
 
 /**

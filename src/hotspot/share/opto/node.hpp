@@ -1355,7 +1355,7 @@ public:
   // nodes. Note: the function definition appears after the complete type
   // definition of Node_List.
   template <typename Callback, typename Check>
-  void visit_uses(Callback callback, Check is_boundary, bool always_callback = false) const;
+  void visit_uses(Callback callback, Check is_boundary, bool always_callback = false, ResourceMark* rm = nullptr) const;
 
   //----------------- Code Generation
 
@@ -1872,14 +1872,13 @@ public:
 
 // Definition must appear after complete type definition of Node_List
 template <typename Callback, typename Check>
-void Node::visit_uses(Callback callback, Check is_boundary, bool always_callback) const {
-  ResourceMark rm;
+void visit_uses(const Node* n, Callback callback, Check is_boundary, bool always_callback) {
   VectorSet visited;
   Node_List worklist;
 
   // The initial worklist consists of the direct uses
-  for (DUIterator_Fast kmax, k = fast_outs(kmax); k < kmax; k++) {
-    Node* out = fast_out(k);
+  for (DUIterator_Fast kmax, k = n->fast_outs(kmax); k < kmax; k++) {
+    Node* out = n->fast_out(k);
     if (!visited.test_set(out->_idx)) { worklist.push(out); }
   }
 
@@ -1896,6 +1895,15 @@ void Node::visit_uses(Callback callback, Check is_boundary, bool always_callback
         if (!visited.test_set(out->_idx)) { worklist.push(out); }
       }
     }
+  }
+}
+template <typename Callback, typename Check>
+void Node::visit_uses(Callback callback, Check is_boundary, bool always_callback, ResourceMark* rm) const {
+  if (rm == nullptr) {
+    ResourceMark rm_;
+    ::visit_uses(this, callback, is_boundary, always_callback);
+  } else {
+    ::visit_uses(this, callback, is_boundary, always_callback);
   }
 }
 
