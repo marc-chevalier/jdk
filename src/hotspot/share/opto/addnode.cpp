@@ -572,10 +572,10 @@ private:
     GrowableArray<Term> combination_;
     jlong constant_;
 
-    Combination(BasicType bt) : bt_(bt), constant_(0) {}
   private:
-    Combination(BasicType bt, jlong constant) : bt_(bt), constant_(constant) {}
-    Combination(BasicType bt, jlong scalar, Node* vector) : bt_(bt) {
+    explicit Combination(BasicType bt) : bt_(bt), constant_(0) {}
+    explicit Combination(BasicType bt, jlong constant) : bt_(bt), constant_(constant) {}
+    explicit Combination(BasicType bt, jlong scalar, Node* vector) : bt_(bt) {
       if (vector->Opcode() == Op_ConIL(bt)) {
         constant_ = java_multiply(scalar, vector->get_integer_as_long(bt_));
       } else {
@@ -584,6 +584,9 @@ private:
       }
     }
   public:
+    static Combination zero(BasicType bt) {
+      return Combination(bt);
+    }
     static Combination make_term(BasicType bt, jlong scalar, Node* vector) {
       return Combination(bt, scalar, vector);
     }
@@ -633,8 +636,8 @@ private:
     }
 
     [[nodiscard]] Combination scalar_multiplication(jlong scalar) const {
-      if (is_con(bt_, scalar, 1)) {
-        return {bt_};
+      if (is_con(bt_, scalar, 0)) {
+        return Combination::zero(bt_);
       }
       if (is_con(bt_, scalar, 1)) {
         return *this;
@@ -672,7 +675,7 @@ private:
     Node* canonical_node_;
     bool improved_;
 
-    Result() : node_(nullptr), combination_(T_ILLEGAL), canonical_node_(nullptr), improved_(false) {}
+    Result() : node_(nullptr), combination_(Combination::zero(T_ILLEGAL)), canonical_node_(nullptr), improved_(false) {}
 
     Result(const Node* node, Combination combination, Node* canonical_node, bool improved)
       : node_(node),
@@ -745,29 +748,25 @@ private:
     return gvn_.transform(n);
   }
 
-  [[nodiscard]] Node* make_lshift(Node* op, int con, bool& fresh) const {
+  [[nodiscard]] Node* make_lshift(Node* op, int con) const {
     if (con == 0) {
       return op;
     }
-    fresh = true;
     return transform(LShiftNode::make(op, gvn_.intcon(con), bt_));
   }
 
-  [[nodiscard]] Node* add_node(Node* result, Node* new_node, bool& fresh) const {
+  [[nodiscard]] Node* add_node(Node* result, Node* new_node) const {
     if (result == nullptr) {
       return new_node;
     }
-    fresh = true;
     return transform(AddNode::make(result, new_node, bt_));
   }
 
-  [[nodiscard]] Pair<Node*, bool> node_of_combination(const Combination& c) const {
+  [[nodiscard]] Node* node_of_combination(const Combination& c) const {
     Node* positive_terms_node = nullptr;
     Node* negative_terms_node = nullptr;
     Node* constant_node = nullptr;
 
-    bool is_positive_fresh = false;
-    bool is_negative_fresh = false;
     for (const auto& term: c.combination_) {
       if (is_con(term.scalar_, 0)) {
         continue;
@@ -781,40 +780,36 @@ private:
       if (decomposed.does_not_have_nice_shape()) {
         Node* con = make_con(term.scalar_);
         Node* mul = transform(MulNode::make(con, term.vector_, bt_));
-        is_positive_fresh = true;
-        positive_terms_node = add_node(positive_terms_node, mul, is_positive_fresh);
+        positive_terms_node = add_node(positive_terms_node, mul);
         continue;
       }
 
       Node* term_node;
       bool must_go_in_negative_term = false;
       if (decomposed.is_simple_power_of_two()) {
-        term_node = make_lshift(term.vector_, decomposed.high_bit(), is_negative_fresh);
+        term_node = make_lshift(term.vector_, decomposed.high_bit());
         must_go_in_negative_term = decomposed.sign_flip();
       } else {
         bool _fresh = false;
-        Node* h = make_lshift(term.vector_, decomposed.high_bit(), _fresh);
-        Node* l = make_lshift(term.vector_, decomposed.low_bit(), _fresh);
+        Node* h = make_lshift(term.vector_, decomposed.high_bit());
+        Node* l = make_lshift(term.vector_, decomposed.low_bit());
         if (decomposed.is_sum()) {
           term_node = transform(AddNode::make(h, l, bt_));
           must_go_in_negative_term = decomposed.sign_flip();
-          is_positive_fresh = !must_go_in_negative_term || is_positive_fresh;
-          is_negative_fresh = must_go_in_negative_term || is_negative_fresh;
         } else {
           if (decomposed.sign_flip()) {
             term_node = transform(SubNode::make(l, h, bt_));
           } else {
             term_node = transform(SubNode::make(h, l, bt_));
           }
-          is_positive_fresh = true;
           must_go_in_negative_term = false;
         }
       }
 
       if (must_go_in_negative_term) {
-        negative_terms_node = add_node(negative_terms_node, term_node, is_negative_fresh);
+        negative_terms_node = add_node(negative_terms_node, term_node);
       } else {
-        positive_terms_node = add_node(positive_terms_node, term_node, is_positive_fresh);
+        positive_terms_node = add_node(positive_terms_node, term_node);
       }
     }
     if (is_con(c.constant_, 0)) {
@@ -826,35 +821,35 @@ private:
     if (constant_node == nullptr) {
       if (positive_terms_node == nullptr) {
         if (negative_terms_node == nullptr) {  // 0
-          return {gvn_.zerocon(bt_), false};
+          return gvn_.zerocon(bt_);
         } else {  // 0 - n
           Node* ret = transform(SubNode::make(gvn_.zerocon(bt_), negative_terms_node, bt_));
-          return {ret, true};
+          return ret;
         }
       } else {
         if (negative_terms_node == nullptr) {  // p
-          return {positive_terms_node, is_positive_fresh};
+          return positive_terms_node;
         } else {  // p - n
           Node* ret = transform(SubNode::make(positive_terms_node, negative_terms_node, bt_));
-          return {ret, true};
+          return ret;
         }
       }
     } else {
       if (positive_terms_node == nullptr) {
         if (negative_terms_node == nullptr) {  // c
-          return {constant_node, false};
+          return constant_node;
         } else {  // c - n
           Node* ret = transform(SubNode::make(constant_node, negative_terms_node, bt_));
-          return {ret, true};
+          return ret;
         }
       } else {
         if (negative_terms_node == nullptr) {  // p + c
           Node* ret = transform(AddNode::make(positive_terms_node, constant_node, bt_));
-          return {ret, true};
+          return ret;
         } else {  // p - n + c
           Node* diff = transform(SubNode::make(positive_terms_node, negative_terms_node, bt_));
           Node* ret = transform(AddNode::make(diff, constant_node, bt_));
-          return {ret, true};
+          return ret;
         }
       }
     }
@@ -911,10 +906,20 @@ private:
         lhs->in(2)->Opcode() == Op_ConI &&
         op_rhs == Op_LShift(bt_) &&
         rhs->in(2)->Opcode() == Op_ConI &&
-        lhs->in(1) == rhs->in(1) &&
-        lhs->in(2) != rhs->in(2)
+        lhs->in(1) == rhs->in(1)
       ) {
-        return false;
+        int con1 = MAX2(lhs->in(2)->get_int(), rhs->in(2)->get_int());
+        int con2 = MIN2(lhs->in(2)->get_int(), rhs->in(2)->get_int());
+        // con1 == con2 can be changed into x << (con1 + 1)
+        if (op == Op_Add(bt_) && con1 > con2) {
+          return false;
+        }
+        // con1 == con2 can be changed into 0
+        // con1 == con2 + 1 can be changed into x << con2
+        // con1 == con2 + 2 can be changed into x << (con2 + 1) + x << con2
+        if (op == Op_Sub(bt_) && con1 > con2 + 2) {
+          return false;
+        }
       }
     }
     if (op == Op_Add(bt_)) {
@@ -926,6 +931,7 @@ private:
         return false;
       }
     } else if (op == Op_Sub(bt_)) {
+      // Case (4)
       if (op_lhs == Op_LShift(bt_) && lhs->in(2)->Opcode() == Op_ConI && lhs->in(1) == rhs) {
         return false;
       }
@@ -1045,7 +1051,6 @@ public:
     GrowableArray<Result> computed;
     bool progress = false;
     Node* new_n = nullptr;
-    bool is_new_n_fresh = false;
     uint old_unique = gvn_.C->unique();
 #ifndef PRODUCT
     if (print_steps_) {
@@ -1226,14 +1231,11 @@ public:
         Combination combination = lhs.combination_.sum(rhs.combination_, op == Op_Sub(bt_), improved);
 
         Node* combination_as_node = nullptr;
-        bool is_fresh_node = false;
         if ((lhs.improved_ || rhs.improved_) && !improved && !must_transform) {
           if (op == Op_Add(bt_)) {
             combination_as_node = transform(AddNode::make(lhs.canonical_node_, rhs.canonical_node_, bt_));
-            is_fresh_node = true;
           } else if (op == Op_Sub(bt_)) {
             combination_as_node = transform(SubNode::make(lhs.canonical_node_, rhs.canonical_node_, bt_));
-            is_fresh_node = true;
           } else {
             ShouldNotReachHere();
           }
@@ -1244,9 +1246,7 @@ public:
 #endif
           improved = true;
         } else if (improved || must_transform) {
-          Pair<Node*, bool> node_and_is_fresh = node_of_combination(combination);
-          combination_as_node = node_and_is_fresh.first;
-          is_fresh_node = node_and_is_fresh.second;
+          combination_as_node = node_of_combination(combination);
 #ifndef PRODUCT
           if (print_steps_) {
             tty->print_cr("Rebuilding everything for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; must_transform=%d", node->_idx, lhs.improved_, rhs.improved_, improved, must_transform);
@@ -1254,13 +1254,11 @@ public:
 #endif
         } else {
           combination_as_node = node;
-          is_fresh_node = false;
         }
 
         if (combination_as_node != node) {
           if (node == n) {
             new_n = combination_as_node;
-            is_new_n_fresh = is_fresh_node;
 #ifndef PRODUCT
             if (print_steps_) {
               tty->print_cr("Replacing root node %d by %d", node->_idx, combination_as_node->_idx);
@@ -1298,7 +1296,7 @@ public:
     }
 #ifndef PRODUCT
     if (print_steps_) {
-      tty->print_cr("Done: progress=%d; is_new_n_fresh=%d; %d->%d", progress, is_new_n_fresh, n->_idx, new_n->_idx);
+      tty->print_cr("Done: progress=%d; %d->%d", progress, n->_idx, new_n->_idx);
       dump_sub_graph(tty, new_n);
     }
 #endif
@@ -1474,7 +1472,6 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
 Node* AddNode::simplify_whole_tree(bool can_reshape, PhaseGVN* phase, BasicType bt, Node* n) {
   LinearCombination lc(bt, *phase);
   NOT_PRODUCT(lc.print_steps_ = UseNewCode;)
-  NOT_PRODUCT(ttyLocker ttyl;)
   Node* new_this = lc.collect_and_replace(n);
   if (new_this != nullptr) {
     return new_this; // Skip AddNode::Ideal() since it may now be a multiplication node.

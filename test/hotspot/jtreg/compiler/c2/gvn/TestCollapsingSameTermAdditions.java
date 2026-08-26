@@ -79,6 +79,19 @@ public class TestCollapsingSameTermAdditions {
             "complexShiftPatternSubNotSimplified",
             "complexShiftPatternSubNotSimplified2",
             "complexShiftPatternSubNotSimplified3",
+            "differenceOfConsecutivePowersOfTwo",
+            "differenceOfConsecutivePowersOfTwoWithNoise",
+            "differenceOfAlmostConsecutivePowersOfTwo",
+            "addingTwiceTheSamePowerOfTwo",
+            "addingTooManyPowersOfTwo",
+            "overflowInt1",
+            "overflowInt2",
+            "overflowInt3",
+            "overflowInt4",
+            "overflowInt5",
+            "overflowInt6",
+            "overflowInt7",
+            "sumInProduct",
     })
     private void runIntTests() {
         for (int a : new int[] { 0, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, GEN_INT.next() }) {
@@ -109,10 +122,24 @@ public class TestCollapsingSameTermAdditions {
             Asserts.assertEQ(a * 60, complexShiftPatternSubNotSimplified(a));
             Asserts.assertEQ(a * 31, complexShiftPatternSubNotSimplified2(a));
             Asserts.assertEQ(a * 60, complexShiftPatternSubNotSimplified3(a));
+            Asserts.assertEQ((a << 5) - (a << 4), differenceOfConsecutivePowersOfTwo(a));
+            Asserts.assertEQ((a << 6) - (a << 4), differenceOfAlmostConsecutivePowersOfTwo(a));
+            Asserts.assertEQ((a << 4) + (a << 4), addingTwiceTheSamePowerOfTwo(a));
+            Asserts.assertEQ((a << 6) + (a << 4) + (a << 2), addingTooManyPowersOfTwo(a));
+            Asserts.assertEQ(a * 0x7f_ff_ff_fe + (a << 1), overflowInt1(a));
+            Asserts.assertEQ(a * 0x7f_ff_ff_fe + (a << 1) - a * 0x80_00_00_00, overflowInt2(a));
+            Asserts.assertEQ(a << 33, overflowInt3(a));
+            Asserts.assertEQ(a << 33, overflowInt4(a));
+            Asserts.assertEQ(((a << 16) << 15) + (a << 31), overflowInt5(a));
+            Asserts.assertEQ(((a << 16) << 15) + (a << 31), overflowInt6(a));
+            Asserts.assertEQ(0, overflowInt7(a));
 
             for (int b : new int[] { 0, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, GEN_INT.next() }) {
                 Asserts.assertEQ(a * 42 + b * 42, addAandBTo42(a, b));
                 Asserts.assertEQ(a * 42 + b * 41, addATo42_BTo41(a, b));
+                Asserts.assertEQ(((a << 5) - b) - (a << 4) + b, differenceOfConsecutivePowersOfTwoWithNoise(a, b));
+                Asserts.assertEQ(((a + b) << 10) + (a - (b << 1)) * 1_024, sumInProduct(a, b));
+
                 for (int c : new int[] { 0, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, GEN_INT.next() }) {
                     Asserts.assertEQ(b, simplifyToParam(a, b, c));
                     Asserts.assertEQ(0, simplifyToConst(a, b, c));
@@ -496,5 +523,107 @@ public class TestCollapsingSameTermAdditions {
     @IR(failOn = { ADD_I, MUL_I, SUB_I })
     private static int simplifyToConst(int a, int b, int c) {
         return ((a + c) + (b + c)) - a - b - c - c;  // 0
+    }
+
+    @Test
+    @IR(counts = { LSHIFT_I, "1" }, failOn = { ADD_I, SUB_I })
+    private static int differenceOfConsecutivePowersOfTwo(int a) {
+        return (a << 5) - (a << 4);  // a << 4
+    }
+
+    @Test
+    @IR(counts = { LSHIFT_I, "1" }, failOn = { ADD_I, SUB_I })
+    private static int differenceOfConsecutivePowersOfTwoWithNoise(int a, int b) {
+        return ((a << 5) - b) - (a << 4) + b;  // a << 4
+    }
+
+    @Test
+    @IR(counts = { ADD_I, "1", LSHIFT_I, "2" }, failOn = { SUB_I })
+    private static int differenceOfAlmostConsecutivePowersOfTwo(int a) {
+        return (a << 6) - (a << 4);  // (a << 5) + (a << 4)
+    }
+
+    @Test
+    @IR(counts = { LSHIFT_I, "1" }, failOn = { ADD_I, SUB_I })
+    private static int addingTwiceTheSamePowerOfTwo(int a) {
+        return (a << 4) + (a << 4);  // (a << 5)
+    }
+
+    @Test
+    @IR(counts = { MUL_I, "1" }, failOn = { ADD_I, SUB_I, LSHIFT_I })
+    private static int addingTooManyPowersOfTwo(int a) {
+        return (a << 6) + (a << 4) + (a << 2);  // a * 84; 84 = 0b1010100 => not a nice shape
+    }
+
+    @Test
+    @IR(counts = { LSHIFT_I, "1" }, failOn = { ADD_I, SUB_I, MUL_I })
+    private static int overflowInt1(int a) {
+        return a * 0x7f_ff_ff_fe + (a << 1);  // a * (int_max - 1) + a * 2 = a * int_min = a * 0x80_00_00_00 = a << 31
+    }
+
+    @Test
+    @IR(failOn = { ADD_I, SUB_I, MUL_I, LSHIFT_I })
+    private static int overflowInt2(int a) {
+        return a * 0x7f_ff_ff_fe + (a << 1) - a * 0x80_00_00_00;  // a * (int_max - 1) + a * 2 - a * int_min = 0
+    }
+
+    @Test
+    @IR(counts = { LSHIFT_I, "1" }, failOn = { ADD_I, SUB_I, MUL_I })
+    private static int overflowInt3(int a) {
+        return a << 33;  // a << 33 = a << (32 + 1) = a << 1
+    }
+
+    @Test
+    @IR(counts = { LSHIFT_I, "1" }, failOn = { ADD_I, SUB_I, MUL_I })
+    private static int overflowInt4(int a) {
+        int i = 33;
+        int j = 0;
+        do {
+            i--;
+            j++;
+        } while (i > 0);
+        return a << j;  // a << 33 = a << (32 + 1) = a << 1
+    }
+
+    @Test
+    @IR(failOn = { ADD_I, SUB_I, MUL_I, LSHIFT_I })
+    private static int overflowInt5(int a) {
+        return ((a << 16) << 15) + (a << 31);  // a << 31 + a << 31 = a << 32 = a
+    }
+
+    @Test
+    @IR(failOn = { ADD_I, SUB_I, MUL_I, LSHIFT_I })
+    private static int overflowInt6(int a) {
+        int i = 16;
+        int j = 0;
+        do {
+            i--;
+            j++;
+        } while (i > 0);
+        return ((a << j) * (1 << 15)) + (a << 31);  // a << 31 + a << 31 = a << 32 = a
+    }
+
+    @Test
+    @IR(failOn = { ADD_I, SUB_I, MUL_I, LSHIFT_I })
+    private static int overflowInt7(int a) {
+        int i = 31;
+        int j = 0;
+        do {
+            i--;
+            j++;
+        } while (i > 0);
+        return (a << j) + a * 0x80_00_00_00;  // a << 31 + a * int_min = 0
+    }
+
+    @Test
+    @IR(counts = {SUB_I, "1", LSHIFT_I, "2"}, failOn = { ADD_I, MUL_I })
+    private static int sumInProduct(int a, int b) {
+        int i = 10;
+        int j = 0;
+        do {
+            i--;
+            j++;
+        } while (i > 0);
+        return ((a + b) << j) + (a - (b << 1)) * 1_024;  // (a + b) * 1_024 + (a - 2*b) * 1_024 = a * 2_048 - b * 1_024 = a << 11 - b << 10
     }
 }
