@@ -309,12 +309,15 @@ public:
     return tn;
   }
 
-  int            Opcode()      const override;
-  const Type*    bottom_type() const override { return _tf; }
-  uint           size_of()     const override { return sizeof(TupleNode); }
+  int Opcode() const override;
+  const Type* bottom_type() const override { return _tf; }
+  uint size_of() const override { return sizeof(TupleNode); }
 
 private:
   const TypePtr* out_adr_type_impl() const final { return _adr_type; }
+  [[nodiscard]] bool is_CFG() const override {
+    return _tf->cnt() > TypeFunc::Control && _tf->field_at(TypeFunc::Control) == Type::CONTROL;
+  }
 };
 
 #endif // SHARE_OPTO_MULTNODE_HPP

@@ -33,7 +33,7 @@ import jdk.test.lib.Asserts;
 
 /*
  * @test
- * @bug 8325495 8347555
+ * @bug 8325495 8347555 8374495
  * @summary C2 should optimize addition of the same terms by collapsing them into one multiplication.
  * @library /test/lib /
  * @run driver compiler.c2.gvn.TestCollapsingSameTermAdditions
@@ -92,6 +92,7 @@ public class TestCollapsingSameTermAdditions {
             "overflowInt6",
             "overflowInt7",
             "sumInProduct",
+            "complicated",
     })
     private void runIntTests() {
         for (int a : new int[] { 0, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, GEN_INT.next() }) {
@@ -143,6 +144,11 @@ public class TestCollapsingSameTermAdditions {
                 for (int c : new int[] { 0, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, GEN_INT.next() }) {
                     Asserts.assertEQ(b, simplifyToParam(a, b, c));
                     Asserts.assertEQ(0, simplifyToConst(a, b, c));
+                    Asserts.assertEQ(b + c - 42, complicated(a, b, c, a, b, c));
+                    Asserts.assertEQ(c + a - 42, complicated(a, b, c, b, c, a));
+                    Asserts.assertEQ(a + b - 42, complicated(a, b, c, c, a, b));
+                    Asserts.assertEQ((b - 2) + (a + 3) - 42, complicated(a, b, c, c + 1, b - 2, a + 3));
+                    Asserts.assertEQ((b + 2) + (c - 3) - 42, complicated(a, b, c, a - 1, b + 2, c - 3));
                 }
             }
         }
@@ -616,7 +622,7 @@ public class TestCollapsingSameTermAdditions {
     }
 
     @Test
-    @IR(counts = {SUB_I, "1", LSHIFT_I, "2"}, failOn = { ADD_I, MUL_I })
+    @IR(counts = { SUB_I, "1", LSHIFT_I, "2" }, failOn = { ADD_I, MUL_I })
     private static int sumInProduct(int a, int b) {
         int i = 10;
         int j = 0;
@@ -626,4 +632,24 @@ public class TestCollapsingSameTermAdditions {
         } while (i > 0);
         return ((a + b) << j) + (a - (b << 1)) * 1_024;  // (a + b) * 1_024 + (a - 2*b) * 1_024 = a * 2_048 - b * 1_024 = a << 11 - b << 10
     }
+
+    @Test
+    @IR(counts = { ADD_I, "2" }, failOn = { SUB_I, MUL_I, LSHIFT_I })
+    private static int complicated(int a, int b, int c, int d, int x, int y) {
+        return
+            (((a + (b << 37) - 10) * 3 - 3 - ((a << 33) + (b << -27) - 22) - y) << 33)
+          + (((c * 6 - (d << 34) + 17 + x * 0 + 0 * y) << -30) * 7)
+          + (((x + (y << 36) - 5) * 9 - ((x << 3) + (y << 6) - 40)) << 32)
+          - (
+                ((a + (b << 69) - 11) << 1)
+              + ((b + (c << 34) - (d << 33) + 3 + y) << 6)
+              - (((c << 4) - (d << 1) + 5 - 4 * c) * 7)
+              - ((c - d + (((1 << 1337) * ((a + c + 1) * 8 - (a + c) * 9 + a + c)) << 2) + 9) << 2)
+              - (((d * 1) << -31) - y)
+              + (((1 * y) << -29) + (y << 34))
+              + (1 << 8) + (1 << 7) + (1 << 3)
+            );
+        // x + y + (-42)
+    }
+
 }
