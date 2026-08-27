@@ -462,8 +462,10 @@ private:
   };
 
   class Stack {
-    Unique_Node_List<Node> enqueued_;
-    Unique_Node_List<Node> waiting_;
+    // Nodes of the worklist that are enqueued for a second visit.
+    // Finding this node in first visit means that it is a transitive input of itself, that is, we have a dead data loop.
+    Unique_Node_List<Node> second_visit_pending_;
+    // Fully processed nodes that were in the worklist, but are not anymore: canonical node and results are available
     Unique_Node_List<Node> done_;
     GrowableArray<StackItem> worklist_;
 
@@ -480,7 +482,7 @@ private:
     }
 
     void push_first_visit(Node* n) {
-      assert(!waiting_.member(n), "dead loop detected");
+      assert(!second_visit_pending_.member(n), "dead loop detected");
       if (!done_.member(n)) {
 #ifndef PRODUCT
         if (print_steps_) {
@@ -489,7 +491,6 @@ private:
         }
 #endif
         worklist_.push(StackItem::first_visit(n));
-        enqueued_.push(n);
       } else {
 #ifndef PRODUCT
         if (print_steps_) {
@@ -501,9 +502,9 @@ private:
     }
 
     void push_second_visit_to_replace(Node* n) {
-      assert(!enqueued_.member(n), "");
-      assert(!waiting_.member(n), "");
-      assert(!done_.member(n), "");
+      precond(!second_visit_pending_.member(n));
+      precond(!done_.member(n));
+      second_visit_pending_.push(n);
       worklist_.push(StackItem::second_visit(n, true));
 #ifndef PRODUCT
       if (print_steps_) {
@@ -514,9 +515,9 @@ private:
     }
 
     void push_second_visit_without_replace(Node* n) {
-      assert(!enqueued_.member(n), "");
-      assert(!waiting_.member(n), "");
-      assert(!done_.member(n), "");
+      precond(!second_visit_pending_.member(n));
+      precond(!done_.member(n));
+      second_visit_pending_.push(n);
       worklist_.push(StackItem::second_visit(n, false));
 #ifndef PRODUCT
       if (print_steps_) {
@@ -528,8 +529,9 @@ private:
 
     StackItem pop() {
       StackItem item = worklist_.pop();
-      enqueued_.remove(item.node);
-      waiting_.remove(item.node);
+      assert(item.state == StackItem::TraversalState::Pre || second_visit_pending_.member(item.node), "should have been in the pending list");
+      assert(item.state != StackItem::TraversalState::Pre || !second_visit_pending_.member(item.node), "should not be in the pending list");
+      second_visit_pending_.remove(item.node);
 #ifndef PRODUCT
       if (print_steps_) {
         tty->print("Popping (state=%d): ", static_cast<int>(item.state));
@@ -690,9 +692,9 @@ private:
 
     Result() : node_(nullptr), combination_(Combination::zero(T_ILLEGAL)), canonical_node_(nullptr), improved_(false) {}
 
-    Result(const Node* node, Combination combination, Node* canonical_node, bool improved)
+    Result(const Node* node, const Combination& combination, Node* canonical_node, bool improved)
       : node_(node),
-        combination_(std::move(combination)),
+        combination_(combination),
         canonical_node_(canonical_node),
         improved_(improved) {}
 
@@ -1096,10 +1098,6 @@ public:
 #endif
         continue;
       }
-      if (item.state == StackItem::TraversalState::PostAndReplace || item.state == StackItem::TraversalState::PostNoReplace) {
-        stack.done(node);
-      }
-
       if (item.state == StackItem::TraversalState::Pre) {
         if (op == Op_Add(bt_) || op == Op_Sub(bt_)) {
           if (ok_to_convert(node, true)) {
@@ -1116,9 +1114,13 @@ public:
           if (node->in(1)->Opcode() != Op_ConIL(bt_)) {
             stack.push_second_visit_without_replace(node);
             stack.push_first_visit(node->in(1));
+            map_node_to_term(computed, node->in(2), 1L, node->in(2));
+            stack.done(node->in(2));
           } else if (node->in(2)->Opcode() != Op_ConIL(bt_)) {
             stack.push_second_visit_without_replace(node);
             stack.push_first_visit(node->in(2));
+            map_node_to_term(computed, node->in(1), 1L, node->in(1));
+            stack.done(node->in(1));
           } else {
             jlong constant = java_multiply(node->in(1)->get_integer_as_long(bt_), node->in(2)->get_integer_as_long(bt_));
             map_node_to_constant(computed, node, constant);
@@ -1185,6 +1187,7 @@ public:
         } else {
           ShouldNotReachHere();
         }
+        stack.done(node);
       } else if (item.state == StackItem::TraversalState::PostAndReplace) {
         assert(op == Op_Add(bt_) || op == Op_Sub(bt_), "only add and sub should reach the post state");
 
@@ -1309,8 +1312,10 @@ public:
 #endif
         if (gvn_.is_IterGVN()) {
           computed.push(Result(combination_as_node, combination, combination_as_node, improved));
+          stack.done(combination_as_node);
         } else {
           computed.push(Result(node, combination, combination_as_node, improved));
+          stack.done(node);
         }
       } else {
         ShouldNotReachHere();
@@ -1323,6 +1328,7 @@ public:
     if (print_steps_) {
       tty->print_cr("Done: progress=%d; %d->%d", progress, n->_idx, new_n->_idx);
       dump_sub_graph(tty, new_n);
+      tty->cr();
     }
 #endif
     if (!progress) {
