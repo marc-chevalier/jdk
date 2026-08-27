@@ -134,8 +134,8 @@ public:
     [[nodiscard]] bool sign_flip() const { return sign_flip_; }
   };
 
-  template <typename Integer>
-  static IntegerAsSumOrDiffOfPowerOf2 decompose_integer(Integer con);
+  static IntegerAsSumOrDiffOfPowerOf2 decompose_jint(jint con);
+  static IntegerAsSumOrDiffOfPowerOf2 decompose_jlong(jlong con);
 
 protected:
   Node* AndIL_sum_and_mask(PhaseGVN* phase, BasicType bt);

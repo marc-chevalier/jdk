@@ -774,8 +774,8 @@ private:
 
       MulNode::IntegerAsSumOrDiffOfPowerOf2 decomposed =
           bt_ == T_INT
-            ? MulNode::decompose_integer(static_cast<jint>(term.scalar_))
-            : MulNode::decompose_integer(term.scalar_);
+            ? MulNode::decompose_jint(static_cast<jint>(term.scalar_))
+            : MulNode::decompose_jlong(term.scalar_);
 
       if (decomposed.does_not_have_nice_shape()) {
         Node* con = make_con(term.scalar_);
