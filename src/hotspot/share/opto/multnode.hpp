@@ -306,6 +306,10 @@ public:
     make_helper(tn, 0, nn...);
     return tn;
   }
+
+  [[nodiscard]] bool is_CFG() const override {
+    return _tf->cnt() > TypeFunc::Control && _tf->field_at(TypeFunc::Control) == Type::CONTROL;
+  }
 };
 
 #endif // SHARE_OPTO_MULTNODE_HPP
