@@ -24,8 +24,6 @@
 
 #include "memory/allocation.inline.hpp"
 #include "opto/addnode.hpp"
-
-#include <utility>
 #include "opto/castnode.hpp"
 #include "opto/cfgnode.hpp"
 #include "opto/connode.hpp"
@@ -598,12 +596,23 @@ private:
       return static_cast<int>(lhs.vector_->_idx - rhs.vector_->_idx);
     }
 
+    [[nodiscard]] bool is_zero() const {
+      for (const Term& term: combination_) {
+        if (!is_con(bt_, term.scalar_, 0)) {
+          return false;
+        }
+      }
+      return is_con(bt_, constant_, 0);
+    }
+
     [[nodiscard]] Combination sum(const Combination& other, const bool neg, bool& improves) const {
       Combination result(bt_);
       result.combination_.appendAll(&this->combination_);
       for (const Term& new_term : other.combination_) {
         result.sum(new_term, neg, improves);
       }
+      // Constant in both operands can be added. In case of a subtraction, we can rather flip the sign
+      // of the constant.
       if ((constant_ != 0 && other.constant_ != 0) || (neg && other.constant_ != 0)) {
         improves = true;
       }
@@ -612,6 +621,8 @@ private:
       } else {
         result.constant_ = java_add(constant_, other.constant_);
       }
+      // If any operands is zero, we can simply omit the sum.
+      improves = improves || (!neg && is_zero()) || other.is_zero();
       return result;
     }
 
@@ -631,13 +642,14 @@ private:
         } else {
           scalar = java_add(scalar, new_term.scalar_);
         }
+        // A term present in both side can be factored
         improves = true;
       }
     }
 
     [[nodiscard]] Combination scalar_multiplication(jlong scalar) const {
       if (is_con(bt_, scalar, 0)) {
-        return Combination::zero(bt_);
+        return zero(bt_);
       }
       if (is_con(bt_, scalar, 1)) {
         return *this;
@@ -1181,9 +1193,23 @@ public:
         bool must_transform = false;
         int op_l = lhs.canonical_node_->Opcode();
         int op_r = rhs.canonical_node_->Opcode();
-        if (op == Op_Add(bt_)) {
-          if ((op_l == Op_Sub(bt_) && op_r != Op_ConIL(bt_) && ok_to_convert(lhs.canonical_node_, false)) ||
-              (op_r == Op_Sub(bt_) && op_l != Op_ConIL(bt_) && ok_to_convert(rhs.canonical_node_, false))) {
+
+        if (
+          (op_l == Op_Sub(bt_) && lhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) && is_con(lhs.canonical_node_->in(1)->get_integer_as_long(bt_), 0)) ||
+          (op_r == Op_Sub(bt_) && rhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) && is_con(rhs.canonical_node_->in(1)->get_integer_as_long(bt_), 0))
+        ) {
+          must_transform = true;
+#ifndef PRODUCT
+          if (print_steps_) {
+            tty->print_cr("Must transform node %d: operand is a (0 - x)", node->_idx);
+          }
+#endif
+        }
+        if (!must_transform && op == Op_Add(bt_)) {
+          if (
+            (op_l == Op_Sub(bt_) && op_r != Op_ConIL(bt_) && ok_to_convert(lhs.canonical_node_, false)) ||
+            (op_r == Op_Sub(bt_) && op_l != Op_ConIL(bt_) && ok_to_convert(rhs.canonical_node_, false))
+          ) {
             must_transform = true;
 #ifndef PRODUCT
             if (print_steps_) {
@@ -1201,7 +1227,7 @@ public:
             }
 #endif
           }
-        } else if (op == Op_Sub(bt_)) {
+        } else if (!must_transform && op == Op_Sub(bt_)) {
           if (
             (op_l == Op_Add(bt_) && ok_to_convert(lhs.canonical_node_, false) && (lhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) || lhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt_))) ||
             (op_r == Op_Add(bt_) && ok_to_convert(rhs.canonical_node_, false) && (rhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) || rhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt_)))
@@ -1223,8 +1249,6 @@ public:
             }
 #endif
           }
-        } else {
-          ShouldNotReachHere();
         }
 
         bool improved = false;
