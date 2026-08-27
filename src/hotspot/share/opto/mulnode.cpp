@@ -233,7 +233,7 @@ MulNode* MulNode::make_and(Node* in1, Node* in2, BasicType bt) {
 }
 
 template <typename Integer>
-MulNode::IntegerAsSumOrDiffOfPowerOf2 MulNode::decompose_integer(Integer con) {
+MulNode::IntegerAsSumOrDiffOfPowerOf2 decompose_integer(Integer con) {
   typedef std::make_unsigned_t<Integer> UnsignedInteger;
 
   // Check for negative constant; if so negate the final result
@@ -247,7 +247,7 @@ MulNode::IntegerAsSumOrDiffOfPowerOf2 MulNode::decompose_integer(Integer con) {
   UnsignedInteger bit1 = submultiple_power_of_2(abs_con);
   if (bit1 == abs_con) {           // Found a power of 2?
     int bit1_pos = log2i_exact(bit1);
-    return IntegerAsSumOrDiffOfPowerOf2::power_of_2(bit1_pos, sign_flip);
+    return MulNode::IntegerAsSumOrDiffOfPowerOf2::power_of_2(bit1_pos, sign_flip);
   } else {
     // Check for constant with 2 bits set
     UnsignedInteger bit2 = abs_con - bit1;
@@ -256,7 +256,7 @@ MulNode::IntegerAsSumOrDiffOfPowerOf2 MulNode::decompose_integer(Integer con) {
       int bit1_pos = log2i_exact(bit1);
       int bit2_pos = log2i_exact(bit2);
       assert(bit2_pos > bit1_pos, "");
-      return IntegerAsSumOrDiffOfPowerOf2::sum_of_power_of_2(bit2_pos, bit1_pos, sign_flip);
+      return MulNode::IntegerAsSumOrDiffOfPowerOf2::sum_of_power_of_2(bit2_pos, bit1_pos, sign_flip);
     } else {
       // Let's detect cases such as 2^n - 2^m. Since abs_con > 0, we have n > m.
       // But also, since abs_con isn't a power of 2 at this point, n > m + 1 (because 2^(m+1) - 2^m = 2^m).
@@ -289,17 +289,24 @@ MulNode::IntegerAsSumOrDiffOfPowerOf2 MulNode::decompose_integer(Integer con) {
       UnsignedInteger temp = abs_con_without_lower_zeroes + 1;
       if (is_power_of_2(temp)) {
         int n = m + log2i_exact(temp);
-        return IntegerAsSumOrDiffOfPowerOf2::difference_of_power_of_2(n, m, sign_flip);
+        return MulNode::IntegerAsSumOrDiffOfPowerOf2::difference_of_power_of_2(n, m, sign_flip);
       }
     }
   }
 
-  return IntegerAsSumOrDiffOfPowerOf2::wrong_shape();
+  return MulNode::IntegerAsSumOrDiffOfPowerOf2::wrong_shape();
+}
+
+MulNode::IntegerAsSumOrDiffOfPowerOf2 MulNode::decompose_jint(jint con) {
+  return ::decompose_integer<jint>(con);
+}
+MulNode::IntegerAsSumOrDiffOfPowerOf2 MulNode::decompose_jlong(jlong con) {
+  return ::decompose_integer<jlong>(con);
 }
 
 template <typename Integer>
 Node* transform_constant_mult(PhaseGVN* phase, Integer con, Node* operand, BasicType bt) {
-  MulNode::IntegerAsSumOrDiffOfPowerOf2 decomposed = MulNode::decompose_integer<Integer>(con);
+  MulNode::IntegerAsSumOrDiffOfPowerOf2 decomposed = decompose_integer<Integer>(con);
 
   if (decomposed.does_not_have_nice_shape()) {
     return nullptr;
