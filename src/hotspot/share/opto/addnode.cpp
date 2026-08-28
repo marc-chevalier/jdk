@@ -465,8 +465,11 @@ private:
     // Nodes of the worklist that are enqueued for a second visit.
     // Finding this node in first visit means that it is a transitive input of itself, that is, we have a dead data loop.
     Unique_Node_List<Node> second_visit_pending_;
-    // Fully processed nodes that were in the worklist, but are not anymore: canonical node and results are available
+    // Fully processed nodes for which the canonical node and results are available
     Unique_Node_List<Node> done_;
+    // Fully processed nodes that were replaced, and should not be in the graph. They can still exist in the stack if they
+    // were enstacked multiple times in pre-traversal state.
+    Unique_Node_List<Node> killed_;
     GrowableArray<StackItem> worklist_;
 
   public:
@@ -482,11 +485,12 @@ private:
     }
 
     void push_first_visit(Node* n) {
+      precond(!killed_.member(n));
       assert(!second_visit_pending_.member(n), "dead loop detected");
       if (!done_.member(n)) {
 #ifndef PRODUCT
         if (print_steps_) {
-          tty->print("Push first visit: ");
+          tty->print("  Push first visit: ");
           n->dump();
         }
 #endif
@@ -494,7 +498,7 @@ private:
       } else {
 #ifndef PRODUCT
         if (print_steps_) {
-          tty->print("Already enqueued for first visit: ");
+          tty->print("  Already enqueued for first visit: ");
           n->dump();
         }
 #endif
@@ -504,11 +508,12 @@ private:
     void push_second_visit_to_replace(Node* n) {
       precond(!second_visit_pending_.member(n));
       precond(!done_.member(n));
+      precond(!killed_.member(n));
       second_visit_pending_.push(n);
       worklist_.push(StackItem::second_visit(n, true));
 #ifndef PRODUCT
       if (print_steps_) {
-        tty->print("Push second visit to replace: ");
+        tty->print("  Push second visit to replace: ");
         n->dump();
       }
 #endif
@@ -517,14 +522,46 @@ private:
     void push_second_visit_without_replace(Node* n) {
       precond(!second_visit_pending_.member(n));
       precond(!done_.member(n));
+      precond(!killed_.member(n));
       second_visit_pending_.push(n);
       worklist_.push(StackItem::second_visit(n, false));
 #ifndef PRODUCT
       if (print_steps_) {
-        tty->print("Push second visit no replace: ");
+        tty->print("  Push second visit no replace: ");
         n->dump();
       }
 #endif
+    }
+
+  private:
+    void remove_done_top_of_stack() {
+      while (!worklist_.is_empty()) {
+        const StackItem& item = worklist_.top();
+        if (done_.member(item.node)) {
+#ifndef PRODUCT
+          if (print_steps_) {
+            tty->print("  Popping following done node (state=%d): ", static_cast<int>(item.state));
+            item.node->dump();
+          }
+#endif
+          worklist_.pop();
+        } else if (killed_.member(item.node)) {
+#ifndef PRODUCT
+          if (print_steps_) {
+            tty->print("  Popping following killed node (state=%d): ", static_cast<int>(item.state));
+            item.node->dump();
+          }
+#endif
+          worklist_.pop();
+        } else {
+          return;
+        }
+      }
+    }
+
+  public:
+    [[nodiscard]] bool is_nonempty() const {
+      return worklist_.is_nonempty();
     }
 
     StackItem pop() {
@@ -538,6 +575,7 @@ private:
         item.node->dump();
       }
 #endif
+      remove_done_top_of_stack();
       return item;
     }
 
@@ -545,14 +583,23 @@ private:
       done_.push(n);
 #ifndef PRODUCT
       if (print_steps_) {
-        tty->print("Done: ");
+        tty->print("  Done: ");
         n->dump();
       }
 #endif
+      remove_done_top_of_stack();
     }
 
-    [[nodiscard]] bool is_done(Node* n) const { return done_.member(n); }
-    [[nodiscard]] bool is_nonempty() const { return worklist_.is_nonempty(); }
+    void killed(Node* n) {
+      killed_.push(n);
+#ifndef PRODUCT
+      if (print_steps_) {
+        tty->print("  Killed: ");
+        n->dump();
+      }
+#endif
+      remove_done_top_of_stack();
+    }
   };
 
   struct Term {
@@ -708,7 +755,7 @@ private:
   void map_node_to_term(GrowableArray<Result>& computed, Node* n, jlong scalar, Node* vector) const {
 #ifndef PRODUCT
     if (print_steps_) {
-      tty->print("Mapping node %d to term %ld * ", n->_idx, scalar);
+      tty->print("  Mapping node %d to term %ld * ", n->_idx, scalar);
       vector->dump();
     }
 #endif
@@ -719,7 +766,7 @@ private:
   void map_node_to_constant(GrowableArray<Result>& computed, Node* n, jlong constant) const {
 #ifndef PRODUCT
     if (print_steps_) {
-      tty->print_cr("Mapping node %d to constant %ld", n->_idx, constant);
+      tty->print_cr("  Mapping node %d to constant %ld", n->_idx, constant);
     }
 #endif
     Combination combination = Combination::make_constant(bt_, constant);
@@ -733,7 +780,7 @@ private:
     Result r = computed.at(idx);
 #ifndef PRODUCT
     if (print_steps_) {
-      tty->print("Looking up result for node %d: ", n->_idx);
+      tty->print("  Looking up result for node %d: ", n->_idx);
       r.dump(tty);
       tty->cr();
     }
@@ -1047,29 +1094,25 @@ private:
 #endif
 
   // Is it nothing more than a "a +/- b" where we can't do anything with "a" and "b"?
-  static bool skip_it(BasicType bt, Node* n) {
-    auto skip_operand = [&bt](const Node* n) -> bool {
+  [[nodiscard]] bool is_uninteresting(Node* n) const {
+    auto skip_operand = [this](const Node* n) -> bool {
       int op = n->Opcode();
-      if (op == Op_Add(bt) || op == Op_Sub(bt)) {
+      if (op == Op_Add(bt_) || op == Op_Sub(bt_)) {
         return false;
       }
-      if (op == Op_LShift(bt) && n->in(2)->Opcode() == Op_ConI) {
+      if (op == Op_LShift(bt_) && n->in(2)->Opcode() == Op_ConI) {
         return false;
       }
-      if (op == Op_Mul(bt) && (n->in(1)->Opcode() == Op_ConIL(bt) || n->in(2)->Opcode() == Op_ConIL(bt))) {
+      if (op == Op_Mul(bt_) && (n->in(1)->Opcode() == Op_ConIL(bt_) || n->in(2)->Opcode() == Op_ConIL(bt_))) {
         return false;
       }
       return true;
     };
 
-    if (n->Opcode() == Op_Sub(bt) && n->in(2)->Opcode() == Op_ConIL(bt)) {
+    if (n->Opcode() == Op_Sub(bt_) && n->in(2)->Opcode() == Op_ConIL(bt_)) {
       return false;
     }
     return skip_operand(n->in(1)) && skip_operand(n->in(2));
-  }
-
-  bool skip_it(Node* n) const {
-    return skip_it(bt_, n);
   }
 
 public:
@@ -1088,10 +1131,10 @@ public:
       tty->cr();
     }
 #endif
-    if (skip_it(n)) {
+    if (is_uninteresting(n)) {
 #ifndef PRODUCT
       if (print_steps_) {
-        tty->print_cr("Skip it\n\n");
+        tty->print_cr("  Uninteresting, not doing anything\n\n");
       }
 #endif
       return nullptr;
@@ -1104,14 +1147,6 @@ public:
       Node* node = item.node;
       int op = node->Opcode();
 
-      if (stack.is_done(node)) {
-#ifndef PRODUCT
-        if (print_steps_) {
-          tty->print_cr("Node %d already done", node->_idx);
-        }
-#endif
-        continue;
-      }
       if (item.state == StackItem::TraversalState::Pre) {
         if (op == Op_Add(bt_) || op == Op_Sub(bt_)) {
           if (ok_to_convert(node, true)) {
@@ -1154,7 +1189,7 @@ public:
           Combination combination = lhs.combination_.sum(rhs.combination_, op == Op_Sub(bt_), _improved);
 #ifndef PRODUCT
           if (print_steps_) {
-            tty->print("Mapping node %d to combination ", node->_idx);
+            tty->print("  Mapping node %d to combination ", node->_idx);
             combination.dump(tty);
             tty->cr();
           }
@@ -1177,7 +1212,7 @@ public:
           Combination combination = operand.combination_.scalar_multiplication(scalar);
 #ifndef PRODUCT
           if (print_steps_) {
-            tty->print("Mapping node %d to combination ", node->_idx);
+            tty->print("  Mapping node %d to combination ", node->_idx);
             combination.dump(tty);
             tty->cr();
           }
@@ -1192,7 +1227,7 @@ public:
           Combination combination = operand.combination_.scalar_multiplication(scalar);
 #ifndef PRODUCT
           if (print_steps_) {
-            tty->print("Mapping node %d to combination ", node->_idx);
+            tty->print("  Mapping node %d to combination ", node->_idx);
             combination.dump(tty);
             tty->cr();
           }
@@ -1219,7 +1254,7 @@ public:
           must_transform = true;
 #ifndef PRODUCT
           if (print_steps_) {
-            tty->print_cr("Must transform node %d: operand is a (0 - x)", node->_idx);
+            tty->print_cr("  Must transform node %d: operand is a (0 - x)", node->_idx);
           }
 #endif
         }
@@ -1231,7 +1266,7 @@ public:
             must_transform = true;
 #ifndef PRODUCT
             if (print_steps_) {
-              tty->print_cr("Must transform node %d: substract inside something that is not constant addition", node->_idx);
+              tty->print_cr("  Must transform node %d: substract inside something that is not constant addition", node->_idx);
             }
 #endif
           } else if (
@@ -1241,7 +1276,7 @@ public:
             must_transform = true;
 #ifndef PRODUCT
             if (print_steps_) {
-              tty->print_cr("Must transform node %d: operand of addition is a constant addition", node->_idx);
+              tty->print_cr("  Must transform node %d: operand of addition is a constant addition", node->_idx);
             }
 #endif
           }
@@ -1253,7 +1288,7 @@ public:
             must_transform = true;
 #ifndef PRODUCT
             if (print_steps_) {
-              tty->print_cr("Must transform node %d: operand of subtract is a constant addition", node->_idx);
+              tty->print_cr("  Must transform node %d: operand of subtract is a constant addition", node->_idx);
             }
 #endif
           } else if (
@@ -1263,7 +1298,7 @@ public:
             must_transform = true;
 #ifndef PRODUCT
             if (print_steps_) {
-              tty->print_cr("Must transform node %d: operand of subtract is a subtraction", node->_idx);
+              tty->print_cr("  Must transform node %d: operand of subtract is a subtraction", node->_idx);
             }
 #endif
           }
@@ -1283,7 +1318,7 @@ public:
           }
 #ifndef PRODUCT
           if (print_steps_) {
-            tty->print_cr("Rebuilding root for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; must_transform=%d", node->_idx, lhs.improved_, rhs.improved_, improved, must_transform);
+            tty->print_cr("  Rebuilding root for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; must_transform=%d", node->_idx, lhs.improved_, rhs.improved_, improved, must_transform);
           }
 #endif
           improved = true;
@@ -1291,7 +1326,7 @@ public:
           combination_as_node = node_of_combination(combination);
 #ifndef PRODUCT
           if (print_steps_) {
-            tty->print_cr("Rebuilding everything for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; must_transform=%d", node->_idx, lhs.improved_, rhs.improved_, improved, must_transform);
+            tty->print_cr("  Rebuilding everything for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; must_transform=%d", node->_idx, lhs.improved_, rhs.improved_, improved, must_transform);
           }
 #endif
         } else {
@@ -1303,31 +1338,37 @@ public:
             new_n = combination_as_node;
 #ifndef PRODUCT
             if (print_steps_) {
-              tty->print_cr("Replacing root node %d by %d", node->_idx, combination_as_node->_idx);
+              tty->print_cr("  Replacing root node %d ==> %d", node->_idx, combination_as_node->_idx);
             }
 #endif
           } else if (PhaseIterGVN* igvn = gvn_.is_IterGVN(); igvn != nullptr) {
 #ifndef PRODUCT
             if (print_steps_) {
-              tty->print_cr("Replacing node %d by %d", node->_idx, combination_as_node->_idx);
+              tty->print_cr("  Replacing node %d ==> %d", node->_idx, combination_as_node->_idx);
             }
 #endif
+            // Even in IGVN, `node` can still survive in the stack for first visit, even tho it is no longer in the graph.
+            // We can and must skip it since the user of `node` has now the new input instead.
+            stack.killed(node);
             igvn->replace_node(node, combination_as_node);
           }
           progress = true;
         }
 #ifndef PRODUCT
         if (print_steps_) {
-          tty->print("Mapping node %d to combination ", node->_idx);
+          tty->print("  Mapping node %d to combination ", node->_idx);
           combination.dump(tty);
           tty->cr();
         }
 #endif
         if (gvn_.is_IterGVN()) {
           computed.push(Result(combination_as_node, combination, combination_as_node, improved));
+          // In IGVN, this is the new `node`, that's what the users of `node` will see in their input, and the key they will
+          // use to look up in `computed`.
           stack.done(combination_as_node);
         } else {
           computed.push(Result(node, combination, combination_as_node, improved));
+          // In GVN, `node` will not be replaced and must be recognized as done as the result can be looked up in `computed`.
           stack.done(node);
         }
       } else {
@@ -1339,7 +1380,7 @@ public:
     }
 #ifndef PRODUCT
     if (print_steps_) {
-      tty->print_cr("Done: progress=%d; %d->%d", progress, n->_idx, new_n->_idx);
+      tty->print_cr("Done: progress=%d; %d ==> %d", progress, n->_idx, new_n->_idx);
       dump_sub_graph(tty, new_n);
       tty->cr();
     }
