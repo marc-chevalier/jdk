@@ -851,7 +851,6 @@ private:
         term_node = make_lshift(term.vector_, decomposed.high_bit());
         must_go_in_negative_term = decomposed.sign_flip();
       } else {
-        bool _fresh = false;
         Node* h = make_lshift(term.vector_, decomposed.high_bit());
         Node* l = make_lshift(term.vector_, decomposed.low_bit());
         if (decomposed.is_sum()) {
