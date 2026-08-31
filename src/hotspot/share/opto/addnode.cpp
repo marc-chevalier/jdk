@@ -614,6 +614,54 @@ private:
     }
   };
 
+  [[nodiscard]] bool is_constant(Node* n) const {
+    const TypeInteger* t = gvn_.type(n)->isa_integer(bt_);
+    return t != nullptr && t->is_con();
+  }
+
+  [[nodiscard]] bool is_int_constant(Node* n) const {
+    const TypeInt* t = gvn_.type(n)->isa_int();
+    return t != nullptr && t->is_con();
+  }
+
+  [[nodiscard]] bool is_constant(Node* n, jlong expected) const {
+    jlong actual;
+    if (!is_and_get_constant(n , actual)) {
+      return false;
+    }
+    return is_con(actual, expected);
+  }
+
+  [[nodiscard]] bool is_and_get_constant(Node* n, jlong& val) const {
+    if (const TypeInteger* t = gvn_.type(n)->isa_integer(bt_); t != nullptr && t->is_con()) {
+      val = t->get_con_as_long(bt_);
+      return true;
+    }
+    return false;
+  }
+
+  [[nodiscard]] bool is_and_get_int_constant(Node* n, jint& val) const {
+    if (const TypeInt* t = gvn_.type(n)->isa_int(); t != nullptr && t->is_con()) {
+      val = t->get_con();
+      return true;
+    }
+    return false;
+  }
+
+  [[nodiscard]] jlong get_constant(Node* n) const {
+    const TypeInteger* t = gvn_.type(n)->isa_integer(bt_);
+    assert(t != nullptr, "must have a type");
+    assert(t->is_con(), "must be a constant");
+    return t->get_con_as_long(bt_);
+  }
+
+  [[nodiscard]] jint get_int_constant(Node* n) const {
+    const TypeInt* t = gvn_.type(n)->isa_int();
+    assert(t != nullptr, "must have a type");
+    assert(t->is_con(), "must be a constant");
+    return t->get_con();
+  }
+
   struct Combination {
     BasicType bt_;
     GrowableArray<Term> combination_;
@@ -622,9 +670,9 @@ private:
   private:
     explicit Combination(BasicType bt) : bt_(bt), constant_(0) {}
     explicit Combination(BasicType bt, jlong constant) : bt_(bt), constant_(constant) {}
-    explicit Combination(BasicType bt, jlong scalar, Node* vector) : bt_(bt) {
-      if (vector->Opcode() == Op_ConIL(bt)) {
-        constant_ = java_multiply(scalar, vector->get_integer_as_long(bt_));
+    explicit Combination(const LinearCombination* lc, jlong scalar, Node* vector) : bt_(lc->bt_) {
+      if (jlong con_val; lc->is_and_get_constant(vector, con_val)) {
+        constant_ = java_multiply(scalar, con_val);
       } else {
         combination_.push(Term{scalar, vector});
         constant_ = 0;
@@ -634,8 +682,8 @@ private:
     static Combination zero(BasicType bt) {
       return Combination(bt);
     }
-    static Combination make_term(BasicType bt, jlong scalar, Node* vector) {
-      return Combination(bt, scalar, vector);
+    static Combination make_term(const LinearCombination* lc, jlong scalar, Node* vector) {
+      return Combination(lc, scalar, vector);
     }
     static Combination make_constant(BasicType bt, jlong constant) {
       return Combination(bt, constant);
@@ -758,7 +806,7 @@ private:
       vector->dump();
     }
 #endif
-    Combination combination = Combination::make_term(bt_, scalar, vector);
+    Combination combination = Combination::make_term(this, scalar, vector);
     computed.push(Result(n, combination, n, false));
   }
 
@@ -961,16 +1009,17 @@ private:
     // (4) (x << con1) - x => special case of (3) when con2 = 0
     // (5) x - (x << con1) => variation of (4), for negative coefficients
     if (op == Op_Add(bt_) || op == Op_Sub(bt_)) {
+      jint l_con, r_con;
       // Case (1) and (3)
       if (
         op_lhs == Op_LShift(bt_) &&
-        lhs->in(2)->Opcode() == Op_ConI &&
+        is_and_get_int_constant(lhs->in(2), l_con) &&
         op_rhs == Op_LShift(bt_) &&
-        rhs->in(2)->Opcode() == Op_ConI &&
+        is_and_get_int_constant(rhs->in(2), r_con) &&
         lhs->in(1) == rhs->in(1)
       ) {
-        int con1 = MAX2(lhs->in(2)->get_int(), rhs->in(2)->get_int());
-        int con2 = MIN2(lhs->in(2)->get_int(), rhs->in(2)->get_int());
+        int con1 = MAX2(l_con, r_con);
+        int con2 = MIN2(l_con, r_con);
         // In (x << con1) + (x << con2):
         // con1 == con2 => can be changed into x << (con1 + 1)
         if (op == Op_Add(bt_) && con1 > con2) {
@@ -986,27 +1035,29 @@ private:
       }
     }
     if (op == Op_Add(bt_)) {
+      jint con;
       // Case (2)
       // con1 == 0 => can be changed into x << 1
       if (
-        (op_lhs == Op_LShift(bt_) && lhs->in(2)->Opcode() == Op_ConI && lhs->in(1) == rhs && lhs->in(2)->get_int() >= 1) ||
-        (op_rhs == Op_LShift(bt_) && rhs->in(2)->Opcode() == Op_ConI && rhs->in(1) == lhs && rhs->in(2)->get_int() >= 1)
+        (op_lhs == Op_LShift(bt_) && is_and_get_int_constant(lhs->in(2), con) && lhs->in(1) == rhs && con >= 1) ||
+        (op_rhs == Op_LShift(bt_) && is_and_get_int_constant(rhs->in(2), con) && rhs->in(1) == lhs && con >= 1)
       ) {
         return false;
       }
     } else if (op == Op_Sub(bt_)) {
+      jint con;
       // Case (4)
       // con1 == 0 => can be changed into 0
       // con1 == 1 => can be changed into x
       // con1 == 2 => can be changed into (x << 1) + x
-      if (op_lhs == Op_LShift(bt_) && lhs->in(2)->Opcode() == Op_ConI && lhs->in(1) == rhs && lhs->in(2)->get_int() > 2) {
+      if (op_lhs == Op_LShift(bt_) && is_and_get_int_constant(lhs->in(2), con) && lhs->in(1) == rhs && con > 2) {
         return false;
       }
       // Case (5)
       // con1 == 0 => can be changed into 0
       // con1 == 1 => can be changed into -x (that is "x" in the negative term)
       // con1 == 2 => can be changed into -((x << 1) + x) (that is "(x << 1) + x" in the negative term)
-      if (op_rhs == Op_LShift(bt_) && rhs->in(2)->Opcode() == Op_ConI && rhs->in(1) == lhs && rhs->in(2)->get_int() > 2) {
+      if (op_rhs == Op_LShift(bt_) && is_and_get_int_constant(rhs->in(2), con) && rhs->in(1) == lhs && con > 2) {
         return false;
       }
     }
@@ -1017,9 +1068,9 @@ private:
   bool ok_to_convert(const Node* n, bool as_root) const {
     int op = n->Opcode();
     Node* lhs = n->in(1);
-    int op_lhs = n->in(1)->Opcode();
+    int op_lhs = lhs->Opcode();
     Node* rhs = n->in(2);
-    int op_rhs = n->in(2)->Opcode();
+    int op_rhs = rhs->Opcode();
     // Do not transform (x + c0) - y if "+" is a loop increment or
     // if "y" is a loop induction variable.
     if (op == Op_Sub(bt_)) {
@@ -1040,7 +1091,7 @@ private:
     if (!ok_to_convert_multiplication_as_shift(n)) {
       return false;
     }
-    if (op == Op_Sub(bt_) && op_lhs == Op_ConIL(bt_) && lhs->get_integer_as_long(bt_) == 0) {
+    if (op == Op_Sub(bt_) && is_constant(lhs, 0)) {
       // 0 - [the cases above]
       if (!ok_to_convert_multiplication_as_shift(rhs)) {
         return false;
@@ -1069,22 +1120,26 @@ private:
       out->print(" - ");
       dump_sub_graph(out, n->in(2));
       out->print(")");
-    } else if (op == Op_LShift(bt_) && n->in(2)->Opcode() == Op_ConI) {
+    } else if (op == Op_LShift(bt_) && is_int_constant(n->in(2))) {
       out->print("[%d](", n->_idx);
       dump_sub_graph(out,n->in(1));
       out->print(" << ");
       dump_sub_graph(out, n->in(2));
       out->print(")");
-    } else if (op == Op_Mul(bt_) && (n->in(1)->Opcode() == Op_ConIL(bt_) || n->in(2)->Opcode() == Op_ConIL(bt_))) {
+    } else if (op == Op_Mul(bt_) && (is_constant(n->in(1)) || is_constant(n->in(2)))) {
       out->print("[%d](", n->_idx);
       dump_sub_graph(out,n->in(1));
       out->print(" * ");
       dump_sub_graph(out, n->in(2));
       out->print(")");
-    } else if (op == Op_ConL) {
-      out->print("[%d]%ldL", n->_idx, n->get_integer_as_long(bt_));
-    } else if (op == Op_ConI) {
-      out->print("[%d]%d", n->_idx, n->get_int());
+    } else if (is_constant(n)) {
+      const TypeInteger* t = gvn_.type(n)->isa_integer(bt_);
+      if (const TypeInt* ti = t->isa_int(); ti != nullptr) {
+        out->print("[%d]%d", n->_idx, ti->get_con());
+      } else {
+        const TypeLong* tl = t->is_long();
+        out->print("[%d]%ldL", n->_idx, tl->get_con());
+      }
     } else {
       out->print("<%d %s>", n->_idx, n->Name());
     }
@@ -1098,16 +1153,16 @@ private:
       if (op == Op_Add(bt_) || op == Op_Sub(bt_)) {
         return false;
       }
-      if (op == Op_LShift(bt_) && n->in(2)->Opcode() == Op_ConI) {
+      if (op == Op_LShift(bt_) && is_int_constant(n->in(2))) {
         return false;
       }
-      if (op == Op_Mul(bt_) && (n->in(1)->Opcode() == Op_ConIL(bt_) || n->in(2)->Opcode() == Op_ConIL(bt_))) {
+      if (op == Op_Mul(bt_) && (is_constant(n->in(1)) || is_constant(n->in(2)))) {
         return false;
       }
       return true;
     };
 
-    if (n->Opcode() == Op_Sub(bt_) && n->in(2)->Opcode() == Op_ConIL(bt_)) {
+    if (n->Opcode() == Op_Sub(bt_) && is_constant(n->in(2))) {
       return false;
     }
     return skip_operand(n->in(1)) && skip_operand(n->in(2));
@@ -1154,22 +1209,22 @@ public:
           }
           stack.push_first_visit(node->in(1));
           stack.push_first_visit(node->in(2));
-        } else if (op == Op_LShift(bt_) && node->in(2)->Opcode() == Op_ConI) {
+        } else if (op == Op_LShift(bt_) && is_int_constant(node->in(2))) {
           stack.push_second_visit_without_replace(node);
           stack.push_first_visit(node->in(1));
-        } else if (op == Op_Mul(bt_) && (node->in(1)->Opcode() == Op_ConIL(bt_) || node->in(2)->Opcode() == Op_ConIL(bt_))) {
-          if (node->in(1)->Opcode() != Op_ConIL(bt_)) {
+        } else if (op == Op_Mul(bt_) && (is_constant(node->in(1)) || is_constant(node->in(2)))) {
+          if (!is_constant(node->in(1))) {
             stack.push_second_visit_without_replace(node);
             stack.push_first_visit(node->in(1));
             map_node_to_term(computed, node->in(2), 1L, node->in(2));
             stack.done(node->in(2));
-          } else if (node->in(2)->Opcode() != Op_ConIL(bt_)) {
+          } else if (!is_constant(node->in(2))) {
             stack.push_second_visit_without_replace(node);
             stack.push_first_visit(node->in(2));
             map_node_to_term(computed, node->in(1), 1L, node->in(1));
             stack.done(node->in(1));
           } else {
-            jlong constant = java_multiply(node->in(1)->get_integer_as_long(bt_), node->in(2)->get_integer_as_long(bt_));
+            jlong constant = java_multiply(get_constant(node->in(1)), get_constant(node->in(2)));
             map_node_to_constant(computed, node, constant);
             stack.done(node);
           }
@@ -1194,18 +1249,16 @@ public:
 #endif
           computed.push(Result(node, combination, node, lhs.improved_ || rhs.improved_));
         } else if (op == Op_Mul(bt_)) {
-          assert(node->in(1)->Opcode() == Op_ConIL(bt_) || node->in(2)->Opcode() == Op_ConIL(bt_), "one operand of Mul must be constant");
+          assert(is_constant(node->in(1)) || is_constant(node->in(2)), "one operand of Mul must be constant");
 
-          Node* constant_node;
+          jlong scalar;
           Node* operand_node;
-          if (node->in(1)->Opcode() == Op_ConIL(bt_)) {
-            constant_node = node->in(1);
+          if (is_and_get_constant(node->in(1), scalar)) {
             operand_node = node->in(2);
           } else {
-            constant_node = node->in(2);
+            scalar = get_constant(node->in(2));
             operand_node = node->in(1);
           }
-          jlong scalar = constant_node->get_integer_as_long(bt_);
           Result operand = find_result(computed, operand_node);
           Combination combination = operand.combination_.scalar_multiplication(scalar);
 #ifndef PRODUCT
@@ -1217,9 +1270,9 @@ public:
 #endif
           computed.push(Result(node, combination, node, operand.improved_));
         } else if (op == Op_LShift(bt_)) {
-          assert(node->in(2)->Opcode() == Op_ConI, "rhs of LShift must be constant, but got %s", node->in(2)->Name());
+          assert(is_int_constant(node->in(2)), "rhs of LShift must be constant, but got %s", node->in(2)->Name());
 
-          jint shift = node->in(2)->get_int();
+          jint shift = get_int_constant(node->in(2));
           jlong scalar = java_shift_left(1L, shift, bt_);
           Result operand = find_result(computed, node->in(1));
           Combination combination = operand.combination_.scalar_multiplication(scalar);
@@ -1246,8 +1299,8 @@ public:
         int op_r = rhs.canonical_node_->Opcode();
 
         if (
-          (op_l == Op_Sub(bt_) && lhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) && is_con(lhs.canonical_node_->in(1)->get_integer_as_long(bt_), 0)) ||
-          (op_r == Op_Sub(bt_) && rhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) && is_con(rhs.canonical_node_->in(1)->get_integer_as_long(bt_), 0))
+          (op_l == Op_Sub(bt_) && is_constant(lhs.canonical_node_->in(1), 0)) ||
+          (op_r == Op_Sub(bt_) && is_constant(rhs.canonical_node_->in(1), 0))
         ) {
           must_transform = true;
 #ifndef PRODUCT
@@ -1258,18 +1311,18 @@ public:
         }
         if (!must_transform && op == Op_Add(bt_)) {
           if (
-            (op_l == Op_Sub(bt_) && op_r != Op_ConIL(bt_) && ok_to_convert(lhs.canonical_node_, false)) ||
-            (op_r == Op_Sub(bt_) && op_l != Op_ConIL(bt_) && ok_to_convert(rhs.canonical_node_, false))
+            (op_l == Op_Sub(bt_) && !is_constant(rhs.canonical_node_) && ok_to_convert(lhs.canonical_node_, false)) ||
+            (op_r == Op_Sub(bt_) && !is_constant(lhs.canonical_node_) && ok_to_convert(rhs.canonical_node_, false))
           ) {
             must_transform = true;
 #ifndef PRODUCT
             if (print_steps_) {
-              tty->print_cr("  Must transform node %d: substract inside something that is not constant addition", node->_idx);
+              tty->print_cr("  Must transform node %d: subtract inside something that is not constant addition", node->_idx);
             }
 #endif
           } else if (
-            (op_l == Op_Add(bt_) && ok_to_convert(lhs.canonical_node_, false) && (lhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) || lhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt_))) ||
-            (op_r == Op_Add(bt_) && ok_to_convert(rhs.canonical_node_, false) && (rhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) || rhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt_)))
+            (op_l == Op_Add(bt_) && ok_to_convert(lhs.canonical_node_, false) && (is_constant(lhs.canonical_node_->in(1)) || is_constant(lhs.canonical_node_->in(2)))) ||
+            (op_r == Op_Add(bt_) && ok_to_convert(rhs.canonical_node_, false) && (is_constant(rhs.canonical_node_->in(1)) || is_constant(rhs.canonical_node_->in(2))))
           ) {
             must_transform = true;
 #ifndef PRODUCT
@@ -1280,8 +1333,8 @@ public:
           }
         } else if (!must_transform && op == Op_Sub(bt_)) {
           if (
-            (op_l == Op_Add(bt_) && ok_to_convert(lhs.canonical_node_, false) && (lhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) || lhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt_))) ||
-            (op_r == Op_Add(bt_) && ok_to_convert(rhs.canonical_node_, false) && (rhs.canonical_node_->in(1)->Opcode() == Op_ConIL(bt_) || rhs.canonical_node_->in(2)->Opcode() == Op_ConIL(bt_)))
+            (op_l == Op_Add(bt_) && ok_to_convert(lhs.canonical_node_, false) && (is_constant(lhs.canonical_node_->in(1)) || is_constant(lhs.canonical_node_->in(2)))) ||
+            (op_r == Op_Add(bt_) && ok_to_convert(rhs.canonical_node_, false) && (is_constant(rhs.canonical_node_->in(1)) || is_constant(rhs.canonical_node_->in(2))))
           ) {
             must_transform = true;
 #ifndef PRODUCT
