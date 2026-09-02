@@ -36,7 +36,7 @@ import jdk.test.lib.Asserts;
  * @bug 8325495 8347555 8374495
  * @summary C2 should optimize addition of the same terms by collapsing them into one multiplication.
  * @library /test/lib /
- * @run driver compiler.c2.gvn.TestCollapsingSameTermAdditions
+ * @run driver ${test.main.class}
  */
 public class TestCollapsingSameTermAdditions {
     private static final RestrictableGenerator<Integer> GEN_INT = Generators.G.ints();

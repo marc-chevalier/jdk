@@ -132,7 +132,7 @@ SubNode* SubNode::make(Node* in1, Node* in2, BasicType bt) {
 //=============================================================================
 //------------------------------Helper function--------------------------------
 
-#if 0
+#if 1
 static bool is_cloop_increment(Node* inc) {
   precond(inc->Opcode() == Op_AddI || inc->Opcode() == Op_AddL);
 
@@ -194,7 +194,7 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
     return r;
   }
 
-#if 0
+#if 1
   const Type *t2 = phase->type( in2 );
   if( t2 == Type::TOP ) return nullptr;
   // Convert "x-c0" into "x+ -c0".
@@ -384,7 +384,7 @@ Node *SubLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   if (Node* r = AddNode::simplify_whole_tree(can_reshape, phase, T_LONG, this); r != nullptr) {
     return r;
   }
-#if 0
+#if 1
   if( phase->type( in2 ) == Type::TOP ) return nullptr;
   const TypeLong *i = phase->type( in2 )->isa_long();
   // Convert "x-c0" into "x+ -c0".
