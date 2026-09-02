@@ -311,11 +311,11 @@ public class InvariantCodeMotionReassociateAddSub {
     @Test
     @Arguments(setup = "setup")
     @IR(counts = {IRNode.ADD_I, "2"})
-    @IR(counts = {IRNode.SUB_I, "1"})
+    @IR(counts = {IRNode.SUB_I, "2"})
     public int negSubAddInt(int inv1, int inv2, int size) {
         int result = -1;
         for (int i = 0; i < size; ++i) {
-            // Reassociate to `i - (inv1 + inv2)`
+            // Reassociate to `-inv1 - inv2 + i`
             result = blackhole(i - inv1 - inv2);
         }
         return result;
@@ -329,11 +329,11 @@ public class InvariantCodeMotionReassociateAddSub {
     @Test
     @Arguments(setup = "setup")
     @IR(counts = {IRNode.ADD_L, "1"})
-    @IR(counts = {IRNode.SUB_L, "1"})
+    @IR(counts = {IRNode.SUB_L, "2"})
     public int negSubAddLong(long inv1, long inv2, int size) {
         int result = -1;
         for (int i = 0; i < size; ++i) {
-            // Reassociate to `i - (inv1 + inv2)`
+            // Reassociate to `-inv1 - inv2 + i`
             result = blackhole(i - inv1 - inv2);
         }
         return result;
