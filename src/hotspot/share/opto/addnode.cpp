@@ -794,7 +794,10 @@ private:
           return false;
         }
       }
-      return true;
+      if (!is_con(constant_, 0)) {
+        non_zero_terms++;
+      }
+      return non_zero_terms <= 2;
     }
   };
 
@@ -892,49 +895,77 @@ private:
     return transform(AddNode::make(result, new_node, bt_));
   }
 
+  struct PatternWalkingStackItem {
+    Node* node_;
+    bool processed_;
+  };
   struct NodeAndSign {
     Node* node_;
     bool is_neg_;
   };
-  [[nodiscard]] NodeAndSign node_of_combination_on_pattern(const Combination& c, Node* replaced, Unique_Node_List& nodes_left_to_insert) const {
-    int op = replaced->Opcode();
+  [[nodiscard]] NodeAndSign node_of_combination_on_pattern(const Combination& c, Node* replaced, Unique_Node_List& nodes_left_to_insert, bool& constant_inserted) const {
+    GrowableArray<PatternWalkingStackItem> stack;
+    GrowableArray<NodeAndSign> results;
 
-    if (op == Op_Add(bt_) || op == Op_Sub(bt_)) {
-      auto lhs = node_of_combination_on_pattern(c, replaced->in(1), nodes_left_to_insert);
-      auto rhs = node_of_combination_on_pattern(c, replaced->in(2), nodes_left_to_insert);
-      if (lhs.node_ == nullptr && rhs.node_ == nullptr) {
-        return {nullptr, false};
-      } else if (lhs.node_ == nullptr) {
-        return rhs;
-      } else if (rhs.node_ == nullptr) {
-        return lhs;
-      }
-      if (lhs.is_neg_ == rhs.is_neg_) {
-        return {transform(AddNode::make(lhs.node_, rhs.node_, bt_)), lhs.is_neg_};
-      } else if (rhs.is_neg_) {
-        return {transform(SubNode::make(lhs.node_, rhs.node_, bt_)), false};
+    stack.push({replaced, false});
+
+    while (stack.is_nonempty()) {
+      PatternWalkingStackItem top = stack.pop();
+      Node* n = top.node_;
+      int op = n->Opcode();
+
+      if (!top.processed_ && nodes_left_to_insert.size() == 0 && constant_inserted) {
+        results.push({nullptr, false});
+      } else if (op == Op_Add(bt_) || op == Op_Sub(bt_)) {
+        if (!top.processed_) {
+          stack.push({n, true});
+          stack.push({n->in(1), false});
+          stack.push({n->in(2), false});
+        } else {
+          NodeAndSign lhs = results.pop();
+          NodeAndSign rhs = results.pop();
+          if (lhs.node_ == nullptr && rhs.node_ == nullptr) {
+            results.push({nullptr, false});
+          } else if (lhs.node_ == nullptr) {
+            results.push(rhs);
+          } else if (rhs.node_ == nullptr) {
+            results.push(lhs);
+          } else if (lhs.is_neg_ == rhs.is_neg_) {
+            results.push({transform(AddNode::make(lhs.node_, rhs.node_, bt_)), lhs.is_neg_});
+          } else if (rhs.is_neg_) {
+            results.push({transform(SubNode::make(lhs.node_, rhs.node_, bt_)), false});
+          } else {
+            results.push({transform(SubNode::make(rhs.node_, lhs.node_, bt_)), false});
+          }
+        }
+      } else if (op == Op_Mul(bt_) && (is_constant(n->in(1)) || is_constant(n->in(2)))) {
+        Node* non_const_operand = is_constant(n->in(1)) ? n->in(2) : n->in(1);
+        stack.push({non_const_operand, false});
+      } else if (op == Op_LShift(bt_) && is_int_constant(n->in(2))) {
+        stack.push({n->in(1), false});
+      } else if (is_constant(n)) {
+        if (constant_inserted) {
+          results.push({nullptr, false});
+        } else {
+          results.push({make_con(c.constant_), false});
+          constant_inserted = true;
+        }
       } else {
-        return {transform(SubNode::make(rhs.node_, lhs.node_, bt_)), false};
-      }
-    } else if (op == Op_Mul(bt_) && (is_constant(replaced->in(1)) || is_constant(replaced->in(2)))) {
-      if (is_constant(replaced->in(1))) {
-        return node_of_combination_on_pattern(c, replaced->in(2), nodes_left_to_insert);
-      } else {
-        return node_of_combination_on_pattern(c, replaced->in(1), nodes_left_to_insert);
-      }
-    } else if (op == Op_LShift(bt_) && is_int_constant(replaced->in(2))) {
-      return node_of_combination_on_pattern(c, replaced->in(1), nodes_left_to_insert);
-    } else {
-      if (!nodes_left_to_insert.member(replaced)) {
-        return {nullptr, false};
-      } else {
-        bool found;
-        int location = c.combination_.find_sorted<const Node*, Combination::compare_node_term>(replaced, found);
-        assert(found, "must be in there");
-        nodes_left_to_insert.remove(replaced);
-        return node_of_term(c.combination_.at(location));
+        if (!nodes_left_to_insert.member(n)) {
+          results.push({nullptr, false});
+        } else {
+          bool found;
+          int location = c.combination_.find_sorted<const Node*, Combination::compare_node_term>(n, found);
+          assert(found, "must be in there");
+          nodes_left_to_insert.remove(n);
+          results.push(node_of_term(c.combination_.at(location)));
+        }
       }
     }
+
+    NodeAndSign result = results.pop();
+    assert(results.is_empty(), "must be empty, but has length: %d", results.length());
+    return result;
   }
 
   [[nodiscard]] Node* node_of_combination_on_pattern(const Combination& c, Node* replaced) const {
@@ -944,40 +975,33 @@ private:
         nodes_left_to_insert.push(term.vector_);
       }
     }
-    NodeAndSign new_tree = node_of_combination_on_pattern(c, replaced, nodes_left_to_insert);
+    bool constant_inserted = is_con(c.constant_, 0);
+    NodeAndSign new_tree = node_of_combination_on_pattern(c, replaced, nodes_left_to_insert, constant_inserted);
 #ifdef ASSERT
-    if (nodes_left_to_insert.size() != 0) {
+    if (nodes_left_to_insert.size() != 0 || !constant_inserted) {
       stringStream ss;
       ss.print("combination: ");
       c.dump(&ss);
-      ss.print("; node left:");
+      ss.print("; node left: [");
       for (uint i = 0; i < nodes_left_to_insert.size(); ++i) {
-        ss.print(" %d",  nodes_left_to_insert.at(i)->_idx);
+        if (i > 0) {
+          ss.print(", ");
+        }
+        ss.print("%d",  nodes_left_to_insert.at(i)->_idx);
       }
-#ifndef PRODUCT
-      ss.print("; subgraph: ");
+      ss.print("]; subgraph: ");
       dump_sub_graph(&ss, replaced);
-#endif
       assert(nodes_left_to_insert.size() == 0, "should have been consumed: %s", ss.base());
+      assert(constant_inserted, "should have been inserted: %s", ss.base());
     }
 #endif
-    if (is_con(c.constant_, 0)) {
-      if (new_tree.node_ == nullptr) {
-        return gvn_.zerocon(bt_);
-      }
-      if (new_tree.is_neg_) {
-        return transform(SubNode::make(gvn_.zerocon(bt_), new_tree.node_, bt_));
-      }
-      return new_tree.node_;
-    } else {
-      if (new_tree.node_ == nullptr) {
-        return make_con(c.constant_);
-      }
-      if (new_tree.is_neg_) {
-        return transform(SubNode::make(make_con(c.constant_), new_tree.node_, bt_));
-      }
-      return transform(AddNode::make(new_tree.node_, make_con(c.constant_), bt_));
+    if (new_tree.node_ == nullptr) {
+      return gvn_.zerocon(bt_);
     }
+    if (new_tree.is_neg_) {
+      return transform(SubNode::make(gvn_.zerocon(bt_), new_tree.node_, bt_));
+    }
+    return new_tree.node_;
   }
 
   [[nodiscard]] NodeAndSign node_of_term(const Term &term) const {
@@ -1219,7 +1243,6 @@ private:
     return true;
   }
 
-#ifndef PRODUCT
   void dump_sub_graph(outputStream* out, Node* n) const {
     int op = n->Opcode();
     if (op == Op_Add(bt_)) {
@@ -1255,10 +1278,13 @@ private:
         out->print("[%d]%ldL", n->_idx, tl->get_con());
       }
     } else {
+#ifdef PRODUCT
+      out->print("<%d>", n->_idx);
+#else
       out->print("<%d %s>", n->_idx, n->Name());
+#endif
     }
   }
-#endif
 
   // Is it nothing more than a "a +/- b" where we can't do anything with "a" and "b"?
   [[nodiscard]] bool is_uninteresting(Node* n) const {
@@ -1280,70 +1306,6 @@ private:
       return false;
     }
     return skip_operand(n->in(1)) && skip_operand(n->in(2));
-  }
-
-  [[nodiscard]] bool gluing_makes_canonical(const Node* node, const Result& lhs, const Result& rhs) const {
-    int op = node->Opcode();
-    int op_l = lhs.canonical_node_->Opcode();
-    int op_r = rhs.canonical_node_->Opcode();
-
-    if (
-      (op_l == Op_Sub(bt_) && is_constant(lhs.canonical_node_->in(1), 0)) ||
-      (op_r == Op_Sub(bt_) && is_constant(rhs.canonical_node_->in(1), 0))
-    ) {
-#ifndef PRODUCT
-      if (print_steps_) {
-        tty->print_cr("  Must transform node %d: operand is a (0 - x)", node->_idx);
-      }
-#endif
-      return false;
-    }
-    if (op == Op_Add(bt_)) {
-      if (
-        (op_l == Op_Sub(bt_) && !is_constant(rhs.canonical_node_) && ok_to_convert(lhs.canonical_node_, false)) ||
-        (op_r == Op_Sub(bt_) && !is_constant(lhs.canonical_node_) && ok_to_convert(rhs.canonical_node_, false))
-      ) {
-#ifndef PRODUCT
-        if (print_steps_) {
-          tty->print_cr("  Must transform node %d: subtract inside something that is not constant addition", node->_idx);
-        }
-#endif
-        return false;
-      } else if (
-        (op_l == Op_Add(bt_) && ok_to_convert(lhs.canonical_node_, false) && (is_constant(lhs.canonical_node_->in(1)) || is_constant(lhs.canonical_node_->in(2)))) ||
-        (op_r == Op_Add(bt_) && ok_to_convert(rhs.canonical_node_, false) && (is_constant(rhs.canonical_node_->in(1)) || is_constant(rhs.canonical_node_->in(2))))
-      ) {
-#ifndef PRODUCT
-        if (print_steps_) {
-          tty->print_cr("  Must transform node %d: operand of addition is a constant addition", node->_idx);
-        }
-#endif
-        return false;
-      }
-    } else if (op == Op_Sub(bt_)) {
-      if (
-        (op_l == Op_Add(bt_) && ok_to_convert(lhs.canonical_node_, false) && (is_constant(lhs.canonical_node_->in(1)) || is_constant(lhs.canonical_node_->in(2)))) ||
-        (op_r == Op_Add(bt_) && ok_to_convert(rhs.canonical_node_, false) && (is_constant(rhs.canonical_node_->in(1)) || is_constant(rhs.canonical_node_->in(2))))
-      ) {
-#ifndef PRODUCT
-        if (print_steps_) {
-          tty->print_cr("  Must transform node %d: operand of subtract is a constant addition", node->_idx);
-        }
-#endif
-        return false;
-      } else if (
-        (op_l == Op_Sub(bt_) && ok_to_convert(lhs.canonical_node_, false)) ||
-        (op_r == Op_Sub(bt_) && ok_to_convert(rhs.canonical_node_, false))
-      ) {
-#ifndef PRODUCT
-        if (print_steps_) {
-          tty->print_cr("  Must transform node %d: operand of subtract is a subtraction", node->_idx);
-        }
-#endif
-        return false;
-      }
-    }
-    return true;
   }
 
 public:
@@ -1476,14 +1438,12 @@ public:
         Result lhs = find_result(computed, node->in(1));
         Result rhs = find_result(computed, node->in(2));
 
-        bool just_gluing_is_canonical = gluing_makes_canonical(node, lhs, rhs);
-
         bool improved = false;
         Combination combination = lhs.combination_.sum(rhs.combination_, op == Op_Sub(bt_), improved);
         bool simple_enough = combination.is_simple_enough();
 
         Node* combination_as_node = nullptr;
-        if ((lhs.improved_ || rhs.improved_) && !improved && just_gluing_is_canonical) {
+        if ((lhs.improved_ || rhs.improved_) && !improved) {
           if (op == Op_Add(bt_)) {
             combination_as_node = transform(AddNode::make(lhs.canonical_node_, rhs.canonical_node_, bt_));
           } else if (op == Op_Sub(bt_)) {
@@ -1493,19 +1453,19 @@ public:
           }
 #ifndef PRODUCT
           if (print_steps_) {
-            tty->print_cr("  Rebuilding root for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; just_gluing_is_canonical=%d", node->_idx, lhs.improved_, rhs.improved_, improved, just_gluing_is_canonical);
+            tty->print_cr("  Rebuilding root for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d", node->_idx, lhs.improved_, rhs.improved_, improved);
           }
 #endif
           improved = true;
         } else if (improved) {
-          if (simple_enough || gvn_.is_IterGVN()) {
+          if (!simple_enough && gvn_.is_IterGVN()) {
 #ifndef PRODUCT
             if (print_steps_) {
               tty->print("  Rebuilding combination ");
               combination.dump(tty);
               tty->print(" on pattern ");
               dump_sub_graph(tty, node);
-              tty->print_cr(" for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; just_gluing_is_canonical=%d", node->_idx, lhs.improved_, rhs.improved_, improved, just_gluing_is_canonical);
+              tty->print_cr(" for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d", node->_idx, lhs.improved_, rhs.improved_, improved);
             }
 #endif
             combination_as_node = node_of_combination_on_pattern(combination, node);
@@ -1514,20 +1474,11 @@ public:
             if (print_steps_) {
               tty->print("  Rebuilding combination ");
               combination.dump(tty);
-              tty->print_cr(" from scratch for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; just_gluing_is_canonical=%d", node->_idx, lhs.improved_, rhs.improved_, improved, just_gluing_is_canonical);
+              tty->print_cr(" from scratch for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d", node->_idx, lhs.improved_, rhs.improved_, improved);
             }
 #endif
             combination_as_node = node_of_combination(combination);
           }
-        } else if (!just_gluing_is_canonical && !gvn_.is_IterGVN()) {
-#ifndef PRODUCT
-          if (print_steps_) {
-            tty->print("  Rebuilding combination ");
-            combination.dump(tty);
-            tty->print_cr(" from scratch for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d; just_gluing_is_canonical=%d", node->_idx, lhs.improved_, rhs.improved_, improved, just_gluing_is_canonical);
-          }
-#endif
-          combination_as_node = node_of_combination(combination);
         } else {
           combination_as_node = node;
         }
@@ -1590,6 +1541,7 @@ public:
       tty->cr();
     }
 #endif
+    // No progress, we return nullptr to signal nothing was done
     if (!progress) {
 #ifndef PRODUCT
       if (print_steps_) {
@@ -1598,6 +1550,7 @@ public:
 #endif
       return nullptr;
     }
+    // Progress, but the root node is either new, or unchanged, we can just return it
     if (new_n->_idx >= old_unique || new_n == n) {
 #ifndef PRODUCT
       if (print_steps_) {
@@ -1608,7 +1561,7 @@ public:
     }
 #ifndef PRODUCT
     if (print_steps_) {
-      tty->print_cr("Old node detected. Will return artificial new node.");
+      tty->print_cr("Would return an old node. Will return artificial new node.");
       tty->print_cr("\n");
     }
 #endif
