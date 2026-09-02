@@ -132,7 +132,12 @@ public class TestUnorderedReduction {
             sum += 11 * data[i+6];
             sum += 11 * data[i+7];
         }
-        return sum + x;
+        return opaque(sum) + opaque(x);
+    }
+
+    @DontInline
+    static int opaque(int x) {
+        return x;
     }
 
     static int ref1(int[] data, int sum) {
@@ -148,7 +153,7 @@ public class TestUnorderedReduction {
             sum += 11 * data[i+6];
             sum += 11 * data[i+7];
         }
-        return sum + x;
+        return opaque(sum) + opaque(x);
     }
 
     @Test

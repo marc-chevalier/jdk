@@ -21,7 +21,7 @@
  * questions.
  */
 
-package compiler.c2.loopopts;
+package compiler.loopopts;
 
 import compiler.lib.ir_framework.*;
 import jdk.test.lib.Asserts;
@@ -34,7 +34,7 @@ import java.util.Random;
  * @key randomness
  * @summary Test loop invariant code motion of add/sub through reassociation
  * @library /test/lib /
- * @run driver compiler.c2.loopopts.InvariantCodeMotionReassociateAddSub
+ * @run driver ${test.main.class}
  */
 public class InvariantCodeMotionReassociateAddSub {
     private static final Random RANDOM = Utils.getRandomInstance();
@@ -311,11 +311,11 @@ public class InvariantCodeMotionReassociateAddSub {
     @Test
     @Arguments(setup = "setup")
     @IR(counts = {IRNode.ADD_I, "2"})
-    @IR(counts = {IRNode.SUB_I, "2"})
+    @IR(counts = {IRNode.SUB_I, "1"})
     public int negSubAddInt(int inv1, int inv2, int size) {
         int result = -1;
         for (int i = 0; i < size; ++i) {
-            // Reassociate to `-inv1 - inv2 + i`
+            // Reassociate to `i - (inv1 + inv2)`
             result = blackhole(i - inv1 - inv2);
         }
         return result;
@@ -329,11 +329,11 @@ public class InvariantCodeMotionReassociateAddSub {
     @Test
     @Arguments(setup = "setup")
     @IR(counts = {IRNode.ADD_L, "1"})
-    @IR(counts = {IRNode.SUB_L, "2"})
+    @IR(counts = {IRNode.SUB_L, "1"})
     public int negSubAddLong(long inv1, long inv2, int size) {
         int result = -1;
         for (int i = 0; i < size; ++i) {
-            // Reassociate to `-inv1 - inv2 + i`
+            // Reassociate to `i - (inv1 + inv2)`
             result = blackhole(i - inv1 - inv2);
         }
         return result;
