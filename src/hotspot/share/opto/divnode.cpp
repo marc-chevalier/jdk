@@ -352,6 +352,8 @@ static Node* long_by_long_mulhi(PhaseGVN* phase, Node* dividend, jlong magic_con
 // Convert a division by constant divisor into an alternate Ideal graph.
 // Return null if no transformation occurs.
 static Node *transform_long_divide( PhaseGVN *phase, Node *dividend, jlong divisor ) {
+  Node* dividend_hook = new Node(1);
+  dividend_hook->init_req(0, dividend);
   // Check for invalid divisors
   assert( divisor != 0L && divisor != min_jlong,
           "bad divisor for transforming to long multiply" );
@@ -410,11 +412,11 @@ static Node *transform_long_divide( PhaseGVN *phase, Node *dividend, jlong divis
       // Mask sign bit to the low sign bits
       Node *round = phase->transform(new URShiftLNode(sign, phase->intcon(N - l)));
       // Round up before shifting
-      dividend = phase->transform(new AddLNode(dividend, round));
+      dividend_hook->set_req(0, phase->transform(new AddLNode(dividend_hook->in(0), round)));
     }
 
     // Shift for division
-    q = new RShiftLNode(dividend, phase->intcon(l));
+    q = new RShiftLNode(dividend_hook->in(0), phase->intcon(l));
 
     if (!d_pos) {
       q = new SubLNode(phase->longcon(0), phase->transform(q));
@@ -436,7 +438,7 @@ static Node *transform_long_divide( PhaseGVN *phase, Node *dividend, jlong divis
         // The magic multiplier is too large for a 64 bit constant. We've adjusted
         // it down by 2^64, but have to add 1 dividend back in after the multiplication.
         // This handles the "overflow" case described by Granlund and Montgomery.
-        mul_hi = phase->transform(new AddLNode(dividend, mul_hi));
+        mul_hi = phase->transform(new AddLNode(dividend_hook->in(0), mul_hi));
       }
 
       // Shift over the (adjusted) mulhi
@@ -446,7 +448,7 @@ static Node *transform_long_divide( PhaseGVN *phase, Node *dividend, jlong divis
 
       // Get a 0 or -1 from the sign of the dividend.
       Node *addend0 = mul_hi;
-      Node *addend1 = phase->transform(new RShiftLNode(dividend, phase->intcon(N-1)));
+      Node *addend1 = phase->transform(new RShiftLNode(dividend_hook->in(0), phase->intcon(N-1)));
 
       // If the divisor is negative, swap the order of the input addends;
       // this has the effect of negating the quotient.
@@ -459,6 +461,8 @@ static Node *transform_long_divide( PhaseGVN *phase, Node *dividend, jlong divis
       q = new SubLNode(addend0, addend1);
     }
   }
+
+  dividend_hook->destruct(phase);
 
   return q;
 }
