@@ -1412,7 +1412,25 @@ public:
             tty->cr();
           }
 #endif
-          computed.push(Result(node, combination, node, operand.improved_));
+          if (gvn_.is_IterGVN() || !operand.improved_) {
+            computed.push(Result(node, combination, node, operand.improved_));
+          } else {
+            // During parsing, if there is an improvement, the input of the multiplication wasn't replace.
+            // We need to build the optimized multiplication manually.
+            Node* new_mul;
+            if (is_constant(node->in(1))) {
+              new_mul = transform(MulNode::make(node->in(1), operand.canonical_node_, bt_));
+            } else {
+              new_mul = transform(MulNode::make(operand.canonical_node_, node->in(2), bt_));
+            }
+#ifndef PRODUCT
+            if (print_steps_) {
+              tty->print("  Mapping node %d to new node ", node->_idx);
+              new_mul->dump("\n", false, tty);
+            }
+#endif
+            computed.push(Result(node, combination, new_mul, operand.improved_));
+          }
         } else if (op == Op_LShift(bt_)) {
           assert(is_int_constant(node->in(2)), "rhs of LShift must be constant, but got %s", node->in(2)->Name());
 
@@ -1427,7 +1445,20 @@ public:
             tty->cr();
           }
 #endif
-          computed.push(Result(node, combination, node, operand.improved_));
+          if (gvn_.is_IterGVN() || !operand.improved_) {
+            computed.push(Result(node, combination, node, operand.improved_));
+          } else {
+            // During parsing, if there is an improvement, the input of the shift wasn't replace.
+            // We need to build the optimized shift manually.
+            Node* new_shift = transform(LShiftNode::make(operand.canonical_node_, node->in(2), bt_));
+#ifndef PRODUCT
+            if (print_steps_) {
+              tty->print("  Mapping node %d to new node ", node->_idx);
+              new_shift->dump("\n", false, tty);
+            }
+#endif
+            computed.push(Result(node, combination, new_shift, operand.improved_));
+          }
         } else {
           ShouldNotReachHere();
         }
