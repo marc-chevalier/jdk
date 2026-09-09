@@ -285,6 +285,10 @@ AddNode* AddNode::make_not(PhaseGVN* phase, Node* n, BasicType bt) {
  * not left-shift by a constant). This might be a bit awkward to call that linear combination since we have a
  * constant K, but the term "affine combination" designates something else.
  *
+ * Let's have a word about words. The concept of linear combinations are coming from the world of vector spaces.
+ * By analogy, we call "scalars" the c_i, and "vectors" the N_i. Not to be confused by vectors from the SIMD world.
+ * Yet, we believe contexts are different enough not to create any confusion.
+ *
  * # Goals
  * The idea is to compute symbolically the value of such a tree, and create new nodes for that, while respecting,
  * the shape of the current graph
@@ -344,6 +348,18 @@ AddNode* AddNode::make_not(PhaseGVN* phase, Node* n, BasicType bt) {
  *   similarly bad before... Moreover, the new pattern is of the form (INVARIANT + VARIANT) - INVARIANT which
  *   is simple enough for `reassociate_add_sub_cmp` to gather the invariants together, which wouldn't have worked
  *   before. By grouping terms, we create more sub-trees that are invariants: there can be only one `x`!
+ *
+ * # Coefficients and Constants
+ * We are doing everything on java longs, so we don't have to distinguish all the time whether we should use java
+ * ints or java longs. This works because both longs and ints are rings, and the mapping that tranform a long into
+ * an int in modulo arithmetic (that is, by cutting the upper half of the long) is a ring homomorphism, so computing
+ * additions and multiplications can be conveniently rearranged. We can simply do that at the last moment. Only, some
+ * optimization needs extra care. For instance, 2^30 + 2^30 + 2^30 + 2^30 gives 2^32 as a long, but it can be
+ * interpreted as 0 if we are working with ints, and the term can be removed. Yet, the danger is small. Failure to
+ * notice that the coefficient will turn into 0 will just make us keep a term in the linear combination, and eventually
+ * emit MulI((jint)2^32, X), that is MulI(0, X), which will be optimized later.
+ *
+ * But don't say int is a sub-ring of long! That's not true!
  *
  * # Algorithm
  * The algorithm is essentially a DFS in two steps with memoization. The memory is morally a mapping
@@ -407,7 +423,6 @@ AddNode* AddNode::make_not(PhaseGVN* phase, Node* n, BasicType bt) {
  *   redoing the traversal in ::Identity.
  *
  * # The Notion of Improvement
- *
  * Let A and B be linear combinations. Intuitively, we say that A +/- B makes an improvement when putting the
  * terms from A and B next to each other isn't the best one can do. For instance, in the sum (a + b) + (a + c),
  * we can factor the a. In the difference (a + b) - (2 * a + c), we can cancel out some a. More precisely, we
@@ -557,7 +572,7 @@ private:
       return worklist_.is_nonempty();
     }
 
-    StackItem pop() {
+    [[nodiscard]] StackItem pop() {
       StackItem item = worklist_.pop();
       assert(item.state == StackItem::TraversalState::Pre || second_visit_pending_.member(item.node), "should have been in the pending list");
       assert(item.state != StackItem::TraversalState::Pre || !second_visit_pending_.member(item.node), "should not be in the pending list");
