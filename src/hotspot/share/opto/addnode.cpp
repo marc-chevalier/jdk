@@ -271,7 +271,7 @@ AddNode* AddNode::make_not(PhaseGVN* phase, Node* n, BasicType bt) {
   return nullptr;
 }
 
-/* Simplify linear combination of nodes directly into canonical shape.
+/* Simplify linear combination of nodes, not disturbing loops.
  *
  * # What
  * It transforms trees made of AddX/SubX (where X is either I and L) whose leaves are either:
@@ -286,60 +286,22 @@ AddNode* AddNode::make_not(PhaseGVN* phase, Node* n, BasicType bt) {
  * constant K, but the term "affine combination" designates something else.
  *
  * # Goals
- * The idea is to compute symbolically the value of such a tree, and dump it in canonical shape at once,
- * including simplification. We will define the canonical shape later, but the canonical representation
- * of a linear combination is not necessarily unique.
+ * The idea is to compute symbolically the value of such a tree, and create new nodes for that, while respecting,
+ * the shape of the current graph
  * But it does it with smartness:
  * - since computing the symbolic value of a AddX/SubX needs to compute the symbolic values of the
- *   operands we also replace these nodes with their canonical version.
- * - for the tree T = AddX(A, B), let's call A' (resp. B') the canonical representation of A (resp. B),
- *   If the tree T' := AddX(A', B') is already in canonical shape, we transform T into T'. This allows
- *   to reuse more nodes than building a canonical shape from the symbolic value of T. For instance, let
+ *   operands we also replace these nodes with their simplified version.
+ * - for the tree T = AddX(A, B), let's call A' (resp. B') the simplification of A (resp. B),
+ *   If the tree T' := AddX(A', B') cannot be simplified, we transform T into T'. This allows
+ *   to reuse more nodes than building fresh nodes from the symbolic value of T. For instance, let
  *   T be the tree (a + b) + (c + d). Moreover, let A := a + b and B := c + d, that are already in
- *   canonical representation. The symbolic value of T is a + b + c + d. The simpler tree to build for
- *   this expression would be ((a + b) + c) + d, but since (a + b) + (c + d) is also canonical, it is
- *   better to pick the latter expression as it reuses the nodes A and B. In particular, an expression in
- *   canonical shape must not be change, and the algorithm must create no node.
+ *   simplified. The symbolic value of T is a + b + c + d. The simpler tree to build for this expression
+ *   would be ((a + b) + c) + d, but since (a + b) + (c + d) is also as simple as possible, it is better
+ *   to pick the latter expression as it reuses the nodes A and B. In particular, an expression in simplified
+ *   form must not be change, and the algorithm must create no node.
  * - it makes multiplications by constants into a nice shape when possible.
  *
- * # Canonical Shapes
- * Canonical shapes favor additions over subtractions, get the constants close from the root, and put
- * negative signs into constants instead of subtractions. The toplevel shape must be either:
- * 1. (p - n) + c
- * 2. p - n
- * 3. c - n
- * 4. p + c
- * 5. 0 - n
- * 6. p
- * 7. c
- * where:
- * - p (positive terms) is a tree of AddX whose leaves are defined thereafter
- * - n (negative terms) is a tree of AddX whose leaves are defined thereafter
- * - c is a ConX node
- * Leaves in p and n are either:
- * 1. a non-special node (denotes "a" in the next cases), or a preserved sub-tree.
- * 2. LShiftX(a, c) where c is a constant with c > 0, for terms of the form "2^c * a"
- * 3. AddX(LShiftX(a, c1), LShiftX(a, c2)) where c1 and c2 are constants with c1 > c2 > 0,
- *    for terms of the form "(2^c1 + 2^c2) * a"
- *    The bound is tight:
- *    - for c1 = c2, 2^c1 + 2^c2 = 2*2^c1 = 2^(c1 + 1), that is case 2.
- * 4. AddX(LShiftX(a, c), a) where c is a constant with c > 0, for terms of the form (2^c + 0) * a
- * 5. SubX(LShiftX(a, c1), LShiftX(a, c2)) where c1 and c2 are constants with c1 > c2 + 2 and c2 > 0,
- *    for terms of the form "(2^c1 - 2^c2) * a"
- *    The bound is tight:
- *    - for c1 = c2 + 1, 2^c1 - 2^c2 = 2*2^c2 - 2^c2 = 2^c2, that is case 2.
- *    - for c1 = c2 + 2, 2^c1 - 2^c2 = 4*2^c2 - 2^c2 = 3*2^c2 = 2^(c2+1) + 2^c1, that is case 3.
- * 6. SubX(LShiftX(a, c), a) where c is a constant with c > 1, for terms of the form "(2^c - 1) * a".
- * 7. MulX(c, a), where c is a constant with |c| > 1, only in the positive terms "p".
- *
- * ## Example
- * - 5*A + 9*B + 11*C - 11*D + E + 7*F + 14*G - 9*H - 10*I - J - 15*K - 28*L + 42 - 1337
- *   => ( (A<<2 + A) + (B<<3 + B<<1) + 11*C + (-11)*D + E + (F<<3 - F) + (G<<4 - G<<1) )
- *    - ( (H<<3 + H) + (I<<3 + I<<2) + J + (K<<4 - K) + (L<<5 - L<<2) )
- *    + (-1295)
- *  The parentheses inside the "p" and "n" parts (first and second lines) can be put arbitrarily.
- *
- * # Preserved sub-trees
+ * # Preserved Sub-trees
  * Some sub-trees are not transformed, but are not atomic and can still be evaluated. There are 2 cases at the moment:
  * - expressions of the form 3. to 6. above: we can turn them into a term, and dump it correctly again, but that would be
  *   useless work. If we identify them early, we can simply prevent useless transformation.
@@ -350,12 +312,42 @@ AddNode* AddNode::make_not(PhaseGVN* phase, Node* n, BasicType bt) {
  * T1 := (x + C) - v
  * T2 := T1 - C
  * T3 := T1 + v
- * We should not replace T1 where it is used outside of the Add/Sub tree, but T2 can be replaced by "x - v",
+ * We should not replace T1 where it is used outside the Add/Sub tree, but T2 can be replaced by "x - v",
  * and T3 can be replaced by "x". To replace T2 and T3, we need to be aware of the symbolic value of T1, even if we leave it be.
+ *
+ * # Preserving Shape
+ * For a given symbolic combination, many tree of nodes are possible. We can basically parenthesize however we want.
+ * Surely, we also have subtractions, but it's something alike the Catalan numbers... But we need to pick! What we
+ * do is to respect what shape we have in the tree. This allows not to disturb loops too much. Indeed,
+ * `IdealLoopTree::reassociate_add_sub_cmp` tries to group loop-invariant terms together so they can be hoisted
+ * above the loop. Typically, inv1 + (x + inv2) is worse than (inv1 + inv2) + x. In the first case, two additions
+ * are computed at each loop iteration, while only one for the second case since (inv1 + inv2) can be hoisted.
+ * Yet, during IGVN, `reassociate_add_sub_cmp` may already have kicked in, but it's hard to know which nodes are loop
+ * variants, or invariants. On the other hand, doing the current optimization during loopopts is not practically doable.
+ * The solution is to dump a simplified tree respecting the structure of the former tree, meaning that it's not worse
+ * than before!
+ *
+ * During this process, we don't care about the kind of operator, whether Add or Sub, since only the grouping matters,
+ * but we avoid silly constructs, such as (a + ((-1) * b)) or (a + (0 - b)), but we rather do (a - b). To do so, we just
+ * treat the sign in front of the expression aside. If a minus is needed, we make it bubble until it is convenient to
+ * insert it.
+ *
+ * ## Examples
+ * - ((a + b) + c) - (a - (b + d)). Symbolically, this is 2*b + c - d. So, we build something on the pattern of
+ *   ((n1*a + n2*b) + n3*c) + (n4*a + (n5*b + n6*d)). Doing a left first DFS, we will find n1=0, n2=2, n3=1. Then,
+ *   for n4 et n5, we will notice we already had the opportunity to put all the `a` and `b` we wanted, so we
+ *   also set n4 = n5 = 0. And n6 = -1. Eventually, we end up with the tree (2*b + c) - d.
+ * - (((inv1 + inv2) + inv3) + x) - (inv1 - x). This is worth inv2 + inv3 + 2*x. By following the given shape,
+ *   we build (inv2 + inv3) + 2*x, which is good in a loop context, better than the input.
+ * - (((inv1 + inv2) + inv3) + x) - ((inv1 + inv4) - x). The symbolic value is inv2 + inv3 - inv4 + 2*x. By following
+ *   the given shape, we build ((inv2 + inv3) + 2*x) - inv4, which is NOT good in a loop context. BUT! It was already
+ *   similarly bad before... Moreover, the new pattern is of the form (INVARIANT + VARIANT) - INVARIANT which
+ *   is simple enough for `reassociate_add_sub_cmp` to gather the invariants together, which wouldn't have worked
+ *   before. By grouping terms, we create more sub-trees that are invariants: there can be only one `x`!
  *
  * # Algorithm
  * The algorithm is essentially a DFS in two steps with memoization. The memory is morally a mapping
- * from nodes to their linear combination, a node in the canonical representation (possible itself),
+ * from nodes to their linear combination, a node in the simplified representation (possibly itself),
  * and whether doing so lead to an improvement of the expression.
  *
  * We start with a stack containing only the node at the root of the sub-tree we want to transform, in
@@ -385,21 +377,27 @@ AddNode* AddNode::make_not(PhaseGVN* phase, Node* n, BasicType bt) {
  *   We get the linear combination associated with the operands of n, we compute the combination for n and
  *   whether this is an improvement. We write Cl (resp. Cr) the symbolic combination for l (resp. r), and l'
  *   (resp. r') the computed representation of l (resp. r). Let C = Cl + Cr.
+ *   Here, we distinguish
  *   There are 3 cases:
- *   - AddX(l', r') is in canonical form, Cl or Cr have been an improvement but Cl + Cr leads to no further
+ *   - AddX(l', r') is in simplified form, Cl or Cr have been an improvement but Cl + Cr leads to no further
  *     improvement => we map n to the combination C, node n' := AddX(l', r'), and call it an improvement
- *   - Cl + Cr leads to an improvement or AddX(l', r') is not in canonical form => we build a canonical node n'
+ *   - Cl + Cr leads to an improvement, that is AddX(l', r') is not in simplified form => we build a node n'
  *     for the symbolic value C, we map n to C, the node n', and we call it an improvement.
- *   - otherwise (neither Cl, Cr or C has an improvement, AddX(l', r') is in canonical form), we simply map n
- *     to itself, with combination C, and make it as not improved. In this case, n' := n.
+ *   - otherwise (neither Cl, Cr nor C has an improvement, AddX(l', r') is in simplified form), we simply map n
+ *     to itself, with combination C, and mark it as not improved. In this case, n' := n.
  *
- *   Afterwards, we check whether n != n', if so remember that the function progressed. We also check whether
+ *   Afterward, we check whether n != n', if so remember that the function progressed. We also check whether
  *   n is the root node, the first in the stack; if so, we remember n' as being the returned value of ::Ideal.
- *   If n is not this root node, in IGVN only, we replace n by n'. Because of this replacement, in IGVN,
- *   everywhere we say "we map n to n'", we actually map n' to n', since when we will visit the nodes deeper
- *   on the stack, we will have replaced the input n with n'.
+ *   If n is not this root node, in IGVN only, we replace n by n'.
  *
- *   Node n is marked done.
+ *   Because of this replacement, in IGVN, everywhere we say "we map n to n'", we actually map n' to n', since
+ *   when we will visit the nodes deeper on the stack, we will have replaced the input n with n'. We mark n' as
+ *   done, meaning that a best representation for n' and its symbolic linear combination is known already. We also
+ *   mark n as killed since it is now not in the graph anymore. Node n won't be seen again, but it can still exist
+ *   in the stack. These nodes are (lazily) removed from the stack since visiting n would be wrong and unnecessary:
+ *   any user of n (when it existed) will now see n' as its input, for which the result is now available.
+ *
+ *   In parsing, we mark the node n as done, no node is killed, and inputs are not replaced.
  *
  * Once the stack is empty:
  * if the function did not progress, we return nullptr
@@ -421,16 +419,12 @@ AddNode* AddNode::make_not(PhaseGVN* phase, Node* n, BasicType bt) {
  * # Examples
  * In post-traversal state, with replacement, if we have:
  * - op=AddX, l=(a + b), r=(c + d), no improvement in l and r =>
- *   AddX(l, r) is canonical, n is not improved, we don't touch anthing
+ *   AddX(l, r) is simplified, n is not improved, we don't touch anthing
  * - op=AddX, l=(a + b), r=(c + a), no improvement in l and r =>
  *   the combination for n is 2*a + b + c which is an improvement, so we rebuild the node for this combination:
  *   n':=AddX(AddX(2*a, b), c)
- * - op=AddX, l=(a + b), r=(c - d), no improvement in l and r =>
- *   the combination for n is a + b + c - d which is not an improvement. But n is not in canonical shape (Sub as
- *   input of Add), so we rebuild the node for this combination:
- *   n':=SubX(AddX(AddX((a, b), c), d)
  * - op=AddX, l=(a + b), r=(c + d), improvement in l or r =>
- *   AddX(l, r) is canonical, we build n':=AddX(l, r) and it replaces n.
+ *   AddX(l, r) is simplified, we build n':=AddX(l, r) and it replaces n.
  *
  * # Debugging
  * The working of all of that can look subtle, or complicated. In debug build, set print_steps_ to true to get
@@ -464,7 +458,7 @@ private:
     // Nodes of the worklist that are enqueued for a second visit.
     // Finding this node in first visit means that it is a transitive input of itself, that is, we have a dead data loop.
     Unique_Node_List second_visit_pending_;
-    // Fully processed nodes for which the canonical node and results are available
+    // Fully processed nodes for which the simplified node and results are available
     Unique_Node_List done_;
     // Fully processed nodes that were replaced, and should not be in the graph. They can still exist in the stack if they
     // were enstacked multiple times in pre-traversal state.
@@ -804,21 +798,21 @@ private:
   struct Result {
     const Node* node_;
     Combination combination_;
-    Node* canonical_node_;
+    Node* simplified_;
     bool improved_;
 
-    Result() : node_(nullptr), combination_(Combination::zero(T_ILLEGAL)), canonical_node_(nullptr), improved_(false) {}
+    Result() : node_(nullptr), combination_(Combination::zero(T_ILLEGAL)), simplified_(nullptr), improved_(false) {}
 
-    Result(const Node* node, const Combination& combination, Node* canonical_node, bool improved)
+    Result(const Node* node, const Combination& combination, Node* simplified, bool improved)
       : node_(node),
         combination_(combination),
-        canonical_node_(canonical_node),
+        simplified_(simplified),
         improved_(improved) {}
 
     void dump(outputStream* out) const {
       out->print("%d => ", node_->_idx);
       combination_.dump(out);
-      out->print(" = [%d] (improved=%d)", canonical_node_->_idx, improved_);
+      out->print(" = [%d] (improved=%d)", simplified_->_idx, improved_);
     }
   };
 
@@ -840,8 +834,8 @@ private:
     }
 #endif
     Combination combination = Combination::make_constant(bt_, constant);
-    Node* canonical = bt_ == T_INT ? static_cast<Node*>(gvn_.intcon(static_cast<jint>(constant))) : gvn_.longcon(constant);
-    computed.push(Result(n, combination, canonical, false));
+    Node* simplified = bt_ == T_INT ? static_cast<Node*>(gvn_.intcon(static_cast<jint>(constant))) : gvn_.longcon(constant);
+    computed.push(Result(n, combination, simplified, false));
   }
 
   Result find_result(GrowableArray<Result> computed, const Node* n) const {
@@ -1037,65 +1031,6 @@ private:
           term_node = transform(SubNode::make(h, l, bt_));
         }
         return {term_node, false};
-      }
-    }
-  }
-
-  [[nodiscard]] Node* node_of_combination(const Combination& c) const {
-    Node* positive_terms_node = nullptr;
-    Node* negative_terms_node = nullptr;
-    Node* constant_node = nullptr;
-
-    for (const auto& term: c.combination_) {
-      NodeAndSign term_node = node_of_term(term);
-
-      if (term_node.node_ != nullptr) {
-        if (term_node.is_neg_) {
-          negative_terms_node = add_node(negative_terms_node, term_node.node_);
-        } else {
-          positive_terms_node = add_node(positive_terms_node, term_node.node_);
-        }
-      }
-    }
-    if (is_con(c.constant_, 0)) {
-      constant_node = nullptr;
-    } else {
-      constant_node = make_con(c.constant_);
-    }
-
-    if (constant_node == nullptr) {
-      if (positive_terms_node == nullptr) {
-        if (negative_terms_node == nullptr) {  // 0
-          return gvn_.zerocon(bt_);
-        } else {  // 0 - n
-          Node* ret = transform(SubNode::make(gvn_.zerocon(bt_), negative_terms_node, bt_));
-          return ret;
-        }
-      } else {
-        if (negative_terms_node == nullptr) {  // p
-          return positive_terms_node;
-        } else {  // p - n
-          Node* ret = transform(SubNode::make(positive_terms_node, negative_terms_node, bt_));
-          return ret;
-        }
-      }
-    } else {
-      if (positive_terms_node == nullptr) {
-        if (negative_terms_node == nullptr) {  // c
-          return constant_node;
-        } else {  // c - n
-          Node* ret = transform(SubNode::make(constant_node, negative_terms_node, bt_));
-          return ret;
-        }
-      } else {
-        if (negative_terms_node == nullptr) {  // p + c
-          Node* ret = transform(AddNode::make(positive_terms_node, constant_node, bt_));
-          return ret;
-        } else {  // p - n + c
-          Node* diff = transform(SubNode::make(positive_terms_node, negative_terms_node, bt_));
-          Node* ret = transform(AddNode::make(diff, constant_node, bt_));
-          return ret;
-        }
       }
     }
   }
@@ -1419,9 +1354,9 @@ public:
             // We need to build the optimized multiplication manually.
             Node* new_mul;
             if (is_constant(node->in(1))) {
-              new_mul = transform(MulNode::make(node->in(1), operand.canonical_node_, bt_));
+              new_mul = transform(MulNode::make(node->in(1), operand.simplified_, bt_));
             } else {
-              new_mul = transform(MulNode::make(operand.canonical_node_, node->in(2), bt_));
+              new_mul = transform(MulNode::make(operand.simplified_, node->in(2), bt_));
             }
 #ifndef PRODUCT
             if (print_steps_) {
@@ -1450,7 +1385,7 @@ public:
           } else {
             // During parsing, if there is an improvement, the input of the shift wasn't replace.
             // We need to build the optimized shift manually.
-            Node* new_shift = transform(LShiftNode::make(operand.canonical_node_, node->in(2), bt_));
+            Node* new_shift = transform(LShiftNode::make(operand.simplified_, node->in(2), bt_));
 #ifndef PRODUCT
             if (print_steps_) {
               tty->print("  Mapping node %d to new node ", node->_idx);
@@ -1476,9 +1411,9 @@ public:
         Node* combination_as_node = nullptr;
         if ((lhs.improved_ || rhs.improved_) && !improved) {
           if (op == Op_Add(bt_)) {
-            combination_as_node = transform(AddNode::make(lhs.canonical_node_, rhs.canonical_node_, bt_));
+            combination_as_node = transform(AddNode::make(lhs.simplified_, rhs.simplified_, bt_));
           } else if (op == Op_Sub(bt_)) {
-            combination_as_node = transform(SubNode::make(lhs.canonical_node_, rhs.canonical_node_, bt_));
+            combination_as_node = transform(SubNode::make(lhs.simplified_, rhs.simplified_, bt_));
           } else {
             ShouldNotReachHere();
           }
@@ -1489,27 +1424,16 @@ public:
 #endif
           improved = true;
         } else if (improved) {
-          if (!simple_enough && gvn_.is_IterGVN()) {
 #ifndef PRODUCT
-            if (print_steps_) {
-              tty->print("  Rebuilding combination ");
-              combination.dump(tty);
-              tty->print(" on pattern ");
-              dump_sub_graph(tty, node);
-              tty->print_cr(" for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d", node->_idx, lhs.improved_, rhs.improved_, improved);
-            }
-#endif
-            combination_as_node = node_of_combination_on_pattern(combination, node);
-          } else {
-#ifndef PRODUCT
-            if (print_steps_) {
-              tty->print("  Rebuilding combination ");
-              combination.dump(tty);
-              tty->print_cr(" from scratch for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d", node->_idx, lhs.improved_, rhs.improved_, improved);
-            }
-#endif
-            combination_as_node = node_of_combination(combination);
+          if (print_steps_) {
+            tty->print("  Rebuilding combination ");
+            combination.dump(tty);
+            tty->print(" on pattern ");
+            dump_sub_graph(tty, node);
+            tty->print_cr(" for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d", node->_idx, lhs.improved_, rhs.improved_, improved);
           }
+#endif
+          combination_as_node = node_of_combination_on_pattern(combination, node);
         } else {
           combination_as_node = node;
         }
