@@ -64,6 +64,7 @@ Stress::Stress(DirectiveSet* directives, CompileLog* log, CompilerType comp) {
   if (FLAG_IS_DEFAULT(StressSeed) || (FLAG_IS_ERGO(StressSeed) && directives->RepeatCompilationOption)) {
     _stress_seed = static_cast<uint>(Ticks::now().nanoseconds());
     FLAG_SET_ERGO(StressSeed, _stress_seed);
+    tty->print_cr("stress_test seed='%u'", _stress_seed);
   } else {
     _stress_seed = StressSeed;
   }
