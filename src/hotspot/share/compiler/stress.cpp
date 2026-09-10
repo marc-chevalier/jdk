@@ -67,6 +67,7 @@ Stress::Stress(DirectiveSet* directives, CompileLog* log, CompilerType comp) {
   } else {
     _stress_seed = StressSeed;
   }
+  tty->print_cr("stress_test seed='%u'", _stress_seed);
   if (log != nullptr) {
     log->elem("stress_test seed='%u'", _stress_seed);
   }
