@@ -629,6 +629,9 @@ public:
     }
   }
 
+  template <typename /* void(Node*) */ Cb>
+  void disconnect_inputs(PhaseIterGVN &igvn, Cb input_cb);
+
   // Iterators over input Nodes for a Node X are written as:
   // for( i = 0; i < X.req(); i++ ) ... X[i] ...
   // NOTE: Required edges can contain embedded null pointers.
@@ -2175,6 +2178,29 @@ public:
     return changed;
   }
 };
+
+template <typename /* void(Node*) */ Cb>
+void Node::disconnect_inputs(PhaseIterGVN& igvn, Cb input_cb) {
+  Unique_Node_List seen_inputs;
+
+  for (uint i = 0; i < req(); i++) {
+    Node* in = _in[i];
+    if (in != nullptr && !in->is_top() && !seen_inputs.member(in)) {
+      for (uint j = 0; j < _outcnt; j++) {
+        if (in->raw_out(j) == this) {
+          in->raw_del_out(j);
+        }
+      }
+      // update_after_out_edge_change(igvn, in);
+      seen_inputs.push(in);
+    }
+    _in[i] = nullptr;
+  }
+
+  for (uint i = 0; i < seen_inputs.size(); ++i) {
+    input_cb(seen_inputs.at(i));
+  }
+}
 
 // Inlined accessors for Compile::node_nodes that require the preceding class:
 inline Node_Notes*
