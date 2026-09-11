@@ -313,6 +313,7 @@ public:
   virtual const Node *is_block_proj() const { return in(0); }
   virtual const RegMask &out_RegMask() const;
   virtual uint ideal_reg() const { return 0; }
+  virtual const Type* bottom_type() const { return Type::CONTROL; }
 };
 
 //---------------------------MultiBranchNode-----------------------------------
@@ -715,7 +716,6 @@ public:
 
   virtual int Opcode() const;
   virtual Node* Identity(PhaseGVN* phase);
-  virtual const Type *bottom_type() const { return Type::CONTROL; }
   int  handler_bci() const        { return _handler_bci; }
   bool is_handler_proj() const    { return _handler_bci >= 0; }
 #ifndef PRODUCT
