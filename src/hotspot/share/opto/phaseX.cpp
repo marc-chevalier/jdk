@@ -2379,6 +2379,45 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
         // Remove from hash table
         _table.hash_delete( dead );
         // Smash all inputs to 'dead', isolating him completely
+        if (ReduceFieldZeroing && dead->is_Load()) {
+          auto mem_input = dead->in(MemNode::Memory);
+          if (mem_input->is_Proj() && mem_input->in(0) != nullptr && mem_input->in(0)->is_Initialize()) {
+            // A Load that directly follows an InitializeNode is
+            // going away. The Stores that follow are candidates
+            // again to be captured by the InitializeNode.
+            // Since `dead` is a Load, this won't enqueue the node we are removing.
+            add_users_to_worklist_if(_worklist, mem_input, [](Node *n) { return n->is_Store(); });
+          }
+        }
+        dead->disconnect_inputs(*this, [&](Node* in) {
+          if (in->outcnt() == 0) { // Made input go dead?
+            if (UseNewCode) {
+              //ss.print("  %d. Pushing (made input go dead) %i --(%i)-> ", nb++, dead->_idx, i);
+              //in->dump("\n", false, &ss);
+            }
+            stack.push(in, PROCESS_INPUTS); // Recursively remove
+            recurse = true;
+          } else if (in->outcnt() == 1 &&
+                     in->has_special_unique_user()) {
+            _worklist.push(in->unique_out());
+          } else if (in->outcnt() <= 2 && dead->is_Phi()) {
+            if (in->Opcode() == Op_Region) {
+              _worklist.push(in);
+            } else if (in->is_Store()) {
+              DUIterator_Fast imax, i = in->fast_outs(imax);
+              _worklist.push(in->fast_out(i));
+              i++;
+              if (in->outcnt() == 2) {
+                _worklist.push(in->fast_out(i));
+                i++;
+              }
+              assert(!(i < imax), "sanity");
+            }
+          } else if (in->should_process_when_disconnect_output(dead)) {
+            _worklist.push(in);
+          }
+        });
+#if 0
         for (uint i = 0; i < dead->req(); i++) {
           Node *in = dead->in(i);
           if (in != nullptr && in != C->top()) {  // Points to something?
@@ -2423,15 +2462,9 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
             } else if (in->should_process_when_disconnect_output(dead)) {
               _worklist.push(in);
             }
-            if (ReduceFieldZeroing && dead->is_Load() && i == MemNode::Memory &&
-                in->is_Proj() && in->in(0) != nullptr && in->in(0)->is_Initialize()) {
-              // A Load that directly follows an InitializeNode is
-              // going away. The Stores that follow are candidates
-              // again to be captured by the InitializeNode.
-              add_users_to_worklist_if(_worklist, in, [](Node* n) { return n->is_Store(); });
-            }
           } // if (in != nullptr && in != C->top())
         } // for (uint i = 0; i < dead->req(); i++)
+#endif
         if (recurse) {
           continue;
         }
