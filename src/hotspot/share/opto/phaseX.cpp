@@ -2336,15 +2336,30 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
 
   jlong before = os::elapsed_counter();
   jlong previous = before;
+  stringStream orig_dead;
+  stringStream ss;
+  long scanned_output = 0;
+  long possible_scanned_output = 0;
+  if (UseNewCode) {
+    dead->dump("\n", false, &orig_dead);
+  }
+  int nb = 1;
   while (stack.is_nonempty()) {
     jlong now = os::elapsed_counter();
 
-    if (TimeHelper::counter_to_millis(now-previous) > 100) {
-      auto delta = TimeHelper::counter_to_millis(now-before);
-      tty->print("  ");
-      C->method()->print_name();
-      tty->print_cr("%f", delta);
-      previous = now;
+    if (UseNewCode) {
+      if (TimeHelper::counter_to_millis(now-previous) > 100) {
+        auto delta = TimeHelper::counter_to_millis(now-before);
+        if (previous == before) {
+          tty->print("In method: ");
+          C->method()->print_name();
+          tty->print("  ");
+          tty->write(orig_dead.base(), orig_dead.size());
+        }
+        tty->print("  ");
+        tty->print_cr("%f, len=%d", delta, stack.size());
+        previous = now;
+      }
     }
     dead = stack.node();
     if (dead->Opcode() == Op_SafePoint) {
@@ -2367,9 +2382,26 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
         for (uint i = 0; i < dead->req(); i++) {
           Node *in = dead->in(i);
           if (in != nullptr && in != C->top()) {  // Points to something?
+            if (UseNewCode) {
+              int multiplicity = 0;
+              for (uint k = 0; k < dead->req(); k++) {
+                if (dead->in(k) == in) {
+                  multiplicity++;
+                }
+              }
+              if (multiplicity > 10) {
+                ss.print("  %d(%d*%d=%d)", nb++, multiplicity, in->outcnt(), multiplicity * in->outcnt());
+              }
+              scanned_output += ((2 * in->outcnt() - multiplicity + 1 ) * multiplicity) / 2;
+              possible_scanned_output += in->outcnt();
+            }
             int nrep = dead->replace_edge(in, nullptr, this);  // Kill edges
             assert((nrep > 0), "sanity");
             if (in->outcnt() == 0) { // Made input go dead?
+              if (UseNewCode) {
+                //ss.print("  %d. Pushing (made input go dead) %i --(%i)-> ", nb++, dead->_idx, i);
+                //in->dump("\n", false, &ss);
+              }
               stack.push(in, PROCESS_INPUTS); // Recursively remove
               recurse = true;
             } else if (in->outcnt() == 1 &&
@@ -2412,6 +2444,10 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
     // of edge deletions per loop trip.)
     if (dead->outcnt() > 0) {
       // Recursively remove output edges
+      if (UseNewCode) {
+        //ss.print("  %d. Pushing (recursively remove output edges): ", nb++);
+        //dead->raw_out(0)->dump("\n", false, &ss);
+      }
       stack.push(dead->raw_out(0), PROCESS_INPUTS);
     } else {
       // Finished disconnecting all input and output edges.
@@ -2422,11 +2458,21 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
     }
   } // while (stack.is_nonempty())
   jlong after = os::elapsed_counter();
-
-  auto delta = TimeHelper::counter_to_millis(after-before);
-  if (delta > 100) {
-    C->method()->print_name();
-    tty->print_cr("%f", delta);
+  if (UseNewCode) {
+    auto delta = TimeHelper::counter_to_millis(after-before);
+    if (delta > 100) {
+      if (previous == before) {
+        C->method()->print_name();
+        tty->print_cr("%f", delta);
+      } else {
+        tty->print_cr("  final: %f", delta);
+      }
+      tty->write(ss.base(), ss.size());
+      tty->cr();
+      tty->print_cr("Scanned=%ld; doable=%ld; saving=%ld; %f", scanned_output, possible_scanned_output, scanned_output - possible_scanned_output, ((double)(scanned_output - possible_scanned_output)) * 100. / (double)scanned_output);
+      tty->cr();
+      tty->cr();
+    }
   }
 }
 
