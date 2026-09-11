@@ -2334,7 +2334,18 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
   Node_Stack stack(32);
   stack.push(dead, PROCESS_INPUTS);
 
+  jlong before = os::elapsed_counter();
+  jlong previous = before;
   while (stack.is_nonempty()) {
+    jlong now = os::elapsed_counter();
+
+    if (TimeHelper::counter_to_millis(now-previous) > 100) {
+      auto delta = TimeHelper::counter_to_millis(now-before);
+      tty->print("  ");
+      C->method()->print_name();
+      tty->print_cr("%f", delta);
+      previous = now;
+    }
     dead = stack.node();
     if (dead->Opcode() == Op_SafePoint) {
       dead->as_SafePoint()->disconnect_from_root(this);
@@ -2410,6 +2421,13 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
       C->remove_useless_node(dead);
     }
   } // while (stack.is_nonempty())
+  jlong after = os::elapsed_counter();
+
+  auto delta = TimeHelper::counter_to_millis(after-before);
+  if (delta > 100) {
+    C->method()->print_name();
+    tty->print_cr("%f", delta);
+  }
 }
 
 //------------------------------subsume_node-----------------------------------
