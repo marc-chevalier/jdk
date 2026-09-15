@@ -2358,7 +2358,9 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
   long scanned_output = 0;
   long possible_scanned_output = 0;
   if (UseNewCode) {
+#ifndef PRODUCT
     dead->dump("\n", false, &orig_dead);
+#endif
   }
   int nb = 1;
   while (stack.is_nonempty()) {
