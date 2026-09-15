@@ -2322,7 +2322,24 @@ const Type* PhaseIterGVN::saturate(const Type* new_type, const Type* old_type,
   return new_type->narrow(old_type);
 }
 
-//------------------------------remove_globally_dead_node----------------------
+void Node::disconnect_inputs(PhaseIterGVN& igvn, Unique_Node_List& seen_inputs) {
+  for (uint i = 0; i < req(); i++) {
+    Node* in = _in[i];
+    if (in != nullptr && !in->is_top() && !seen_inputs.member(in)) {
+      for (uint j = 0; j < in->_outcnt;) {
+        if (in->raw_out(j) == this) {
+          in->raw_del_out(j);
+        } else {
+          j++;
+        }
+      }
+      update_after_out_edge_change(in, igvn);
+      seen_inputs.push(in);
+    }
+    _in[i] = nullptr;
+  }
+}
+
 // Kill a globally dead Node.  All uses are also globally dead and are
 // aggressively trimmed.
 void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
@@ -2389,7 +2406,10 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
             add_users_to_worklist_if(_worklist, mem_input, [](Node *n) { return n->is_Store(); });
           }
         }
-        dead->disconnect_inputs(*this, [&](Node* in) {
+        Unique_Node_List seen_inputs;
+        dead->disconnect_inputs(*this, seen_inputs);
+        for (uint i = 0; i < seen_inputs.size(); i++) {
+          Node* in = seen_inputs.at(i);
           if (in->outcnt() == 0) { // Made input go dead?
             if (UseNewCode) {
               //ss.print("  %d. Pushing (made input go dead) %i --(%i)-> ", nb++, dead->_idx, i);
@@ -2416,7 +2436,7 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
           } else if (in->should_process_when_disconnect_output(dead)) {
             _worklist.push(in);
           }
-        });
+        }
 #if 0
         for (uint i = 0; i < dead->req(); i++) {
           Node *in = dead->in(i);
@@ -3668,10 +3688,40 @@ void PhasePeephole::print_statistics() {
 }
 #endif
 
+void Node::update_after_out_edge_change(Node* old, PhaseIterGVN& igvn) const {
+  if (old->should_process_when_disconnect_output(this)) {
+    igvn._worklist.push(old);
+  }
 
-//=============================================================================
-//------------------------------set_req_X--------------------------------------
-void Node::set_req_X( uint i, Node *n, PhaseIterGVN *igvn ) {
+  switch (old->outcnt()) {
+    case 0:
+      // Put into the worklist to kill later. We do not kill it now because the
+      // recursive kill will delete the current node (this) if dead-loop exists
+      if (!old->is_top())
+        igvn._worklist.push( old );
+      break;
+    case 1:
+      if( old->is_Store() || old->has_special_unique_user() )
+        igvn.add_users_to_worklist( old );
+      break;
+    case 2:
+      if( old->is_Store() )
+        igvn.add_users_to_worklist( old );
+      if( old->Opcode() == Op_Region )
+        igvn._worklist.push(old);
+      break;
+    case 3:
+      if( old->Opcode() == Op_Region ) {
+        igvn._worklist.push(old);
+        igvn.add_users_to_worklist( old );
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+void Node::set_req_X(uint i, Node* n, PhaseIterGVN* igvn) {
   assert( is_not_dead(n), "can not use dead node");
 #ifdef ASSERT
   if (igvn->hash_find(this) == this) {
@@ -3687,36 +3737,7 @@ void Node::set_req_X( uint i, Node *n, PhaseIterGVN *igvn ) {
 
   // old goes dead?
   if (old != nullptr) {
-    if (old->should_process_when_disconnect_output(this)) {
-      igvn->_worklist.push(old);
-    }
-
-    switch (old->outcnt()) {
-    case 0:
-      // Put into the worklist to kill later. We do not kill it now because the
-      // recursive kill will delete the current node (this) if dead-loop exists
-      if (!old->is_top())
-        igvn->_worklist.push( old );
-      break;
-    case 1:
-      if( old->is_Store() || old->has_special_unique_user() )
-        igvn->add_users_to_worklist( old );
-      break;
-    case 2:
-      if( old->is_Store() )
-        igvn->add_users_to_worklist( old );
-      if( old->Opcode() == Op_Region )
-        igvn->_worklist.push(old);
-      break;
-    case 3:
-      if( old->Opcode() == Op_Region ) {
-        igvn->_worklist.push(old);
-        igvn->add_users_to_worklist( old );
-      }
-      break;
-    default:
-      break;
-    }
+    update_after_out_edge_change(old, *igvn);
   }
 }
 

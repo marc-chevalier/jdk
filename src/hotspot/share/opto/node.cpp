@@ -1255,7 +1255,7 @@ bool Node::has_special_unique_user() const {
   }
 };
 
-bool Node::should_process_when_disconnect_output(Node* output) const {
+bool Node::should_process_when_disconnect_output(const Node* output) const {
   return (is_Phi() && as_Phi()->is_dead_phi()) ||
          output->is_data_proj_of_pure_function(this);
 }
