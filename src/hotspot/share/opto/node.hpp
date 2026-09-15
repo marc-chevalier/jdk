@@ -629,8 +629,8 @@ public:
     }
   }
 
-  template <typename /* void(Node*) */ Cb>
-  void disconnect_inputs(PhaseIterGVN &igvn, Cb input_cb);
+  void disconnect_inputs(PhaseIterGVN &igvn, Unique_Node_List& seen_inputs);
+  void update_after_out_edge_change(Node* old, PhaseIterGVN& igvn) const;
 
   // Iterators over input Nodes for a Node X are written as:
   // for( i = 0; i < X.req(); i++ ) ... X[i] ...
@@ -1297,7 +1297,7 @@ public:
   bool has_special_unique_user() const;
 
   // Some nodes can be processed when one of its outputs is disconnected
-  bool should_process_when_disconnect_output(Node* output) const;
+  bool should_process_when_disconnect_output(const Node* output) const;
 
 private:
   bool is_data_proj_of_pure_function(const Node* maybe_pure_function) const;
@@ -2178,29 +2178,6 @@ public:
     return changed;
   }
 };
-
-template <typename /* void(Node*) */ Cb>
-void Node::disconnect_inputs(PhaseIterGVN& igvn, Cb input_cb) {
-  Unique_Node_List seen_inputs;
-
-  for (uint i = 0; i < req(); i++) {
-    Node* in = _in[i];
-    if (in != nullptr && !in->is_top() && !seen_inputs.member(in)) {
-      for (uint j = 0; j < _outcnt; j++) {
-        if (in->raw_out(j) == this) {
-          in->raw_del_out(j);
-        }
-      }
-      // update_after_out_edge_change(igvn, in);
-      seen_inputs.push(in);
-    }
-    _in[i] = nullptr;
-  }
-
-  for (uint i = 0; i < seen_inputs.size(); ++i) {
-    input_cb(seen_inputs.at(i));
-  }
-}
 
 // Inlined accessors for Compile::node_nodes that require the preceding class:
 inline Node_Notes*
