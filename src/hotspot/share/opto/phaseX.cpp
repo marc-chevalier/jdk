@@ -2354,16 +2354,12 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
 
   jlong before = os::elapsed_counter();
   jlong previous = before;
-  stringStream orig_dead;
-  stringStream ss;
   long scanned_output = 0;
   long possible_scanned_output = 0;
-  if (UseNewCode) {
-#ifndef PRODUCT
-    dead->dump("\n", false, &orig_dead);
-#endif
-  }
-  int nb = 1;
+  long cumulative_multiplicity = 0;
+  long cumulative_output_count = 0;
+  long input_count = 0;
+  uint live_nodes = C->live_nodes();
   while (stack.is_nonempty()) {
     jlong now = os::elapsed_counter();
 
@@ -2373,8 +2369,7 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
         if (previous == before) {
           tty->print("In method: ");
           C->method()->print_name();
-          tty->print("  ");
-          tty->write(orig_dead.base(), orig_dead.size());
+          tty->cr();
         }
         tty->print("  ");
         tty->print_cr("%f, len=%d", delta, stack.size());
@@ -2391,7 +2386,8 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
     if (progress_state == PROCESS_INPUTS) {
       // After following inputs, continue to outputs
       stack.set_index(PROCESS_OUTPUTS);
-      if (!dead->is_Con()) { // Don't kill cons but uses
+      if (!dead->is_Con()) {
+        // Don't kill cons but uses
         if (origin != NodeOrigin::Speculative) {
           set_progress();
         }
@@ -2399,75 +2395,48 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
         // Remove from hash table
         _table.hash_delete( dead );
         // Smash all inputs to 'dead', isolating him completely
-        if (ReduceFieldZeroing && dead->is_Load()) {
-          Node* mem_input = dead->in(MemNode::Memory);
-          if (mem_input != nullptr && mem_input->is_Proj() && mem_input->in(0) != nullptr && mem_input->in(0)->is_Initialize()) {
-            // A Load that directly follows an InitializeNode is
-            // going away. The Stores that follow are candidates
-            // again to be captured by the InitializeNode.
-            // Since `dead` is a Load, this won't enqueue the node we are removing.
-            add_users_to_worklist_if(_worklist, mem_input, [](Node *n) { return n->is_Store(); });
+        if (UseNewCode) {
+          ResourceMark rm_;
+          Unique_Node_List inputs;
+          for (uint i = 0; i < dead->req(); i++) {
+            Node* in = dead->in(i);
+            if (in != nullptr && in != C->top()) {
+              inputs.push(in);
+            }
+          }
+          for (uint i = 0; i < inputs.size(); i++) {
+            Node* in = inputs.at(i);
+            int multiplicity = 0;
+            for (uint k = 0; k < dead->req(); k++) {
+              if (dead->in(k) == in) {
+                multiplicity++;
+              }
+            }
+            cumulative_multiplicity += multiplicity;
+            cumulative_output_count += in->outcnt();
+            input_count++;
+            scanned_output += ((2 * in->outcnt() - multiplicity + 1) * multiplicity) / 2;
+            possible_scanned_output += in->outcnt();
           }
         }
-        dead->disconnect_inputs(*this, seen_inputs);
-        for (uint i = 0; i < seen_inputs.size(); i++) {
-          Node* in = seen_inputs.at(i);
-          if (in->outcnt() == 0) { // Made input go dead?
-            if (UseNewCode) {
-              //ss.print("  %d. Pushing (made input go dead) %i --(%i)-> ", nb++, dead->_idx, i);
-              //in->dump("\n", false, &ss);
+        if (UseNewCode2) {
+          if (ReduceFieldZeroing && dead->is_Load()) {
+            Node* mem_input = dead->in(MemNode::Memory);
+            if (mem_input != nullptr && mem_input->is_Proj() && mem_input->in(0) != nullptr && mem_input->in(0)->is_Initialize()) {
+              // A Load that directly follows an InitializeNode is
+              // going away. The Stores that follow are candidates
+              // again to be captured by the InitializeNode.
+              // Since `dead` is a Load, this won't enqueue the node we are removing.
+              add_users_to_worklist_if(_worklist, mem_input, [](Node* n) { return n->is_Store(); });
             }
-            stack.push(in, PROCESS_INPUTS); // Recursively remove
-            recurse = true;
-          } else if (in->outcnt() == 1 &&
-                     in->has_special_unique_user()) {
-            _worklist.push(in->unique_out());
-          } else if (in->outcnt() <= 2 && dead->is_Phi()) {
-            if (in->Opcode() == Op_Region) {
-              _worklist.push(in);
-            } else if (in->is_Store()) {
-              DUIterator_Fast imax, i = in->fast_outs(imax);
-              _worklist.push(in->fast_out(i));
-              i++;
-              if (in->outcnt() == 2) {
-                _worklist.push(in->fast_out(i));
-                i++;
-              }
-              assert(!(i < imax), "sanity");
-            }
-          } else if (in->should_process_when_disconnect_output(dead)) {
-            _worklist.push(in);
           }
-        }
-        seen_inputs.clear();
-#if 0
-        for (uint i = 0; i < dead->req(); i++) {
-          Node *in = dead->in(i);
-          if (in != nullptr && in != C->top()) {  // Points to something?
-            if (UseNewCode) {
-              int multiplicity = 0;
-              for (uint k = 0; k < dead->req(); k++) {
-                if (dead->in(k) == in) {
-                  multiplicity++;
-                }
-              }
-              if (multiplicity > 10) {
-                ss.print("  %d(%d*%d=%d)", nb++, multiplicity, in->outcnt(), multiplicity * in->outcnt());
-              }
-              scanned_output += ((2 * in->outcnt() - multiplicity + 1 ) * multiplicity) / 2;
-              possible_scanned_output += in->outcnt();
-            }
-            int nrep = dead->replace_edge(in, nullptr, this);  // Kill edges
-            assert((nrep > 0), "sanity");
+          dead->disconnect_inputs(*this, seen_inputs);
+          for (uint i = 0; i < seen_inputs.size(); i++) {
+            Node* in = seen_inputs.at(i);
             if (in->outcnt() == 0) { // Made input go dead?
-              if (UseNewCode) {
-                //ss.print("  %d. Pushing (made input go dead) %i --(%i)-> ", nb++, dead->_idx, i);
-                //in->dump("\n", false, &ss);
-              }
               stack.push(in, PROCESS_INPUTS); // Recursively remove
               recurse = true;
-            } else if (in->outcnt() == 1 &&
-                       in->has_special_unique_user()) {
+            } else if (in->outcnt() == 1 && in->has_special_unique_user()) {
               _worklist.push(in->unique_out());
             } else if (in->outcnt() <= 2 && dead->is_Phi()) {
               if (in->Opcode() == Op_Region) {
@@ -2485,9 +2454,46 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
             } else if (in->should_process_when_disconnect_output(dead)) {
               _worklist.push(in);
             }
-          } // if (in != nullptr && in != C->top())
-        } // for (uint i = 0; i < dead->req(); i++)
-#endif
+          }
+          seen_inputs.clear_without_reset();
+        } else {
+          for (uint i = 0; i < dead->req(); i++) {
+            Node *in = dead->in(i);
+            if (in != nullptr && in != C->top()) {  // Points to something?
+              int nrep = dead->replace_edge(in, nullptr, this);  // Kill edges
+              assert((nrep > 0), "sanity");
+              if (in->outcnt() == 0) { // Made input go dead?
+                stack.push(in, PROCESS_INPUTS); // Recursively remove
+                recurse = true;
+              } else if (in->outcnt() == 1 &&
+                         in->has_special_unique_user()) {
+                _worklist.push(in->unique_out());
+              } else if (in->outcnt() <= 2 && dead->is_Phi()) {
+                if (in->Opcode() == Op_Region) {
+                  _worklist.push(in);
+                } else if (in->is_Store()) {
+                  DUIterator_Fast imax, i = in->fast_outs(imax);
+                  _worklist.push(in->fast_out(i));
+                  i++;
+                  if (in->outcnt() == 2) {
+                    _worklist.push(in->fast_out(i));
+                    i++;
+                  }
+                  assert(!(i < imax), "sanity");
+                }
+              } else if (in->should_process_when_disconnect_output(dead)) {
+                _worklist.push(in);
+              }
+              if (ReduceFieldZeroing && dead->is_Load() && i == MemNode::Memory &&
+                  in->is_Proj() && in->in(0) != nullptr && in->in(0)->is_Initialize()) {
+                // A Load that directly follows an InitializeNode is
+                // going away. The Stores that follow are candidates
+                // again to be captured by the InitializeNode.
+                add_users_to_worklist_if(_worklist, in, [](Node* n) { return n->is_Store(); });
+              }
+            } // if (in != nullptr && in != C->top())
+          } // for (uint i = 0; i < dead->req(); i++)
+        }
         if (recurse) {
           continue;
         }
@@ -2521,12 +2527,19 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
         C->method()->print_name();
         tty->print_cr("%f", delta);
       } else {
-        tty->print_cr("  final: %f", delta);
+        if (live_nodes == 0) {
+          tty->print_cr("  final: %f; live nodes before: %d; after: %d; delta: %d", delta, live_nodes, C->live_nodes(), live_nodes - C->live_nodes());
+        } else {
+          tty->print_cr("  final: %f; live nodes before: %d; after: %d; delta: %d = %f %%", delta, live_nodes, C->live_nodes(), live_nodes - C->live_nodes(), ((double)(live_nodes - C->live_nodes())) * 100. / (double)live_nodes);
+        }
       }
-      tty->write(ss.base(), ss.size());
-      tty->cr();
+      // tty->write(ss.base(), ss.size());
+      // tty->cr();
+      if (input_count != 0) {
+        tty->print_cr("  Over %ld nodes, average multiplicity: %f, average outcnt of inputs: %f", input_count, (double)cumulative_multiplicity / (double)input_count, (double)cumulative_output_count / (double)input_count);
+      }
       if (scanned_output != 0) {
-        tty->print_cr("Scanned=%ld; doable=%ld; saving=%ld; %f", scanned_output, possible_scanned_output, scanned_output - possible_scanned_output, ((double)(scanned_output - possible_scanned_output)) * 100. / (double)scanned_output);
+        tty->print_cr("  Scanned: %ld; doable: %ld; possible saving: %ld = %f %%", scanned_output, possible_scanned_output, scanned_output - possible_scanned_output, ((double)(scanned_output - possible_scanned_output)) * 100. / (double)scanned_output);
       }
       tty->cr();
       tty->cr();
