@@ -2524,7 +2524,9 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
       }
       tty->write(ss.base(), ss.size());
       tty->cr();
-      tty->print_cr("Scanned=%ld; doable=%ld; saving=%ld; %f", scanned_output, possible_scanned_output, scanned_output - possible_scanned_output, ((double)(scanned_output - possible_scanned_output)) * 100. / (double)scanned_output);
+      if (scanned_output != 0) {
+        tty->print_cr("Scanned=%ld; doable=%ld; saving=%ld; %f", scanned_output, possible_scanned_output, scanned_output - possible_scanned_output, ((double)(scanned_output - possible_scanned_output)) * 100. / (double)scanned_output);
+      }
       tty->cr();
       tty->cr();
     }
