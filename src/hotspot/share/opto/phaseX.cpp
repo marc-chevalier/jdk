@@ -2348,6 +2348,7 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
     PROCESS_OUTPUTS
   };
   ResourceMark rm;
+  Unique_Node_List seen_inputs;
   Node_Stack stack(32);
   stack.push(dead, PROCESS_INPUTS);
 
@@ -2408,7 +2409,6 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
             add_users_to_worklist_if(_worklist, mem_input, [](Node *n) { return n->is_Store(); });
           }
         }
-        Unique_Node_List seen_inputs;
         dead->disconnect_inputs(*this, seen_inputs);
         for (uint i = 0; i < seen_inputs.size(); i++) {
           Node* in = seen_inputs.at(i);
@@ -2439,6 +2439,7 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
             _worklist.push(in);
           }
         }
+        seen_inputs.clear();
 #if 0
         for (uint i = 0; i < dead->req(); i++) {
           Node *in = dead->in(i);
