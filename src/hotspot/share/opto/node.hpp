@@ -1866,6 +1866,7 @@ public:
   void yank( Node *n );         // Find and remove
   Node *pop() { return _nodes[--_cnt]; }
   void clear() { _cnt = 0; Node_Array::clear(); } // retain storage
+  void clear_without_reset() { _cnt = 0; } // retain storage
   void copy(const Node_List& from) {
     if (from._max > _max) {
       grow(from._max);
@@ -1965,8 +1966,13 @@ public:
     Node_List::yank(n);
   }
   void  clear() {
-    _in_worklist.clear();        // Discards storage but grows automatically
+    _in_worklist.clear();
     Node_List::clear();
+    _clock_index = 0;
+  }
+  void clear_without_reset() {
+    _in_worklist.clear();
+    Node_List::clear_without_reset();
     _clock_index = 0;
   }
   void ensure_empty() {
