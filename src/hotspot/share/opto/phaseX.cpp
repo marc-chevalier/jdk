@@ -2399,8 +2399,8 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
         _table.hash_delete( dead );
         // Smash all inputs to 'dead', isolating him completely
         if (ReduceFieldZeroing && dead->is_Load()) {
-          auto mem_input = dead->in(MemNode::Memory);
-          if (mem_input->is_Proj() && mem_input->in(0) != nullptr && mem_input->in(0)->is_Initialize()) {
+          Node* mem_input = dead->in(MemNode::Memory);
+          if (mem_input != nullptr && mem_input->is_Proj() && mem_input->in(0) != nullptr && mem_input->in(0)->is_Initialize()) {
             // A Load that directly follows an InitializeNode is
             // going away. The Stores that follow are candidates
             // again to be captured by the InitializeNode.
