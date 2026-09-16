@@ -3106,6 +3106,14 @@ void Node_List::dump_simple() const {
 #endif
 }
 
+Node_ListIterator Node_List::begin() const {
+  return Node_ListIterator(this, 0);
+}
+
+Node_ListIterator Node_List::end() const {
+  return Node_ListIterator(this, size());
+}
+
 //=============================================================================
 //------------------------------remove-----------------------------------------
 void Unique_Node_List::remove(Node* n) {
