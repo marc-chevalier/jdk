@@ -1843,6 +1843,7 @@ public:
   void dump() const;
 };
 
+class Node_ListIterator;
 class Node_List : public Node_Array {
   uint _cnt;
 public:
@@ -1875,9 +1876,39 @@ public:
     Copy::conjoint_words_to_higher((HeapWord*)&from._nodes[0], (HeapWord*)&_nodes[0], from._max * sizeof(Node*));
   }
 
+  [[nodiscard]] Node_ListIterator begin() const;
+  [[nodiscard]] Node_ListIterator end() const;
+
   uint size() const { return _cnt; }
   void dump() const;
   void dump_simple() const;
+};
+
+class Node_ListIterator : public StackObj {
+  friend Node_List;
+  const Node_List* _list;
+  uint _position;
+
+  // Private constructor used in GrowableArray::begin() and GrowableArray::end()
+  Node_ListIterator(const Node_List* list, uint position) : _list(list), _position(position) {
+    assert(position <= _list->size(), "illegal position; position=%d, size=%d", position, _list->size());
+  }
+
+public:
+  Node_ListIterator() : _list(nullptr), _position(0) { }
+  Node_ListIterator& operator++() { ++_position; return *this; }
+  Node* operator*() { return _list->at(_position); }
+  const Node* operator*() const { return _list->at(_position); }
+
+  bool operator==(const Node_ListIterator& rhs) const {
+    assert(_list == rhs._list, "iterator belongs to different lists");
+    return _position == rhs._position;
+  }
+
+  bool operator!=(const Node_ListIterator& rhs) const {
+    assert(_list == rhs._list, "iterator belongs to different lists");
+    return _position != rhs._position;
+  }
 };
 
 // Definition must appear after complete type definition of Node_List
@@ -1965,7 +1996,7 @@ public:
     _in_worklist.remove(n->_idx);
     Node_List::yank(n);
   }
-  void  clear() {
+  void clear() {
     _in_worklist.clear();
     Node_List::clear();
     _clock_index = 0;

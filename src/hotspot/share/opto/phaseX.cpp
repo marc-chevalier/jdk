@@ -2361,9 +2361,8 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
   long input_count = 0;
   uint live_nodes = C->live_nodes();
   while (stack.is_nonempty()) {
-    jlong now = os::elapsed_counter();
-
     if (UseNewCode) {
+      jlong now = os::elapsed_counter();
       if (TimeHelper::counter_to_millis(now-previous) > 100) {
         auto delta = TimeHelper::counter_to_millis(now-before);
         if (previous == before) {
@@ -2404,8 +2403,7 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
               inputs.push(in);
             }
           }
-          for (uint i = 0; i < inputs.size(); i++) {
-            Node* in = inputs.at(i);
+          for (const Node* in : inputs) {
             int multiplicity = 0;
             for (uint k = 0; k < dead->req(); k++) {
               if (dead->in(k) == in) {
@@ -2431,8 +2429,7 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
             }
           }
           dead->disconnect_inputs(*this, seen_inputs);
-          for (uint i = 0; i < seen_inputs.size(); i++) {
-            Node* in = seen_inputs.at(i);
+          for (Node* in: seen_inputs) {
             if (in->outcnt() == 0) { // Made input go dead?
               stack.push(in, PROCESS_INPUTS); // Recursively remove
               recurse = true;
@@ -2506,10 +2503,6 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
     // of edge deletions per loop trip.)
     if (dead->outcnt() > 0) {
       // Recursively remove output edges
-      if (UseNewCode) {
-        //ss.print("  %d. Pushing (recursively remove output edges): ", nb++);
-        //dead->raw_out(0)->dump("\n", false, &ss);
-      }
       stack.push(dead->raw_out(0), PROCESS_INPUTS);
     } else {
       // Finished disconnecting all input and output edges.
@@ -2519,8 +2512,8 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
       C->remove_useless_node(dead);
     }
   } // while (stack.is_nonempty())
-  jlong after = os::elapsed_counter();
   if (UseNewCode) {
+    jlong after = os::elapsed_counter();
     auto delta = TimeHelper::counter_to_millis(after-before);
     if (delta > 100) {
       if (previous == before) {
