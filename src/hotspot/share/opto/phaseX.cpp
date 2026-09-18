@@ -2417,7 +2417,7 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
             possible_scanned_output += in->outcnt();
           }
         }
-        if (UseNewCode2) {
+        if (!UseNewCode2) {
           if (ReduceFieldZeroing && dead->is_Load()) {
             Node* mem_input = dead->in(MemNode::Memory);
             if (mem_input != nullptr && mem_input->is_Proj() && mem_input->in(0) != nullptr && mem_input->in(0)->is_Initialize()) {
