@@ -5254,11 +5254,34 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
   if (st->req() != MemNode::ValueIn + 1)
     return FAIL;                // an inscrutable StoreNode (card mark?)
   Node* ctl = st->in(MemNode::Control);
-  if (!(ctl != nullptr && ctl->is_Proj() && ctl->in(0) == this))
+  bool through_membar;
+  if (ctl != nullptr && ctl->is_Proj() && ctl->in(0) == this) {
+    through_membar = false;
+  } else if (
+    ctl != nullptr && ctl->is_Proj() &&
+    ctl->in(0) != nullptr && ctl->in(0)->Opcode() == Op_MemBarCPUOrder &&
+    ctl->in(0)->in(0) != nullptr && ctl->in(0)->in(0)->is_Proj() &&
+    ctl->in(0)->in(0)->in(0) == this
+  ) {
+    through_membar = true;
+  } else {
     return FAIL;                // must be unconditional after the initialization
+  }
   Node* mem = st->in(MemNode::Memory);
-  if (!(mem->is_Proj() && mem->in(0) == this))
-    return FAIL;                // must not be preceded by other stores
+  if (through_membar) {
+    if (!(mem->is_Proj() && mem->in(0) == ctl->in(0) && mem->in(0)->in(TypeFunc::Memory)->is_MergeMem()))
+      return FAIL;
+    for (uint i = Compile::AliasIdxRaw; i < mem->in(0)->in(TypeFunc::Memory)->req(); i++) {
+      Node* in = mem->in(0)->in(TypeFunc::Memory)->in(i);
+      if (!(in != nullptr && in->is_Proj() && in->in(0) == this)) {
+        return FAIL;
+      }
+    }
+  } else {
+    if (!(mem->is_Proj() && mem->in(0) == this)) {
+      return FAIL;                // must not be preceded by other stores
+    }
+  }
   BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
   if ((st->Opcode() == Op_StoreP || st->Opcode() == Op_StoreN) &&
       !bs->can_initialize_object(st)) {
@@ -5456,7 +5479,6 @@ Node* InitializeNode::make_raw_address(intptr_t offset,
                                        PhaseGVN* phase) {
   Node* addr = in(RawAddress);
   if (offset != 0) {
-    Compile* C = phase->C;
     addr = phase->transform(AddPNode::make_off_heap(addr, phase->MakeConX(offset)));
   }
   return addr;
@@ -5482,7 +5504,7 @@ Node* InitializeNode::make_raw_address(intptr_t offset,
 //
 Node* InitializeNode::capture_store(StoreNode* st, intptr_t start,
                                     PhaseGVN* phase, bool can_reshape) {
-  assert(stores_are_sane(phase), "");
+  precond(stores_are_sane(phase));
 
   if (start < 0)  return nullptr;
   assert(can_capture_store(st, phase, can_reshape) == start, "sanity");
