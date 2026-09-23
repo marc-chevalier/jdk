@@ -2360,6 +2360,8 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
   long cumulative_output_count = 0;
   long input_count = 0;
   uint live_nodes = C->live_nodes();
+  stringStream orig_dead;
+  orig_dead.print("%d %s", dead->_idx, dead->Name());
   while (stack.is_nonempty()) {
     if (UseNewCode) {
       jlong now = os::elapsed_counter();
@@ -2368,10 +2370,10 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
         if (previous == before) {
           tty->print("In method: ");
           C->method()->print_name();
-          tty->cr();
+          tty->print_cr(" phase=%d, <%s>", _pnum, orig_dead.as_string());
         }
         tty->print("  ");
-        tty->print_cr("%f, len=%d", delta, stack.size());
+        tty->print_cr("elapsed=%f, stack size=%d", delta, stack.size());
         previous = now;
       }
     }
@@ -2521,9 +2523,9 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
         tty->print_cr("%f", delta);
       } else {
         if (live_nodes == 0) {
-          tty->print_cr("  final: %f; live nodes before: %d; after: %d; delta: %d", delta, live_nodes, C->live_nodes(), live_nodes - C->live_nodes());
+          tty->print_cr("  total time: %f; live nodes before: %d; after: %d; delta: %d", delta, live_nodes, C->live_nodes(), live_nodes - C->live_nodes());
         } else {
-          tty->print_cr("  final: %f; live nodes before: %d; after: %d; delta: %d = %f %%", delta, live_nodes, C->live_nodes(), live_nodes - C->live_nodes(), ((double)(live_nodes - C->live_nodes())) * 100. / (double)live_nodes);
+          tty->print_cr("  total time: %f; live nodes before: %d; after: %d; delta: %d = %f %%", delta, live_nodes, C->live_nodes(), live_nodes - C->live_nodes(), ((double)(live_nodes - C->live_nodes())) * 100. / (double)live_nodes);
         }
       }
       // tty->write(ss.base(), ss.size());
