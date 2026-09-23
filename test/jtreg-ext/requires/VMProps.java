@@ -355,6 +355,8 @@ public class VMProps implements Callable<Map<String, String>> {
      */
     protected void vmOptFinalIntxFlags(SafeMap map) {
         vmOptFinalIntxFlag(map, "MaxVectorSize");
+        vmOptFinalIntxFlag(map, "PerMethodTrapLimit");
+        vmOptFinalIntxFlag(map, "PerMethodSpecTrapLimit");
     }
 
     /**
