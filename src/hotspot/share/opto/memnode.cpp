@@ -3867,18 +3867,30 @@ Node *StoreNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 
   // Capture an unaliased, unconditional, simple store into an initializer.
   // Or, if it is independent of the allocation, hoist it above the allocation.
-  if (ReduceFieldZeroing && /*can_reshape &&*/
-      mem->is_Proj() && mem->in(0)->is_Initialize()) {
-    InitializeNode* init = mem->in(0)->as_Initialize();
-    intptr_t offset = init->can_capture_store(this, phase, can_reshape);
-    if (offset > 0) {
-      Node* moved = init->capture_store(this, offset, phase, can_reshape);
-      // If the InitializeNode captured me, it made a raw copy of me,
-      // and I need to disappear.
-      if (moved != nullptr) {
-        // %%% hack to ensure that Ideal returns a new node:
-        mem = MergeMemNode::make(mem);
-        return mem;             // fold me away
+  if (ReduceFieldZeroing /*&& can_reshape*/) {
+    InitializeNode* init = nullptr;
+    if (mem->is_Proj() && mem->in(0)->is_Initialize()) {
+      init = mem->in(0)->as_Initialize();
+    } else if (
+      mem->is_Proj() && mem->in(0)->Opcode() == Op_MemBarCPUOrder &&
+      mem->in(0)->in(TypeFunc::Memory) != nullptr && mem->in(0)->in(TypeFunc::Memory)->is_MergeMem() &&
+      mem->in(0)->in(TypeFunc::Memory)->in(Compile::AliasIdxRaw) != nullptr &&
+      mem->in(0)->in(TypeFunc::Memory)->in(Compile::AliasIdxRaw)->is_Proj() &&
+      mem->in(0)->in(TypeFunc::Memory)->in(Compile::AliasIdxRaw)->in(0)->is_Initialize()
+    ) {
+      init = mem->in(0)->in(TypeFunc::Memory)->in(Compile::AliasIdxRaw)->in(0)->as_Initialize();
+    }
+    if (init != nullptr) {
+      intptr_t offset = init->can_capture_store(this, phase, can_reshape);
+      if (offset > 0) {
+        Node* moved = init->capture_store(this, offset, phase, can_reshape);
+        // If the InitializeNode captured me, it made a raw copy of me,
+        // and I need to disappear.
+        if (moved != nullptr) {
+          // %%% hack to ensure that Ideal returns a new node:
+          mem = MergeMemNode::make(mem);
+          return mem;             // fold me away
+        }
       }
     }
   }
@@ -5003,6 +5015,20 @@ MemBarNode* MemBarNode::leading_membar() const {
   return mb;
 }
 
+Node* MemBarCPUOrderNode::Identity(PhaseGVN* phase) {
+  if (
+    in(TypeFunc::Control) != nullptr &&
+    in(TypeFunc::Control)->is_Proj() &&
+    in(TypeFunc::Control)->in(0)->Opcode() == Op_MemBarCPUOrder &&
+    in(TypeFunc::Memory) != nullptr &&
+    in(TypeFunc::Memory)->is_Proj() &&
+    in(TypeFunc::Control)->in(0) == in(TypeFunc::Memory)->in(0)
+  ) {
+    return in(TypeFunc::Control)->in(0);
+  }
+  return MemBarNode::Identity(phase);
+}
+
 
 //===========================InitializeNode====================================
 // SUMMARY:
@@ -5251,8 +5277,9 @@ bool InitializeNode::detect_init_independence(Node* value, PhaseGVN* phase) {
 // within the initialized memory.
 intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool can_reshape) {
   const int FAIL = 0;
-  if (st->req() != MemNode::ValueIn + 1)
+  if (st->req() != MemNode::ValueIn + 1 && st->Opcode() != Op_StoreLSpecial) {
     return FAIL;                // an inscrutable StoreNode (card mark?)
+  }
   Node* ctl = st->in(MemNode::Control);
   bool through_membar;
   if (ctl != nullptr && ctl->is_Proj() && ctl->in(0) == this) {
@@ -5269,10 +5296,11 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
   }
   Node* mem = st->in(MemNode::Memory);
   if (through_membar) {
-    if (!(mem->is_Proj() && mem->in(0) == ctl->in(0) && mem->in(0)->in(TypeFunc::Memory)->is_MergeMem()))
+    if (!(mem->is_Proj() && mem->in(0) == ctl->in(0) && mem->in(0)->in(TypeFunc::Memory)->is_MergeMem())) {
       return FAIL;
+    }
     for (uint i = Compile::AliasIdxRaw; i < mem->in(0)->in(TypeFunc::Memory)->req(); i++) {
-      Node* in = mem->in(0)->in(TypeFunc::Memory)->in(i);
+      const Node* in = mem->in(0)->in(TypeFunc::Memory)->in(i);
       if (!(in != nullptr && in->is_Proj() && in->in(0) == this)) {
         return FAIL;
       }
@@ -5318,7 +5346,6 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
     ResourceMark rm;
     Unique_Node_List mems;
     mems.push(mem);
-    Node* unique_merge = nullptr;
     for (uint next = 0; next < mems.size(); ++next) {
       Node *m  = mems.at(next);
       for (DUIterator_Fast jmax, j = m->fast_outs(jmax); j < jmax; j++) {
