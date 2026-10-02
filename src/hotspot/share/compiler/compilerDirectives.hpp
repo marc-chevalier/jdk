@@ -55,7 +55,15 @@
     cflags(RepeatCompilation,       intx, RepeatCompilation, RepeatCompilation) \
     cflags(DontAOTCompile,          bool, false, DontAOTCompile) \
     cflags(DontPreload,             bool, false, DontPreload) \
-    cflags(IgnoreAOTCompiled,       bool, false, IgnoreAOTCompiled)
+    cflags(IgnoreAOTCompiled,       bool, false, IgnoreAOTCompiled) \
+NOT_PRODUCT(cflags(TestOptionInt,   intx, 0, TestOptionInt)) \
+NOT_PRODUCT(cflags(TestOptionUint,  uintx, 0, TestOptionUint)) \
+NOT_PRODUCT(cflags(TestOptionBool,  bool, false, TestOptionBool)) \
+NOT_PRODUCT(cflags(TestOptionBool2, bool, false, TestOptionBool2)) \
+NOT_PRODUCT(cflags(TestOptionStr,   ccstr, "", TestOptionStr)) \
+NOT_PRODUCT(cflags(TestOptionList,  ccstrlist, "", TestOptionList)) \
+NOT_PRODUCT(cflags(TestOptionDouble,double, 0.0, TestOptionDouble)) \
+
 #define compilerdirectives_common_string_flags(cflags)                           \
   cflags(DisableIntrinsic,        ccstrlist, DisableIntrinsic, DisableIntrinsic) \
   cflags(ControlIntrinsic,        ccstrlist, ControlIntrinsic, ControlIntrinsic)
