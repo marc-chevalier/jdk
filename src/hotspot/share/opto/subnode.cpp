@@ -173,8 +173,217 @@ static bool is_cloop_condition(BoolNode* bol) {
   return false;
 }
 
-//------------------------------Ideal------------------------------------------
-Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
+Node* SubNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
+  Node *in1 = in(1);
+  Node *in2 = in(2);
+  int op1 = in1->Opcode();
+  int op2 = in2->Opcode();
+
+#ifdef ASSERT
+  // Check for dead loop
+  if ((in1 == this) || (in2 == this) ||
+      ((op1 == Op_Add(bt) || op1 == Op_Sub(bt)) &&
+       ((in1->in(1) == this) || (in1->in(2) == this) ||
+        (in1->in(1) == in1)  || (in1->in(2) == in1)))) {
+    assert(false, "dead loop in SubNode::IdealIL");
+  }
+#endif
+
+  if (Node* r = AddNode::simplify_whole_tree(can_reshape, phase, bt, this); r != nullptr) {
+    return r;
+  }
+
+  PhaseIterGVN* igvn = phase->is_IterGVN();
+  // When we build multiple nodes, the first IGVN transform may kill nodes (previously inputs,
+  // make their use as inputs of subsequent nodes incorrect. To avoid that, we delay IGVN
+  // transformation in such cases. GVN cannot replace nodes, so we can do it right now.
+  auto transform_maybe_later = [&] (Node* n) -> Node* {
+    if (igvn != nullptr) {
+      return igvn->register_new_node_with_optimizer(n);
+    } else {
+      return phase->transform(n);
+    }
+  };
+
+#if 1
+  const Type* t2 = phase->type(in2);
+  if (t2 == Type::TOP) return nullptr;
+  // Convert "x-c0" into "x+ -c0".
+  if (bt == T_INT) {
+    const TypeInt* i = t2->isa_int();
+    if (i != nullptr && i->is_con())
+      return new AddINode(in1, phase->intcon(java_negate(i->get_con())));
+  } else {
+    const TypeLong* l = t2->isa_long();
+    if (l != nullptr && l->is_con())
+      return new AddLNode(in1, phase->longcon(java_negate(l->get_con())));
+  }
+
+  // Convert "(x+c0) - y" into (x-y) + c0"
+  // Do not collapse (x+c0)-y if "+" is a loop increment or
+  // if "y" is a loop induction variable.
+  if (op1 == Op_Add(bt) && ok_to_convert(in1, in2)) {
+    Node* in11 = in1->in(1);
+    const Type* tadd = phase->type(in1->in(2));
+    if (tadd->singleton() && tadd != Type::TOP) {
+      Node* sub2 = transform_maybe_later(SubNode::make(in11, in2, bt));
+      return AddNode::make(sub2, in1->in(2), bt);
+    }
+  }
+
+  // Convert "x - (y+c0)" into "(x-y) - c0" AND
+  // Convert "c1 - (y+c0)" into "(c1-c0) - y"
+  // Need the same check as in above optimization but reversed.
+  if (op2 == Op_Add(bt)
+      && ok_to_convert(in2, in1)
+      && in2->in(2)->Opcode() == Op_ConIL(bt)) {
+    if (bt == T_INT) {
+      jint c0 = phase->type(in2->in(2))->isa_int()->get_con();
+      Node* in21 = in2->in(1);
+      if (in1->Opcode() == Op_ConIL(bt)) {
+        // Match c1
+        jint c1 = phase->type(in1)->isa_int()->get_con();
+        Node* sub2 = phase->intcon(java_subtract(c1, c0));
+        return SubNode::make(sub2, in21, bt);
+      } else {
+        Node* sub2 = phase->transform(SubNode::make(in1, in21, bt));
+        Node* neg_c0 = phase->intcon(java_negate(c0));
+        return AddNode::make(sub2, neg_c0, bt);
+      }
+    } else {
+      jlong c0 = phase->type(in2->in(2))->isa_long()->get_con();
+      Node* in21 = in2->in(1);
+      if (in1->Opcode() == Op_ConIL(bt)) {
+        // Match c1
+        jlong c1 = phase->type(in1)->isa_long()->get_con();
+        Node* sub2 = phase->longcon(java_subtract(c1, c0));
+        return SubNode::make(sub2, in21, bt);
+      } else {
+        Node* sub2 = phase->transform(SubNode::make(in1, in21, bt));
+        Node* neg_c0 = phase->longcon(java_negate(c0));
+        return AddNode::make(sub2, neg_c0, bt);
+      }
+    }
+  }
+
+  const Type* t1 = phase->type(in1);
+  if (t1 == Type::TOP) return nullptr;
+
+#ifdef ASSERT
+  // Check for dead loop
+  if ((op2 == Op_Add(bt) || op2 == Op_Sub(bt)) &&
+      ((in2->in(1) == this) || (in2->in(2) == this) ||
+       (in2->in(1) == in2)  || (in2->in(2) == in2))) {
+    assert(false, "dead loop in SubNode::IdealIL");
+  }
+#endif
+
+  // Convert "x - (x+y)" into "-y"
+  if (op2 == Op_Add(bt) && in1 == in2->in(1)) {
+    return SubNode::make(phase->zerocon(bt), in2->in(2), bt);
+  }
+  // Convert "(x-y) - x" into "-y"
+  if (op1 == Op_Sub(bt) && in1->in(1) == in2) {
+    return SubNode::make(phase->zerocon(bt), in1->in(2), bt);
+  }
+  // Convert "x - (y+x)" into "-y"
+  if (op2 == Op_AddL && in1 == in2->in(2)) {
+    return SubNode::make(phase->zerocon(bt), in2->in(1), bt);
+  }
+
+  // Convert "0 - (x-y)" into "y-x", leave the double negation "-(-y)" to SubNode::Identity.
+  if (t1 == TypeInt::ZERO && op2 == Op_SubI && phase->type(in2->in(1)) != TypeInt::ZERO) {
+    return SubNode::make(in2->in(2), in2->in(1), bt);
+  } else if (t1 == TypeLong::ZERO && op2 == Op_SubL && phase->type(in2->in(1)) != TypeLong::ZERO) {
+    return SubNode::make(in2->in(2), in2->in(1), bt);
+  }
+
+  // Convert "(X+A) - (X+B)" into "A - B"
+  if (op1 == Op_Add(bt) && op2 == Op_Add(bt) && in1->in(1) == in2->in(1))
+    return SubLNode::make(in1->in(2), in2->in(2), bt);
+
+  // Convert "(A+X) - (B+X)" into "A - B"
+  if (op1 == Op_Add(bt) && op2 == Op_Add(bt) && in1->in(2) == in2->in(2))
+    return SubLNode::make(in1->in(1), in2->in(1), bt);
+
+  // Convert "(A+X) - (X+B)" into "A - B"
+  if (op1 == Op_Add(bt) && op2 == Op_Add(bt) && in1->in(2) == in2->in(1))
+    return SubLNode::make(in1->in(1), in2->in(2), bt);
+
+  // Convert "(X+A) - (B+X)" into "A - B"
+  if (op1 == Op_Add(bt) && op2 == Op_Add(bt) && in1->in(1) == in2->in(2))
+    return SubLNode::make(in1->in(2), in2->in(1), bt);
+
+  // Convert "A-(B-C)" into (A+C)-B"
+  if( op2 == Op_Sub(bt) && in2->outcnt() == 1) {
+    Node* add1 = phase->transform(AddNode::make(in1, in2->in(2), bt));
+    return SubNode::make(add1, in2->in(1), bt);
+  }
+#endif
+
+  // Distributive (also uses commutativity)
+  if (op1 == Op_Mul(bt) && op2 == Op_Mul(bt)) {
+    Node* sub_in1 = nullptr;
+    Node* sub_in2 = nullptr;
+    Node* mul_in = nullptr;
+
+    if (in1->in(1) == in2->in(1)) {
+      // Convert "a*b-a*c into a*(b+c)
+      sub_in1 = in1->in(2);
+      sub_in2 = in2->in(2);
+      mul_in = in1->in(1);
+    } else if (in1->in(2) == in2->in(1)) {
+      // Convert a*b-b*c into b*(a-c)
+      sub_in1 = in1->in(1);
+      sub_in2 = in2->in(2);
+      mul_in = in1->in(2);
+    } else if (in1->in(2) == in2->in(2)) {
+      // Convert a*c-b*c into (a-b)*c
+      sub_in1 = in1->in(1);
+      sub_in2 = in2->in(1);
+      mul_in = in1->in(2);
+    } else if (in1->in(1) == in2->in(2)) {
+      // Convert a*b-c*a into a*(b-c)
+      sub_in1 = in1->in(2);
+      sub_in2 = in2->in(1);
+      mul_in = in1->in(1);
+    }
+
+    if (mul_in != nullptr) {
+      Node* sub = phase->transform(SubNode::make(sub_in1, sub_in2, bt));
+      return MulNode::make(mul_in, sub, bt);
+    }
+  }
+
+  // Convert "0L-(A>>63)" into "(A>>>63)"
+  if (op2 == Op_RShift(bt)) {
+    Node *in21 = in2->in(1);
+    Node *in22 = in2->in(2);
+    const TypeInt* t22 = phase->type(in22)->isa_int();
+    if (bt == T_INT) {
+      const TypeInt* zero = phase->type(in1)->isa_int();
+      const TypeInt* t21 = phase->type(in21)->isa_int();
+      if (t21 != nullptr && t22 != nullptr && zero == TypeInt::ZERO && t22->is_con(31) ) {
+        return new URShiftINode(in21, in22);
+      }
+    } else {
+      const TypeLong* zero = phase->type(in1)->isa_long();
+      const TypeLong* t21 = phase->type(in21)->isa_long();
+      if (t21 != nullptr && t22 != nullptr && zero == TypeLong::ZERO && t22->is_con(63)) {
+        return new URShiftLNode(in21, in22);
+      }
+    }
+  }
+
+  return nullptr;
+}
+
+
+Node* SubINode::Ideal(PhaseGVN* phase, bool can_reshape) {
+  if (!UseNewCode3) {
+    return SubNode::IdealIL(phase, can_reshape, T_INT);
+  }
+
   Node *in1 = in(1);
   Node *in2 = in(2);
   uint op1 = in1->Opcode();
@@ -193,6 +402,18 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
   if (Node* r = AddNode::simplify_whole_tree(can_reshape, phase, T_INT, this); r != nullptr) {
     return r;
   }
+
+  PhaseIterGVN* igvn = phase->is_IterGVN();
+  // When we build multiple nodes, the first IGVN transform may kill nodes (previously inputs,
+  // make their use as inputs of subsequent nodes incorrect. To avoid that, we delay IGVN
+  // transformation in such cases. GVN cannot replace nodes, so we can do it right now.
+  auto transform_maybe_later = [&] (Node* n) -> Node* {
+    if (igvn != nullptr) {
+      return igvn->register_new_node_with_optimizer(n);
+    } else {
+      return phase->transform(n);
+    }
+  };
 
 #if 1
   const Type *t2 = phase->type( in2 );
@@ -290,7 +511,7 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
   // Convert "A-(B-C)" into (A+C)-B", since add is commutative and generally
   // nicer to optimize than subtract.
   if( op2 == Op_SubI && in2->outcnt() == 1) {
-    Node *add1 = phase->transform( new AddINode( in1, in2->in(2) ) );
+    Node* add1 = transform_maybe_later( new AddINode( in1, in2->in(2) ) );
     return new SubINode( add1, in2->in(1) );
   }
 #endif
@@ -324,7 +545,7 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
     }
 
     if (mul_in != nullptr) {
-      Node* sub = phase->transform(new SubINode(sub_in1, sub_in2));
+      Node* sub = transform_maybe_later(new SubINode(sub_in1, sub_in2));
       return new MulINode(mul_in, sub);
     }
   }
@@ -373,9 +594,11 @@ const Type* SubINode::sub(const Type* t1, const Type* t2) const {
                        MAX2(range0->_widen, range1->_widen));
 }
 
-//=============================================================================
-//------------------------------Ideal------------------------------------------
 Node *SubLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
+  if (!UseNewCode3) {
+    return SubNode::IdealIL(phase, can_reshape, T_LONG);
+  }
+
   Node *in1 = in(1);
   Node *in2 = in(2);
   uint op1 = in1->Opcode();

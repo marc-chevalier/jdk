@@ -1548,6 +1548,20 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
   Node* in2 = in(2);
   int op1 = in1->Opcode();
   int op2 = in2->Opcode();
+
+  if (Node* r = simplify_whole_tree(can_reshape, phase, bt, this); r != nullptr) {
+    return r;
+  }
+
+  PhaseIterGVN* igvn = phase->is_IterGVN();
+  auto transform_maybe_later = [&] (Node* n) -> Node* {
+    if (igvn != nullptr) {
+      return igvn->register_new_node_with_optimizer(n);
+    } else {
+      return phase->transform(n);
+    }
+  };
+
 #if 1
   // Fold (con1-x)+con2 into (con1+con2)-x
   if (op1 == Op_Add(bt) && op2 == Op_Sub(bt)) {
@@ -1610,13 +1624,18 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
   // Convert (con - y) + x into "(x - y) + con"
   if (op1 == Op_Sub(bt) && in1->in(1)->Opcode() == Op_ConIL(bt)
       && in1 != in1->in(2) && !(in1->in(2)->is_Phi() && in1->in(2)->as_Phi()->is_tripcount(bt))) {
-    return AddNode::make(phase->transform(SubNode::make(in2, in1->in(2), bt)), in1->in(1), bt);
+    // During IGVN, nodes can be replaced, and it is not guaranteed that in1 is still alive in the `AddNode::make`
+    // if the first transformation is done immediately. So, we do it now for GVN, but we delay for IGVN.
+    Node* diff_non_con = transform_maybe_later(SubNode::make(in2, in1->in(2), bt));
+    return AddNode::make(diff_non_con, in1->in(1), bt);
   }
 
   // Convert x + (con - y) into "(x - y) + con"
   if (op2 == Op_Sub(bt) && in2->in(1)->Opcode() == Op_ConIL(bt)
       && in2 != in2->in(2) && !(in2->in(2)->is_Phi() && in2->in(2)->as_Phi()->is_tripcount(bt))) {
-    return AddNode::make(phase->transform(SubNode::make(in1, in2->in(2), bt)), in2->in(1), bt);
+    // Same as above.
+    Node* diff_non_con = phase->transform(SubNode::make(in1, in2->in(2), bt));
+    return AddNode::make(diff_non_con, in2->in(1), bt);
   }
 #endif
 
@@ -1680,10 +1699,6 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
     return collapsed; // Skip AddNode::Ideal() since it may now be a multiplication node.
   }
 #endif
-
-  if (Node* r = simplify_whole_tree(can_reshape, phase, bt, this); r != nullptr) {
-    return r;
-  }
 
   return AddNode::Ideal(phase, can_reshape);
 }
