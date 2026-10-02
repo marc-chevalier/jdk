@@ -55,40 +55,40 @@ public:
   // Supplied function returns the subtractend of the inputs.
   // This also type-checks the inputs for sanity.  Guaranteed never to
   // be passed a TOP or BOTTOM type, these are filtered out by a pre-check.
-  virtual const Type *sub( const Type *, const Type * ) const = 0;
+  virtual const Type* sub(const Type*, const Type*) const = 0;
 
   // Supplied function to return the additive identity type.
   // This is returned whenever the subtracts inputs are the same.
-  virtual const Type *add_id() const = 0;
+  virtual const Type* add_id() const = 0;
 
   static SubNode* make(Node* in1, Node* in2, BasicType bt);
+
+  // Factoring what applies easily to both int and long subtractions.
+  Node* IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt);
 };
 
 
-// NOTE: SubINode should be taken away and replaced by add and negate
-//------------------------------SubINode---------------------------------------
 // Subtract 2 integers
 class SubINode : public SubNode {
 public:
-  SubINode( Node *in1, Node *in2 ) : SubNode(in1,in2) {}
+  SubINode(Node* in1, Node* in2) : SubNode(in1, in2) {}
   virtual int Opcode() const;
-  virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual const Type *sub( const Type *, const Type * ) const;
-  const Type *add_id() const { return TypeInt::ZERO; }
-  const Type *bottom_type() const { return TypeInt::INT; }
+  virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
+  virtual const Type* sub(const Type*, const Type*) const;
+  const Type* add_id() const { return TypeInt::ZERO; }
+  const Type* bottom_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
-//------------------------------SubLNode---------------------------------------
-// Subtract 2 integers
+// Subtract 2 long integers
 class SubLNode : public SubNode {
 public:
-  SubLNode( Node *in1, Node *in2 ) : SubNode(in1,in2) {}
+  SubLNode(Node* in1, Node* in2) : SubNode(in1, in2) {}
   virtual int Opcode() const;
-  virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual const Type *sub( const Type *, const Type * ) const;
-  const Type *add_id() const { return TypeLong::ZERO; }
-  const Type *bottom_type() const { return TypeLong::LONG; }
+  virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
+  virtual const Type* sub(const Type*, const Type*) const;
+  const Type* add_id() const { return TypeLong::ZERO; }
+  const Type* bottom_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
 };
 
