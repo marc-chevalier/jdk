@@ -1324,74 +1324,76 @@ public:
           bool is_lhs_con = is_and_get_constant(bt, lhs.simplified_, lhs_con);
           bool is_rhs_con = is_and_get_constant(bt, rhs.simplified_, rhs_con);
 
-          if (is_lhs_con && is_rhs_con) {
-            jlong constant = java_multiply(lhs_con, rhs_con);
-            map_node_to_constant(computed, bt, node, constant);
-            stack.done(node);
-          } else if (is_lhs_con || is_rhs_con) {
-            jlong scalar = is_lhs_con ? lhs_con : rhs_con;
-            Result operand = is_lhs_con ? rhs : lhs;
-            Combination combination = operand.combination_.scalar_multiplication(scalar);
+          Node* new_mul;
+          if ((lhs.improved_ || rhs.improved_) && !gvn_.is_IterGVN()) {
+            // During parsing, if there is an improvement, the input of the multiplication wasn't replace.
+            // We need to build the optimized multiplication manually.
+            new_mul = transform(MulNode::make(lhs.simplified_, rhs.simplified_, bt));
 #ifndef PRODUCT
             if (print_steps_) {
-              tty->print("  Mapping node %d to combination ", node->_idx);
-              combination.dump(tty);
-              tty->cr();
+              tty->print("  Mapping node %d to new node ", node->_idx);
+              new_mul->dump("\n", false, tty);
             }
 #endif
-            if (gvn_.is_IterGVN() || !operand.improved_) {
-              computed.push(Result(node, combination, node, operand.improved_));
-            } else {
-              // During parsing, if there is an improvement, the input of the multiplication wasn't replace.
-              // We need to build the optimized multiplication manually.
-              Node* new_mul;
-              if (is_constant(bt, node->in(1))) {
-                new_mul = transform(MulNode::make(node->in(1), operand.simplified_, bt));
-              } else {
-                new_mul = transform(MulNode::make(operand.simplified_, node->in(2), bt));
-              }
-#ifndef PRODUCT
-              if (print_steps_) {
-                tty->print("  Mapping node %d to new node ", node->_idx);
-                new_mul->dump("\n", false, tty);
-              }
-#endif
-              computed.push(Result(node, combination, new_mul, operand.improved_));
-            }
           } else {
-            map_node_to_term(computed, bt, node, 1L, node);
+            new_mul = node;
           }
+
+          Combination combination = [&] () {
+            if (is_lhs_con && is_rhs_con) {
+              jlong constant = java_multiply(lhs_con, rhs_con);
+              return Combination::make_constant(bt, constant);
+            } else if (is_lhs_con) {
+              return rhs.combination_.scalar_multiplication(lhs_con);
+            } else if (is_rhs_con) {
+              return lhs.combination_.scalar_multiplication(rhs_con);
+            } else {
+              return Combination::make_term(bt, this, 1L, new_mul);
+            }
+          }();
+#ifndef PRODUCT
+          if (print_steps_) {
+            tty->print("  Mapping node %d to combination ", node->_idx);
+            combination.dump(tty);
+            tty->cr();
+          }
+#endif
+          computed.push(Result(node, combination, new_mul, lhs.improved_ || rhs.improved_));
         } else if (op == Op_LShift(bt)) {
+          Result lhs = find_result(computed, node->in(1));
           Result rhs = find_result(computed, node->in(2));
-          if (jint shift; bool is_rhs_con = is_and_get_int_constant(rhs.simplified_, shift)) {
-            shift = shift & static_cast<jint>(bits_per_java_integer(bt) - 1);
-            jlong scalar = java_shift_left(1L, shift, bt);
-            Result operand = find_result(computed, node->in(1));
-            Combination combination = operand.combination_.scalar_multiplication(scalar);
+
+          Node* new_shift;
+          if ((lhs.improved_ || rhs.improved_) && !gvn_.is_IterGVN()) {
+            // During parsing, if there is an improvement, the input of the shift wasn't replace.
+            // We need to build the optimized shift manually.
+            new_shift = transform(LShiftNode::make(lhs.simplified_, rhs.simplified_, bt));
 #ifndef PRODUCT
             if (print_steps_) {
-              tty->print("  Mapping node %d to combination ", node->_idx);
-              combination.dump(tty);
-              tty->cr();
+              tty->print("  Mapping node %d to new node ", node->_idx);
+              new_shift->dump("\n", false, tty);
             }
 #endif
-            if (gvn_.is_IterGVN() || !operand.improved_) {
-              computed.push(Result(node, combination, node, operand.improved_));
-            } else {
-              // During parsing, if there is an improvement, the input of the shift wasn't replace.
-              // We need to build the optimized shift manually.
-              Node* new_shift = transform(LShiftNode::make(operand.simplified_, node->in(2), bt));
-#ifndef PRODUCT
-              if (print_steps_) {
-                tty->print("  Mapping node %d to new node ", node->_idx);
-                new_shift->dump("\n", false, tty);
-              }
-#endif
-              computed.push(Result(node, combination, new_shift, operand.improved_));
-            }
           } else {
-            map_node_to_term(computed, bt, node, 1L, node);
+            new_shift = node;
           }
+
+          Combination combination = [&] () {
+            if (jint shift; is_and_get_int_constant(rhs.simplified_, shift)) {
+              jlong scalar = java_shift_left(1L, shift, bt);
+              return lhs.combination_.scalar_multiplication(scalar);
+            } else {
+              return Combination::make_term(bt, this, 1L, new_shift);
+            }
+          }();
+#ifndef PRODUCT
+          if (print_steps_) {
+            tty->print("  Mapping node %d to combination ", node->_idx);
+            combination.dump(tty);
+            tty->cr();
+          }
+#endif
+          computed.push(Result(node, combination, new_shift, lhs.improved_ || rhs.improved_));
         } else {
           ShouldNotReachHere();
         }
