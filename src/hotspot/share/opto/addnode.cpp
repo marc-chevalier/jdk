@@ -302,7 +302,7 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
       // for the same rule to apply again. Even if termination is guaranteed, in some cases, we can
       // create an exponential amount of nodes before simplifying them. Let's try to avoid that by
       // reusing existing nodes as much as possible.
-      auto find_add_sub_or_make_it = [&](Node* lhs, Node* rhs, bool is_sub, bool& fresh) -> Node* {
+      auto find_add_sub_or_make_it = [&](Node* lhs, Node* rhs, bool is_sub) -> Node* {
         int desired_opcode = is_sub ? Op_Sub(bt) : Op_Add(bt);
         for (DUIterator_Fast imax, i = lhs->fast_outs(imax); i < imax; i++) {
           Node* candidate = lhs->fast_out(i);
@@ -310,11 +310,9 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
               && candidate->in(1) == lhs
               && candidate->in(2) == rhs
           ) {
-            fresh = false;
             return candidate;
           }
         }
-        fresh = true;
         Node* node = is_sub ? static_cast<Node*>(SubNode::make(lhs, rhs, bt)) : AddNode::make(lhs, rhs, bt);
         // During IGVN, if both inputs of the new AddNode are a tree of SubNodes, this same transformation will be applied
         // to every node of the tree. Calling transform() causes the transformation to be applied recursively, once per
@@ -328,14 +326,15 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
         }
       };
 
-      bool fresh;
-      Node* sub_in1 = find_add_sub_or_make_it(in1->in(1), in2->in(1), false, fresh /* ignored */);
-      Node* sub_in2 = find_add_sub_or_make_it(in1->in(2), in2->in(2), false, fresh /* ignored */);
-      Node* sub = find_add_sub_or_make_it(sub_in1, sub_in2, true, fresh);
-      if (fresh) {
+      Node* sub_in1 = find_add_sub_or_make_it(in1->in(1), in2->in(1), false);
+      Node* sub_in2 = find_add_sub_or_make_it(in1->in(2), in2->in(2), false);
+      uint next_id = phase->C->unique();
+      Node* sub = find_add_sub_or_make_it(sub_in1, sub_in2, true);
+      bool is_sub_fresh = sub->_idx >= next_id;
+      if (is_sub_fresh) {
         return sub;
       } else {
-        // Let's cheat with IGVN to be able to return an old node.
+        // Let's cheat with (I)GVN to be able to return an old node.
         const TypeTuple* t = bt == T_INT ? TypeTuple::INT_UNARY_TUPLE : TypeTuple::LONG_UNARY_TUPLE;
         Node* tuple = TupleNode::make(t, nullptr, sub);
         tuple = igvn != nullptr ? igvn->register_new_node_with_optimizer(tuple) : phase->transform(tuple);
