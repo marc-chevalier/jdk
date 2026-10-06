@@ -302,7 +302,7 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
       // for the same rule to apply again. Even if termination is guaranteed, in some cases, we can
       // create an exponential amount of nodes before simplifying them. Let's try to avoid that by
       // reusing existing nodes as much as possible.
-      auto find_add_sub_or_make_it = [&](Node* lhs, Node* rhs, bool is_sub, bool& fresh) -> Node* {
+      auto find_add_sub_or_make_it = [&](Node* lhs, Node* rhs, bool is_sub, bool transform, bool& fresh) -> Node* {
         int desired_opcode = is_sub ? Op_Sub(bt) : Op_Add(bt);
         for (DUIterator_Fast imax, i = lhs->fast_outs(imax); i < imax; i++) {
           Node* candidate = lhs->fast_out(i);
@@ -315,26 +315,26 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
           }
         }
         fresh = true;
-        return is_sub ? static_cast<Node*>(SubNode::make(lhs, rhs, bt)) : AddNode::make(lhs, rhs, bt);
+        Node* node = is_sub ? static_cast<Node*>(SubNode::make(lhs, rhs, bt)) : AddNode::make(lhs, rhs, bt);
+        if (!transform) {
+          return node;
+        }
+        // During IGVN, if both inputs of the new AddNode are a tree of SubNodes, this same transformation will be applied
+        // to every node of the tree. Calling transform() causes the transformation to be applied recursively, once per
+        // tree node whether some subtrees are identical or not. Pushing to the IGVN worklist instead, causes the transform
+        // to be applied once per unique subtrees (because all uses of a subtree are updated with the result of the
+        // transformation). In case of a large tree, this can make a difference in compilation time.
+        if (igvn != nullptr) {
+          return igvn->register_new_node_with_optimizer(node);
+        } else {
+          return phase->transform(node);
+        }
       };
 
       bool fresh;
-      Node* sub_in1 = find_add_sub_or_make_it(in1->in(1), in2->in(1), false, fresh /* ignored */);
-      Node* sub_in2 = find_add_sub_or_make_it(in1->in(2), in2->in(2), false, fresh /* ignored */);
-      // During IGVN, if both inputs of the new AddNode are a tree of SubNodes, this same transformation will be applied
-      // to every node of the tree. Calling transform() causes the transformation to be applied recursively, once per
-      // tree node whether some subtrees are identical or not. Pushing to the IGVN worklist instead, causes the transform
-      // to be applied once per unique subtrees (because all uses of a subtree are updated with the result of the
-      // transformation). In case of a large tree, this can make a difference in compilation time.
-      if (igvn != nullptr) {
-        sub_in1 = igvn->register_new_node_with_optimizer(sub_in1);
-        sub_in2 = igvn->register_new_node_with_optimizer(sub_in2);
-      } else {
-        sub_in1 = phase->transform(sub_in1);
-        sub_in2 = phase->transform(sub_in2);
-      }
-      
-      Node* sub = find_add_sub_or_make_it(sub_in1, sub_in2, true, fresh);
+      Node* sub_in1 = find_add_sub_or_make_it(in1->in(1), in2->in(1), false, true, fresh /* ignored */);
+      Node* sub_in2 = find_add_sub_or_make_it(in1->in(2), in2->in(2), false, true, fresh /* ignored */);
+      Node* sub = find_add_sub_or_make_it(sub_in1, sub_in2, true, false, fresh);
       if (fresh) {
         return sub;
       } else {
