@@ -296,6 +296,11 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
       // Check for dead cycle: d = (a-b)+(c-d)
       assert( in1->in(2) != this && in2->in(2) != this,
               "dead loop in AddINode::Ideal" );
+      // During IGVN, if both inputs of the new AddNode are a tree of SubNodes, this same transformation will be applied
+      // to every node of the tree. Calling transform() causes the transformation to be applied recursively, once per
+      // tree node whether some subtrees are identical or not. Pushing to the IGVN worklist instead, causes the transform
+      // to be applied once per unique subtrees (because all uses of a subtree are updated with the result of the
+      // transformation). In case of a large tree, this can make a difference in compilation time.
       PhaseIterGVN* igvn = phase->is_IterGVN();
       if (igvn == nullptr) {
         Node* sub_in1 = phase->transform(AddNode::make(in1->in(1), in2->in(1), bt));
