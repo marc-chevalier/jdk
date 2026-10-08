@@ -2364,7 +2364,6 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
   assert(oop_off_1 == -1 || oop_off_1 == 0 || oop_off_1 == 4, "invalid layout for %s, first oop at offset %d", vk->name()->as_utf8(), oop_off_1);
   assert(oop_off_2 == -1 || oop_off_2 == 4, "invalid layout for %s, second oop at offset %d", vk->name()->as_utf8(), oop_off_2);
   BasicType payload_bt = vk->atomic_size_to_basic_type(_null_free);
-  kit.insert_mem_bar(Op_MemBarCPUOrder);
   if (!UseG1GC || oop_off_1 == -1) {
     // No oop fields or no late barrier expansion. Emit an atomic store of the payload and add GC barriers if needed.
     assert(oop_off_2 == -1 || !UseG1GC, "sanity");
@@ -2379,10 +2378,9 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
     Node* oop_offset = (oop_off_2 == -1) ? igvn.intcon(oop_off_1) : nullptr;
     Node* mem = kit.reset_memory();
     kit.set_all_memory(mem);
-    Node* store = igvn.transform(new StoreLSpecialNode(kit.control(), mem, ptr, TypeRawPtr::BOTTOM, payload, oop_offset, MemNode::unordered));
-    kit.set_memory(store, TypeRawPtr::BOTTOM);
+    Node* store = igvn.transform(new StoreLSpecialNode(kit.control(), mem, ptr, TypePtr::BOTTOM, payload, oop_offset, MemNode::unordered));
+    kit.set_all_memory(store);
   }
-  kit.insert_mem_bar(Op_MemBarCPUOrder);
 
   Node* old_ctrl = proj_out_or_null(TypeFunc::Control);
   if (old_ctrl != nullptr) {

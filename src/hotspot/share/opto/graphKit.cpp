@@ -1727,12 +1727,22 @@ Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt,
                                 bool mismatched,
                                 bool unsafe,
                                 int barrier_data) {
-  int adr_idx = C->get_alias_index(_gvn.type(adr)->isa_ptr());
+  int adr_idx =
+    mismatched
+    ? Compile::AliasIdxBot
+    : C->get_alias_index(_gvn.type(adr)->isa_ptr());
   assert(adr_idx != Compile::AliasIdxTop, "use other store_to_memory factory" );
   const TypePtr* adr_type = nullptr;
-  DEBUG_ONLY(adr_type = C->get_adr_type(adr_idx));
-  Node *mem = memory(adr_idx);
-  Node* st = StoreNode::make(_gvn, ctl, mem, adr, adr_type, val, bt, mo, require_atomic_access);
+  Node* mem;
+  if (mismatched) {
+    mem = reset_memory();
+    set_all_memory(mem);
+    adr_type = TypePtr::BOTTOM;
+  } else {
+    mem = memory(adr_idx);
+    adr_type = C->get_adr_type(adr_idx);
+  }
+  Node* st = StoreNode::make(_gvn, ctl, mem, adr, adr_type, val, bt, mo, require_atomic_access, mismatched);
   if (unaligned) {
     st->as_Store()->set_unaligned_access();
   }
@@ -1744,7 +1754,11 @@ Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt,
   }
   st->as_Store()->set_barrier_data(barrier_data);
   st = _gvn.transform(st);
-  set_memory(st, adr_idx);
+  if (mismatched) {
+    set_all_memory(st);
+  } else {
+    set_memory(st, adr_idx);
+  }
   // Back-to-back stores can only remove intermediate store with DU info
   // so push on worklist for optimizer.
   if (mem->req() > MemNode::Address && adr == mem->in(MemNode::Address))

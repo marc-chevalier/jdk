@@ -1794,12 +1794,12 @@ MachNode *Matcher::ReduceInst( State *s, int rule, Node *&mem ) {
             m->in(MemNode::Address)->in(AddPNode::Address)->in(AddPNode::Address)->is_DecodeNarrowPtr()))) {
         mach_at = m->adr_type();
       }
-      if (m->adr_type() != mach_at) {
+      if (!m->as_Mem()->is_mismatched_access() && m->adr_type() != mach_at) {
         m->dump();
         tty->print_cr("mach:");
         mach->dump(1);
       }
-      assert(m->adr_type() == mach_at, "matcher should not change adr type");
+      assert(m->as_Mem()->is_mismatched_access() || m->adr_type() == mach_at, "matcher should not change adr type");
     }
 #endif
   }

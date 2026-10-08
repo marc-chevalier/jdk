@@ -42,17 +42,16 @@ class PhaseTransform;
 // Load or Store, possibly throwing a null pointer exception
 class MemNode : public Node {
 private:
-  bool _unaligned_access; // Unaligned access from unsafe
-  bool _mismatched_access; // Mismatched access from unsafe: byte read in integer array for instance
-  bool _unsafe_access;     // Access of unsafe origin.
-  uint8_t _barrier_data;   // Bit field with barrier information
+  bool _unaligned_access;  // Unaligned access from unsafe
+  bool _mismatched_access;  // Mismatched access from unsafe: byte read in integer array for instance
+  bool _unsafe_access;  // Access of unsafe origin
+  uint8_t _barrier_data;  // Bit field with barrier information
 
   friend class AccessAnalyzer;
 
 protected:
-#ifdef ASSERT
   const TypePtr* _adr_type;     // What kind of memory is being addressed?
-#endif
+
   virtual uint size_of() const;
 public:
   enum { Control,               // When is it safe to do this load?
@@ -74,7 +73,8 @@ protected:
       _unsafe_access(false),
       _barrier_data(0) {
     init_class_id(Class_Mem);
-    DEBUG_ONLY(_adr_type=at; adr_type();)
+    _adr_type=at;
+    validate_adr_type();
   }
   MemNode( Node *c0, Node *c1, Node *c2, const TypePtr* at, Node *c3 ) :
       Node(c0,c1,c2,c3),
@@ -83,7 +83,8 @@ protected:
       _unsafe_access(false),
       _barrier_data(0) {
     init_class_id(Class_Mem);
-    DEBUG_ONLY(_adr_type=at; adr_type();)
+    _adr_type=at;
+    validate_adr_type();
   }
   MemNode( Node *c0, Node *c1, Node *c2, const TypePtr* at, Node *c3, Node *c4) :
       Node(c0,c1,c2,c3,c4),
@@ -92,7 +93,8 @@ protected:
       _unsafe_access(false),
       _barrier_data(0) {
     init_class_id(Class_Mem);
-    DEBUG_ONLY(_adr_type=at; adr_type();)
+    _adr_type=at;
+    validate_adr_type();
   }
 
   virtual Node* find_previous_arraycopy(PhaseValues* phase, Node* ld_alloc, Node*& mem, bool can_see_stored_value) const { return nullptr; }
@@ -114,8 +116,15 @@ public:
     DomResult dom_result = maybe_all_controls_dominate(dom, sub, phase);
     return dom_result == DomResult::Dominate;
   }
-
-  virtual const class TypePtr *adr_type() const;  // returns bottom_type of address
+  [[nodiscard]] const TypePtr* adr_type_from_inputs() const;  // returns bottom_type of address
+  void validate_adr_type() const NOT_DEBUG_RETURN;
+  [[nodiscard]] virtual const TypePtr* adr_type() const {
+    if (_mismatched_access) {
+      return _adr_type;
+    } else {
+      return adr_type_from_inputs();
+    }
+  }
 
   // Shared code for Ideal methods:
   Node *Ideal_common(PhaseGVN *phase, bool can_reshape);  // Return -1 for short-circuit null.
@@ -688,7 +697,8 @@ public:
   // point to a new object and may become externally visible.
   static StoreNode* make(PhaseGVN& gvn, Node* c, Node* mem, Node* adr,
                          const TypePtr* at, Node* val, BasicType bt,
-                         MemOrd mo, bool require_atomic_access = false);
+                         MemOrd mo, bool require_atomic_access = false,
+                         bool unsound_address = false);
 
   virtual uint hash() const;    // Check the type
 
