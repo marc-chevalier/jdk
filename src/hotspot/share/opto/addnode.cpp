@@ -127,11 +127,12 @@ static bool commute(PhaseGVN* phase, Node* add) {
   return false;
 }
 
-//------------------------------Idealize---------------------------------------
-// If we get here, we assume we are associative!
-Node *AddNode::Ideal(PhaseGVN *phase, bool can_reshape) {
-  const Type *t1 = phase->type(in(1));
-  const Type *t2 = phase->type(in(2));
+// If we get here, we assume '+' is
+// - associative: (a + b) + c = a + (b + c)
+// - commutative: a + b = b + a
+Node* AddNode::Ideal(PhaseGVN* phase, bool can_reshape) {
+  const Type* t1 = phase->type(in(1));
+  const Type* t2 = phase->type(in(2));
   bool con_left  = t1->singleton();
   bool con_right = t2->singleton();
 
