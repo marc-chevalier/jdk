@@ -371,17 +371,17 @@ private:
 // Used for card-marks and unsafe pointer math.
 class CastP2XNode : public Node {
   public:
-  CastP2XNode( Node *ctrl, Node *n ) : Node(ctrl, n) {}
-  virtual int Opcode() const;
-  virtual const Type* Value(PhaseGVN* phase) const;
-  virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual Node* Identity(PhaseGVN* phase);
-  virtual uint ideal_reg() const { return Op_RegX; }
-  virtual const Type *bottom_type() const { return TypeX_X; }
+  CastP2XNode(Node* ctrl, Node* n) : Node(ctrl, n) {}
+  int Opcode() const override;
+  const Type* Value(PhaseGVN* phase) const override;
+  Node* Ideal(PhaseGVN* phase, bool can_reshape) override;
+  Node* Identity(PhaseGVN* phase) override;
+  uint ideal_reg() const override { return Op_RegX; }
+  const Type* bottom_type() const override { return TypeX_X; }
 
 private:
   // Return false to keep node from moving away from an associated card mark.
-  virtual bool depends_only_on_test_impl() const { return false; }
+  bool depends_only_on_test_impl() const override { return false; }
 };
 
 #endif // SHARE_OPTO_CASTNODE_HPP
