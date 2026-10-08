@@ -76,13 +76,45 @@ static Node *step_through_mergemem(PhaseGVN *phase, MergeMemNode *mmem,  const T
 //=============================================================================
 uint MemNode::size_of() const { return sizeof(*this); }
 
-const TypePtr *MemNode::adr_type() const {
+const TypePtr* MemNode::adr_type_from_inputs() const {
   Node* adr = in(Address);
   if (adr == nullptr)  return nullptr; // node is dead
   const TypePtr* cross_check = nullptr;
   DEBUG_ONLY(cross_check = _adr_type);
   return calculate_adr_type(adr->bottom_type(), cross_check);
 }
+
+#ifdef ASSERT
+void MemNode::validate_adr_type() const {
+  if (!Compile::current()->do_aliasing()) return;
+  if (is_mismatched_access()) {
+    assert(_adr_type != nullptr, "give me a valid adr_type!");
+    return;
+  }
+  const TypePtr* from_input = adr_type_from_inputs();
+  const TypePtr* from_ctor = adr_type();
+  if (from_input != from_ctor) {
+    stringStream ss;
+#ifdef PRODUCT
+    ss.print("incompatible adr_type");
+#else
+    ss.print("incompatible adr_type: given at construction=");
+    if (from_ctor != nullptr) {
+      from_ctor->dump_on(&ss);
+    } else {
+      ss.print("nullptr");
+    }
+    ss.print(" != computed from inputs=");
+    if (from_input != nullptr) {
+      from_input->dump_on(&ss);
+    } else {
+      ss.print("nullptr");
+    }
+#endif
+    assert(from_input == from_ctor, "%s", ss.as_string());
+  }
+}
+#endif
 
 bool MemNode::check_if_adr_maybe_raw(Node* adr) {
   if (adr != nullptr) {
@@ -494,9 +526,8 @@ Node *MemNode::Ideal_common(PhaseGVN *phase, bool can_reshape) {
     return NodeSentinel; // caller will return null
   }
 
-  Node *address = in(MemNode::Address);
-  const Type *t_adr = phase->type(address);
-  if (t_adr == Type::TOP)              return NodeSentinel; // caller will return null
+  const Type* t_adr = adr_type();
+  if (t_adr == nullptr || t_adr == Type::TOP) return NodeSentinel; // caller will return null
 
   if (can_reshape && is_unsafe_access() && (t_adr == TypePtr::NULL_PTR)) {
     // Unsafe off-heap access with zero address. Remove access and other control users
@@ -516,18 +547,14 @@ Node *MemNode::Ideal_common(PhaseGVN *phase, bool can_reshape) {
     return this;
   }
 
-  if (can_reshape && igvn != nullptr &&
-      (igvn->_worklist.member(address) ||
-       (igvn->_worklist.size() > 0 && t_adr != adr_type())) ) {
-    // The address's base and type may change when the address is processed.
-    // Delay this mem node transformation until the address is processed.
-    igvn->_worklist.push(this);
-    return NodeSentinel; // caller will return null
-  }
-
-  // Weird access to null+offset, either is a dead unsafe access that cannot be proved to be so, or
-  // should be folded later
   if (t_adr->base() == Type::AnyPtr) {
+    if (is_mismatched_access()) {
+      // We have a mismatched access whose warning you that the address type is not a sound
+      // approximation of what memory can be touched (and in doubt, can be everything).
+      return nullptr;
+    }
+    // Weird access to null+offset, either is a dead unsafe access that cannot be proved to be so, or
+    // should be folded later
     assert(t_adr->is_ptr()->ptr() == TypePtr::Null, "must be null");
     return NodeSentinel; // caller will return null
   }
@@ -938,7 +965,7 @@ AccessAnalyzer::AccessIndependence AccessAnalyzer::detect_access_independence(No
     return {false, _phase->C->top()};
   } else if (_adr_type->base() == TypePtr::AnyPtr) {
     // An example for this case is an access into the memory address 0 performed using Unsafe
-    assert(_adr_type->ptr() == TypePtr::Null, "MemNode should never access a wide memory");
+    assert(_adr_type->ptr() == TypePtr::Null || !Compile::current()->do_aliasing() || _n->is_mismatched_access(), "MemNode should never access a wide memory");
     return {false, nullptr};
   }
 
@@ -3119,10 +3146,10 @@ Node* LoadRangeNode::Identity(PhaseGVN* phase) {
 //=============================================================================
 //---------------------------StoreNode::make-----------------------------------
 // Polymorphic factory method:
-StoreNode* StoreNode::make(PhaseGVN& gvn, Node* ctl, Node* mem, Node* adr, const TypePtr* adr_type, Node* val, BasicType bt, MemOrd mo, bool require_atomic_access) {
+StoreNode* StoreNode::make(PhaseGVN& gvn, Node* ctl, Node* mem, Node* adr, const TypePtr* adr_type, Node* val, BasicType bt, MemOrd mo, bool require_atomic_access, bool unsound_address) {
   assert((mo == unordered || mo == release), "unexpected");
   Compile* C = gvn.C;
-  assert(adr_type == nullptr || adr->is_top() || C->get_alias_index(gvn.type(adr)->is_ptr()) == C->get_alias_index(adr_type), "adr and adr_type must agree");
+  assert(adr_type == nullptr || adr->is_top() || C->get_alias_index(gvn.type(adr)->is_ptr()) == C->get_alias_index(adr_type) || (unsound_address && adr_type == TypePtr::BOTTOM), "adr and adr_type must agree");
   assert(C->get_alias_index(adr_type) != Compile::AliasIdxRaw ||
          ctl != nullptr, "raw memory operations should have control edge");
 
@@ -3863,30 +3890,19 @@ Node *StoreNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 
   // Capture an unaliased, unconditional, simple store into an initializer.
   // Or, if it is independent of the allocation, hoist it above the allocation.
-  if (ReduceFieldZeroing /*&& can_reshape*/) {
-    InitializeNode* init = nullptr;
-    if (mem->is_Proj() && mem->in(0)->is_Initialize()) {
-      init = mem->in(0)->as_Initialize();
-    } else if (
-      mem->is_Proj() && mem->in(0)->Opcode() == Op_MemBarCPUOrder &&
-      mem->in(0)->in(TypeFunc::Memory) != nullptr && mem->in(0)->in(TypeFunc::Memory)->is_MergeMem() &&
-      mem->in(0)->in(TypeFunc::Memory)->in(Compile::AliasIdxRaw) != nullptr &&
-      mem->in(0)->in(TypeFunc::Memory)->in(Compile::AliasIdxRaw)->is_Proj() &&
-      mem->in(0)->in(TypeFunc::Memory)->in(Compile::AliasIdxRaw)->in(0)->is_Initialize()
-    ) {
-      init = mem->in(0)->in(TypeFunc::Memory)->in(Compile::AliasIdxRaw)->in(0)->as_Initialize();
-    }
-    if (init != nullptr) {
-      intptr_t offset = init->can_capture_store(this, phase, can_reshape);
-      if (offset > 0) {
-        Node* moved = init->capture_store(this, offset, phase, can_reshape);
-        // If the InitializeNode captured me, it made a raw copy of me,
-        // and I need to disappear.
-        if (moved != nullptr) {
-          // %%% hack to ensure that Ideal returns a new node:
-          mem = MergeMemNode::make(mem);
-          return mem;             // fold me away
-        }
+  if (Node* control = in(MemNode::Control);
+    ReduceFieldZeroing && /*can_reshape &&*/
+    control != nullptr && control->is_Proj() && control->in(0)->is_Initialize()) {
+    InitializeNode* init = control->in(0)->as_Initialize();
+    intptr_t offset = init->can_capture_store(this, phase, can_reshape);
+    if (offset > 0) {
+      Node* moved = init->capture_store(this, offset, phase, can_reshape);
+      // If the InitializeNode captured me, it made a raw copy of me,
+      // and I need to disappear.
+      if (moved != nullptr) {
+        // %%% hack to ensure that Ideal returns a new node:
+        mem = MergeMemNode::make(mem);
+        return mem;             // fold me away
       }
     }
   }
@@ -5012,15 +5028,17 @@ MemBarNode* MemBarNode::leading_membar() const {
 }
 
 Node* MemBarCPUOrderNode::Identity(PhaseGVN* phase) {
-  if (
-    in(TypeFunc::Control) != nullptr &&
-    in(TypeFunc::Control)->is_Proj() &&
-    in(TypeFunc::Control)->in(0)->Opcode() == Op_MemBarCPUOrder &&
-    in(TypeFunc::Memory) != nullptr &&
-    in(TypeFunc::Memory)->is_Proj() &&
-    in(TypeFunc::Control)->in(0) == in(TypeFunc::Memory)->in(0)
-  ) {
-    return in(TypeFunc::Control)->in(0);
+  if (UseNewCode) {
+    if (
+      in(TypeFunc::Control) != nullptr &&
+      in(TypeFunc::Control)->is_Proj() &&
+      in(TypeFunc::Control)->in(0)->Opcode() == Op_MemBarCPUOrder &&
+      in(TypeFunc::Memory) != nullptr &&
+      in(TypeFunc::Memory)->is_Proj() &&
+      in(TypeFunc::Control)->in(0) == in(TypeFunc::Memory)->in(0)
+    ) {
+      return in(TypeFunc::Control)->in(0);
+    }
   }
   return MemBarNode::Identity(phase);
 }
@@ -5277,35 +5295,58 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
     return FAIL;                // an inscrutable StoreNode (card mark?)
   }
   Node* ctl = st->in(MemNode::Control);
-  bool through_membar;
-  if (ctl != nullptr && ctl->is_Proj() && ctl->in(0) == this) {
-    through_membar = false;
-  } else if (
-    ctl != nullptr && ctl->is_Proj() &&
-    ctl->in(0) != nullptr && ctl->in(0)->Opcode() == Op_MemBarCPUOrder &&
-    ctl->in(0)->in(0) != nullptr && ctl->in(0)->in(0)->is_Proj() &&
-    ctl->in(0)->in(0)->in(0) == this
-  ) {
-    through_membar = true;
-  } else {
+  if (!(ctl != nullptr && ctl->is_Proj() && ctl->in(0) == this))
     return FAIL;                // must be unconditional after the initialization
-  }
+
   Node* mem = st->in(MemNode::Memory);
-  if (through_membar) {
-    if (!(mem->is_Proj() && mem->in(0) == ctl->in(0) && mem->in(0)->in(TypeFunc::Memory)->is_MergeMem())) {
-      return FAIL;
-    }
-    for (uint i = Compile::AliasIdxRaw; i < mem->in(0)->in(TypeFunc::Memory)->req(); i++) {
-      const Node* in = mem->in(0)->in(TypeFunc::Memory)->in(i);
-      if (!(in != nullptr && in->is_Proj() && in->in(0) == this)) {
-        return FAIL;
-      }
+  if (st->is_mismatched_access()) {
+    if (!mem->is_MergeMem()) return FAIL;
+
+    const TypePtr* in_adr_type = st->adr_type_from_inputs();
+    if (!in_adr_type->isa_instptr()) return FAIL;
+    const TypeInstPtr* in_adr_type_ptr = in_adr_type->is_instptr();
+    ciInstanceKlass* ik = in_adr_type_ptr->instance_klass();
+    int start = in_adr_type_ptr->offset();
+    if (start == Type::OffsetBot || start == Type::OffsetTop) return FAIL;
+    int stop = start + st->memory_size();
+
+    auto slice_comes_from_init = [&](uint idx) -> bool {
+      if (idx >= mem->req()) return false;
+      if (mem->in(idx) == nullptr) return false;
+      if (!mem->in(idx)->is_Proj()) return false;
+      if (mem->in(idx)->in(0) != this) return false;
+      return true;
+    };
+
+    auto slice_comes_from_init_if_meaningful = [&](uint idx, int field_start, int field_stop) -> bool {
+      if (field_start >= stop || start >= field_stop)
+        return true;
+      return slice_comes_from_init(idx);
+    };
+
+    if (!slice_comes_from_init(Compile::AliasIdxRaw)) return FAIL;
+
+    int mark_idx = phase->C->get_alias_index(in_adr_type->with_offset(oopDesc::mark_offset_in_bytes()));
+    if (!slice_comes_from_init_if_meaningful(mark_idx, oopDesc::mark_offset_in_bytes(), oopDesc::mark_offset_in_bytes() + static_cast<int>(sizeof(markWord)))) return FAIL;
+
+    int klass_idx = phase->C->get_alias_index(in_adr_type->with_offset(oopDesc::klass_offset_in_bytes()));
+    if (!slice_comes_from_init_if_meaningful(klass_idx, oopDesc::klass_offset_in_bytes(), oopDesc::klass_offset_in_bytes() + static_cast<int>(sizeof(narrowKlass)))) return FAIL;
+
+    for (int i = 0, len = ik->nof_nonstatic_fields(); i < len; i++) {
+      ciField* field = ik->nonstatic_field_at(i);
+      if (field->offset_in_bytes() >= TrackedInitializationLimit * HeapWordSize)
+        continue;  // do not bother to track really large numbers of fields
+
+      int field_start = field->offset_in_bytes();
+      int field_stop = field_start + field->type()->size();
+      int fieldidx = phase->C->alias_type(field)->index();
+      if (!slice_comes_from_init_if_meaningful(fieldidx, field_start, field_stop)) return FAIL;
     }
   } else {
-    if (!(mem->is_Proj() && mem->in(0) == this)) {
+    if (!(mem->is_Proj() && mem->in(0) == this))
       return FAIL;                // must not be preceded by other stores
-    }
   }
+
   BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
   if ((st->Opcode() == Op_StoreP || st->Opcode() == Op_StoreN) &&
       !bs->can_initialize_object(st)) {
