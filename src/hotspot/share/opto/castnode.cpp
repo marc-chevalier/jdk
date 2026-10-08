@@ -650,8 +650,17 @@ const Type* CastP2XNode::Value(PhaseGVN* phase) const {
   return CastP2XNode::bottom_type();
 }
 
-Node *CastP2XNode::Ideal(PhaseGVN *phase, bool can_reshape) {
-  return (in(0) && remove_dead_region(phase, can_reshape)) ? this : nullptr;
+Node* CastP2XNode::Ideal(PhaseGVN* phase, bool can_reshape) {
+  if (in(0) == nullptr) {
+    return nullptr;
+  }
+
+  if (in(0)->is_Proj() && in(0)->in(0)->is_Initialize()) {
+    set_req(0, in(0)->in(0)->in(InitializeNode::Control));
+    return this;
+  }
+
+  return remove_dead_region(phase, can_reshape) ? this : nullptr;
 }
 
 //------------------------------Identity---------------------------------------
