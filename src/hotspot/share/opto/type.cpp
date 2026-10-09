@@ -3302,7 +3302,7 @@ void TypePtr::dump_flat_in_array(FlatInArray flat_in_array, outputStream* st) {
 // constants
 bool TypePtr::singleton(void) const {
   // TopPTR, Null, Constant are all singletons
-  return (_offset != Offset::bottom) && is_at_most_uniquely_inhabited(_ptr);
+  return (_offset != Offset::bottom) && is_uniquely_inhabited(_ptr);
 }
 
 bool TypePtr::empty(void) const {
@@ -4224,7 +4224,7 @@ void TypeOopPtr::dump_instance_id(outputStream* st) const {
 bool TypeOopPtr::singleton(void) const {
   // detune optimizer to not generate constant oop + constant offset as a constant!
   // TopPTR, Null, Constant are all singletons
-  return (offset() == 0) && is_at_most_uniquely_inhabited(_ptr);
+  return (offset() == 0) && is_uniquely_inhabited(_ptr);
 }
 
 //------------------------------add_offset-------------------------------------
@@ -5437,7 +5437,7 @@ uint TypeMetadataPtr::hash(void) const {
 bool TypeMetadataPtr::singleton(void) const {
   // detune optimizer to not generate constant metadata + constant offset as a constant!
   // TopPTR, Null, Constant are all singletons
-  return (offset() == 0) && is_at_most_uniquely_inhabited(_ptr);
+  return (offset() == 0) && is_uniquely_inhabited(_ptr);
 }
 
 //------------------------------add_offset-------------------------------------
@@ -5687,7 +5687,7 @@ uint TypeKlassPtr::hash(void) const {
 bool TypeKlassPtr::singleton(void) const {
   // detune optimizer to not generate constant klass + constant offset as a constant!
   // TopPTR, Null, Constant are all singletons
-  return (offset() == 0) && is_at_most_uniquely_inhabited(_ptr);
+  return (offset() == 0) && is_uniquely_inhabited(_ptr);
 }
 
 // Do not allow interface-vs.-noninterface joins to collapse to top.
