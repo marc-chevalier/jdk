@@ -377,7 +377,7 @@ static void add_users_to_worklist_if(Unique_Node_List<Node>& worklist, const Nod
 //------------------------------PhaseRemoveUseless-----------------------------
 // 1) Use a breadthfirst walk to collect useful nodes reachable from root.
 PhaseRemoveUseless::PhaseRemoveUseless(PhaseGVN* gvn, Unique_Node_List<Node>& worklist, PhaseNumber phase_num) : Phase(phase_num) {
-  C->print_method(PHASE_BEFORE_REMOVEUSELESS, 3);
+  C->print_method(PHASE_BEFORE_REMOVEUSELESS, 50);
   // Implementation requires an edge from root to each SafePointNode
   // at a backward branch. Inserted in add_safepoint().
 
