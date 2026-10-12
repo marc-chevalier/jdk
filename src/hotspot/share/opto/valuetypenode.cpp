@@ -2369,7 +2369,7 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
     assert(oop_off_2 == -1 || !UseG1GC, "sanity");
     // ZGC does not support compressed oops, so only one oop can be in the payload which is written by a "normal" oop store.
     assert((oop_off_1 == -1 && oop_off_2 == -1) || !UseZGC, "ZGC does not support embedded oops in flat fields");
-    kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, Type::get_const_basic_type(payload_bt), payload_bt, _decorators | C2_MISMATCHED, true, value);
+    kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, Type::get_const_basic_type(payload_bt), payload_bt, _decorators | C2_MISMATCHED | C2_UNSOUND_ADDRESS_ACCESS, true, value);
   } else {
     // Contains oops and requires late barrier expansion. Emit a special store node that allows to emit GC barriers in the backend.
     assert(UseG1GC, "Unexpected GC");

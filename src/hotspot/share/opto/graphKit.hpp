@@ -585,11 +585,14 @@ class GraphKit : public Phase {
   // Return the new StoreXNode
   Node* store_to_memory(Node* ctl, Node* adr, Node* val, BasicType bt,
                         MemNode::MemOrd,
-                        bool require_atomic_access = false,
-                        bool unaligned = false,
-                        bool mismatched = false,
-                        bool unsafe = false,
-                        int barrier_data = 0);
+                        bool require_atomic_access,
+                        bool unaligned,
+                        bool mismatched,
+                        bool unsafe,
+                        bool unsound_address,
+                        int barrier_data);
+  Node* store_to_memory(Node* ctl, Node* adr, Node* val, BasicType bt,
+                        MemNode::MemOrd);
 
   // Perform decorated accesses
 
