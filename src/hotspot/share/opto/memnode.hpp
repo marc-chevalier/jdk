@@ -45,6 +45,7 @@ private:
   bool _unaligned_access;  // Unaligned access from unsafe
   bool _mismatched_access;  // Mismatched access from unsafe: byte read in integer array for instance
   bool _unsafe_access;  // Access of unsafe origin
+  bool _unsound_address_access = false;  // Access whose address isn't sound to find which slices have been touched
   uint8_t _barrier_data;  // Bit field with barrier information
 
   friend class AccessAnalyzer;
@@ -173,6 +174,8 @@ public:
   bool is_mismatched_access() const { return _mismatched_access; }
   void set_unsafe_access() { _unsafe_access = true; }
   bool is_unsafe_access() const { return _unsafe_access; }
+  void set_unsound_address_access() { _unsound_address_access = true; }
+  bool is_unsound_address_access() const { return _unsound_address_access; }
 
 #ifndef PRODUCT
   static void dump_adr_type(const TypePtr* adr_type, outputStream* st);
@@ -796,6 +799,7 @@ public:
   StoreLSpecialNode(Node* c, Node* mem, Node* adr, const TypePtr* at, Node* val, Node* oop_off, MemOrd mo)
     : StoreNode(c, mem, adr, at, val, mo) {
     set_mismatched_access();
+    set_unsound_address_access();
     if (oop_off != nullptr) {
       add_req(oop_off);
     }

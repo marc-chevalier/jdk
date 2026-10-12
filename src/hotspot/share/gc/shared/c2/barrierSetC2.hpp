@@ -57,6 +57,8 @@ const DecoratorSet C2_TIGHTLY_COUPLED_ALLOC  = DECORATOR_LAST << 9;
 const DecoratorSet C2_ARRAY_COPY             = DECORATOR_LAST << 10;
 // Loads from immutable memory
 const DecoratorSet C2_IMMUTABLE_MEMORY       = DECORATOR_LAST << 11;
+// Type of the address is not a sound way to find the affected slices.
+const DecoratorSet C2_UNSOUND_ADDRESS_ACCESS = DECORATOR_LAST << 12;
 
 class Compile;
 class ConnectionGraph;
