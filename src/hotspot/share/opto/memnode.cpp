@@ -3805,13 +3805,34 @@ StoreNode* MergePrimitiveStores::make_merged_store(const Node_List<const StoreNo
   }
 
   StoreNode* merged_store = StoreNode::make(*_phase, last_ctrl, first_mem, first_adr,
-                                            new_adr_type, merged_input_value, bt, MemNode::unordered);
+                                            new_adr_type, merged_input_value, bt, MemNode::unordered,
+                                            false, _store->is_unsound_address_access());
 
   // Marking the store mismatched is sufficient to prevent reordering, since array stores
   // are all on the same slice. Hence, we need no barriers.
   merged_store->set_mismatched_access();
 
-  // Constants above may now also be be packed -> put candidate on worklist
+  // If we store:
+  // - to a non-flat array, there is only one alias class, so the merged store is as unsound as each individual store
+  // - to a flat array, there are multiple alias classes, but either:
+  //   - we merge stores of different, consecutive fields: not possible, since they would be in different slices, so
+  //     they won't have the same memory flowing through
+  //   - we merge stores of different elements (all the slices at once): {
+  //     - either there is one field per element, so we are touching only one slice
+  //     - there are multiple fields per element, and individual stores must already be unsound
+  //   } => either way, merged store is as sound as individual ones
+  // - fields of an object. The only way we would merge that is that if they use and produce the same memory. Since a
+  //   store to a field must affect a memory that contains at least the slice of this field, and different fields have
+  //   different slices, the stores must have the same memory if they use something containing both slices: that is
+  //   the whole, wide memory. Which means we have already unsound accesses. This happens if we are merging two stores
+  //   saving neighboring flatten fields of the same size.
+  //
+  //   Overall, we are creating an unsound store, only if the original stores are also unsound.
+  if (_store->is_unsound_address_access()) {
+    merged_store->set_unsound_address_access();
+  }
+
+  // Constants above may now also be packed -> put candidate on worklist
   _phase->is_IterGVN()->_worklist.push(first_mem);
 
   return merged_store;
