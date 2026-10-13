@@ -28,13 +28,27 @@ import jdk.test.lib.Asserts;
 
 /**
  * @test
- * @bug 8391280
+ * @bug 8391280 8393019
  * @summary Test macro expansion of merged flat-array checks with array and klass inputs
+ * @key stress randomness
+ * @requires vm.compiler2.enabled
  * @enablePreview
  * @library /test/lib
  * @modules java.base/jdk.internal.value
  * @run main ${test.main.class}
  * @run main/othervm -Xbatch
+ *                   -XX:CompileCommand=compileonly,${test.main.class}::test*
+ *                   ${test.main.class}
+ * @run main/othervm -Xbatch -XX:-TieredCompilation
+ *                   -XX:+UnlockDiagnosticVMOptions
+ *                   -XX:ConditionalMoveLimit=4
+ *                   -XX:+StressIGVN -XX:StressSeed=4
+ *                   -XX:CompileCommand=compileonly,${test.main.class}::test*
+ *                   ${test.main.class}
+ * @run main/othervm -Xbatch -XX:-TieredCompilation
+ *                   -XX:+UnlockDiagnosticVMOptions
+ *                   -XX:ConditionalMoveLimit=4
+ *                   -XX:+StressIGVN
  *                   -XX:CompileCommand=compileonly,${test.main.class}::test*
  *                   ${test.main.class}
  */
@@ -103,6 +117,24 @@ public class TestFlatArrayCheckExpansion {
         return res;
     }
 
+    // TODO comment
+    static int test5(Object[] array, int i) {
+        boolean notFlat = !ValueClass.isFlatArray(array);
+        Object value = array[i];
+        return (notFlat ? 1 : 2) + (value == null ? 4 : 8);
+    }
+
+    // TODO comment
+    static int test6(Object[] array) {
+        int res = 0;
+        for (int i = 0; i < 4; i++) {
+            boolean notFlat = !ValueClass.isFlatArray(array);
+            Object value = array[i];
+            res += (notFlat ? 1 : 2) + (value == null ? 4 : 8);
+        }
+        return res;
+    }
+
     public static void main(String[] args) {
         Object[] refArray = {1, 2, 3, 4};
         Integer[] flatArray = {1, 2, 3, 4};
@@ -124,6 +156,12 @@ public class TestFlatArrayCheckExpansion {
             Asserts.assertEQ(test4(refArray, flatArray), 18);
             Asserts.assertEQ(test4(flatArray, refArray), isFlat ? 14 : 18);
             Asserts.assertEQ(test4(flatArray, flatArray), isFlat ? 14 : 18);
+
+            Asserts.assertEQ(test5(refArray, 0), 9);
+            Asserts.assertEQ(test5(flatArray, 0), isFlat ? 10 : 9);
+
+            Asserts.assertEQ(test6(refArray), 36);
+            Asserts.assertEQ(test6(flatArray), isFlat ? 40 : 36);
         }
     }
 }

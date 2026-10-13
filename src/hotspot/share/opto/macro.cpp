@@ -3089,12 +3089,18 @@ void PhaseMacroExpand::expand_subtypecheck_node(SubTypeCheckNode *check) {
 // }
 void PhaseMacroExpand::expand_flatarraycheck_node(FlatArrayCheckNode* check) {
   bool use_mark_word = _igvn.type(check->in(FlatArrayCheckNode::ArrayOrKlass))->isa_oopptr() != nullptr;
-  Node* bol = check->unique_out();
-  for (DUIterator_Fast imax, i = bol->fast_outs(imax); i < imax; i++) {
-    if (!bol->fast_out(i)->is_If()) {
-      // No control input, fall back to layout helper check
-      use_mark_word = false;
-      break;
+  Unique_Node_List outputs;
+
+  for (DUIterator_Fast imax, i = check->fast_outs(imax); i < imax; i++) {
+    Node* bol = check->fast_out(i);
+    assert(bol->is_Bool(), "not a BoolNode??? Got: %s", bol->Name());
+    outputs.push(bol);
+    for (DUIterator_Fast jmax, j = bol->fast_outs(jmax); j < jmax; j++) {
+      if (!bol->fast_out(j)->is_If()) {
+        // No control input, fall back to layout helper check
+        use_mark_word = false;
+        break;
+      }
     }
   }
 
@@ -3112,15 +3118,25 @@ void PhaseMacroExpand::expand_flatarraycheck_node(FlatArrayCheckNode* check) {
     }
     assert(!mark->is_Con(), "Should have been optimized out");
 
-    // Replace the bool node
-    assert(bol->is_Bool() && bol->as_Bool()->_test._test == BoolTest::ne, "unexpected condition");
-
     // Check if flat array bits are set
     Node* mask = MakeConX(markWord::flat_array_bit_in_place);
     Node* masked = _igvn.transform(new AndXNode(mark, mask));
     Node* cmp = _igvn.transform(new CmpXNode(masked, MakeConX(0)));
-    Node* is_not_flat = _igvn.transform(new BoolNode(cmp, BoolTest::eq));
-    _igvn.replace_node(bol, is_not_flat);
+
+    // Replace the bool nodes
+    for (uint i = 0; i < outputs.size(); ++i) {
+      Node* bol = outputs.at(i);
+      assert(bol->is_Bool(), "unexpected node type");
+      if (bol->as_Bool()->_test._test == BoolTest::ne) {
+        Node* is_not_flat = _igvn.transform(new BoolNode(cmp, BoolTest::eq));
+        _igvn.replace_node(bol, is_not_flat);
+      } else if (bol->as_Bool()->_test._test == BoolTest::eq) {
+        Node* is_flat = _igvn.transform(new BoolNode(cmp, BoolTest::ne));
+        _igvn.replace_node(bol, is_flat);
+      } else {
+        assert(bol->as_Bool()->_test._test == BoolTest::ne || bol->as_Bool()->_test._test == BoolTest::eq, "unexpected condition");
+      }
+    }
 
     _igvn.replace_node(check, C->top());
   } else {
@@ -3146,14 +3162,24 @@ void PhaseMacroExpand::expand_flatarraycheck_node(FlatArrayCheckNode* check) {
     Node* cmp = transform_later(new CmpINode(masked, intcon(0)));
     Node* new_bol = transform_later(new BoolNode(cmp, BoolTest::eq));
     Node* m2b = transform_later(new Conv2BNode(masked));
+
+    Node* new_bol_flipped = transform_later(new BoolNode(cmp, BoolTest::ne));
+    Node* m2b_flipped = transform_later(new XorINode(m2b, intcon(1)));
     // The matcher expects the input to If/CMove nodes to be produced by a Bool(CmpI..)
     // pattern, but the input to other potential users (e.g. Phi) to be some
     // other pattern (e.g. a Conv2B node, possibly idealized as a CMoveI).
-    for (DUIterator_Last imin, i = bol->last_outs(imin); i >= imin; --i) {
-      Node* user = bol->last_out(i);
-      for (uint j = 0; j < user->req(); j++) {
-        if (user->in(j) == bol) {
-          _igvn.replace_input_of(user, j, (user->is_If() || user->is_CMove()) ? new_bol : m2b);
+    for (uint i = 0; i < outputs.size(); ++i) {
+      Node* bol = outputs.at(i);
+      for (DUIterator_Last jmin, j = bol->last_outs(jmin); j >= jmin; --j) {
+        Node* user = bol->last_out(j);
+        bool flip = bol->is_Bool() && bol->as_Bool()->_test._test == BoolTest::eq;
+        Node* maybe_flipped_bol = flip ? new_bol_flipped : new_bol;
+        Node* maybe_flipped_m2b = flip ? m2b_flipped : m2b;
+        Node* replacement = user->is_If() || user->is_CMove() ? maybe_flipped_bol : maybe_flipped_m2b;
+        for (uint k = 0; k < user->req(); k++) {
+          if (user->in(k) == bol) {
+            _igvn.replace_input_of(user, k, replacement);
+          }
         }
       }
     }
