@@ -152,6 +152,9 @@ void MemNode::dump_spec(outputStream *st) const {
   if (_unsafe_access) {
     st->print(" unsafe");
   }
+  if (_unsound_address_access) {
+    st->print(" unsound-address");
+  }
   st->print(" barrier(0x%x)", _barrier_data);
 }
 
@@ -544,9 +547,12 @@ Node *MemNode::Ideal_common(PhaseGVN *phase, bool can_reshape) {
   // Weird access to null+offset, either is a dead unsafe access that cannot be proved to be so, or
   // should be folded later
   if (t_adr->base() == Type::AnyPtr) {
-    if (is_mismatched_access()) {
-      // We have a mismatched access whose warning you that the address type is not a sound
+    if (is_unsound_address_access()) {
+      // We have an access whose warning you that the address type is not a sound
       // approximation of what memory can be touched (and in doubt, can be everything).
+      // Doesn't mean the node is bad/dead/... But we can't do anything with it here. The
+      // caller may try.
+      assert(t_adr == TypePtr::BOTTOM, "adr_type of unsound-addressed accesses must be bottom");  // in particular not a crazy null+offset
       return nullptr;
     }
     // Weird access to null+offset, either is a dead unsafe access that cannot be proved to be so, or
