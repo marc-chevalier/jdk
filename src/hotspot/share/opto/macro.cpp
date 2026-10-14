@@ -3093,7 +3093,7 @@ void PhaseMacroExpand::expand_flatarraycheck_node(FlatArrayCheckNode* check) {
 
   for (DUIterator_Fast imax, i = check->fast_outs(imax); i < imax; i++) {
     Node* bol = check->fast_out(i);
-    assert(bol->is_Bool(), "not a BoolNode??? Got: %s", bol->Name());
+    assert(bol->is_Bool(), "expected Bool node, but got: %s", bol->Name());
     outputs.push(bol);
     for (DUIterator_Fast jmax, j = bol->fast_outs(jmax); j < jmax; j++) {
       if (!bol->fast_out(j)->is_If()) {
@@ -3126,18 +3126,18 @@ void PhaseMacroExpand::expand_flatarraycheck_node(FlatArrayCheckNode* check) {
     // Replace the bool nodes
     for (uint i = 0; i < outputs.size(); ++i) {
       Node* bol = outputs.at(i);
-      assert(bol->is_Bool(), "unexpected node type");
-      if (bol->as_Bool()->_test._test == BoolTest::ne) {
-        Node* is_not_flat = _igvn.transform(new BoolNode(cmp, BoolTest::eq));
-        _igvn.replace_node(bol, is_not_flat);
-      } else if (bol->as_Bool()->_test._test == BoolTest::eq) {
-        Node* is_flat = _igvn.transform(new BoolNode(cmp, BoolTest::ne));
-        _igvn.replace_node(bol, is_flat);
-      } else {
-        assert(bol->as_Bool()->_test._test == BoolTest::ne || bol->as_Bool()->_test._test == BoolTest::eq, "unexpected condition");
-      }
-    }
+      assert(bol->as_Bool()->_test._test == BoolTest::ne || bol->as_Bool()->_test._test == BoolTest::eq, "unexpected condition");
 
+      // FlatArrayCheckNode returns true if one of the inputs is flat.
+      // - Bool(FlatArrayCheckNode, !=) is testing that the arrays are not flat,
+      //   which means that none of the mark words has the flatness bit on,
+      //   that is `mark & mask == 0`, so we need to build Bool(Cmp(mark & mask, 0), ==).
+      // - Similarly, Bool(FlatArrayCheckNode, ==) is testing that at least one
+      //   array is flat, so we need to build Bool(Cmp(mark & mask, 0), !=).
+      // Hence, the .negate() thereunder.
+      Node* flatness_test = _igvn.transform(new BoolNode(cmp, bol->as_Bool()->_test.negate()));
+      _igvn.replace_node(bol, flatness_test);
+    }
     _igvn.replace_node(check, C->top());
   } else {
     // Fall back to layout helper check
@@ -3160,25 +3160,17 @@ void PhaseMacroExpand::expand_flatarraycheck_node(FlatArrayCheckNode* check) {
     }
     Node* masked = transform_later(new AndINode(lhs, intcon(Klass::_lh_array_tag_flat_value_bit_inplace)));
     Node* cmp = transform_later(new CmpINode(masked, intcon(0)));
-    Node* new_bol = transform_later(new BoolNode(cmp, BoolTest::eq));
-    Node* m2b = transform_later(new Conv2BNode(masked));
 
-    Node* new_bol_flipped = transform_later(new BoolNode(cmp, BoolTest::ne));
-    Node* m2b_flipped = transform_later(new XorINode(m2b, intcon(1)));
-    // The matcher expects the input to If/CMove nodes to be produced by a Bool(CmpI..)
-    // pattern, but the input to other potential users (e.g. Phi) to be some
-    // other pattern (e.g. a Conv2B node, possibly idealized as a CMoveI).
     for (uint i = 0; i < outputs.size(); ++i) {
       Node* bol = outputs.at(i);
       for (DUIterator_Last jmin, j = bol->last_outs(jmin); j >= jmin; --j) {
         Node* user = bol->last_out(j);
-        bool flip = bol->is_Bool() && bol->as_Bool()->_test._test == BoolTest::eq;
-        Node* maybe_flipped_bol = flip ? new_bol_flipped : new_bol;
-        Node* maybe_flipped_m2b = flip ? m2b_flipped : m2b;
-        Node* replacement = user->is_If() || user->is_CMove() ? maybe_flipped_bol : maybe_flipped_m2b;
+        // See comment above for the logic of the .negate().
+        Node* new_bol = transform_later(new BoolNode(cmp, bol->as_Bool()->_test.negate()));
+        assert(user->is_If() || user->is_CMove(), "must be a legit user of Bool node");
         for (uint k = 0; k < user->req(); k++) {
           if (user->in(k) == bol) {
-            _igvn.replace_input_of(user, k, replacement);
+            _igvn.replace_input_of(user, k, new_bol);
           }
         }
       }

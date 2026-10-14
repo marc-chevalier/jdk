@@ -117,14 +117,25 @@ public class TestFlatArrayCheckExpansion {
         return res;
     }
 
-    // TODO comment
+    // Forcing two outputs to the FlatArrayCheck:
+    // Naively, notFlat would be
+    //     CMove(Bool(FlatArrayCheck, !=), false=0, true=1)
+    // But CMove doesn't like having 0 on the false-case (with true-case being constant),
+    // so it is tranformed into
+    //     CMove(Bool(FlatArrayCheck, ==), false=1, true=0)
+    // On the other hand, (notFlat ? 1 : 2)
+    //     CMove(Bool(FlatArrayCheck, !=), false=2, true=1)
+    // So we end up with a FlatArrayCheck with two Bool output:
+    // one with condition "==", and one "!=". This test makes sure we support FlatArrayCheck
+    // with multiple outputs.
     static int test5(Object[] array, int i) {
         boolean notFlat = !ValueClass.isFlatArray(array);
         Object value = array[i];
         return (notFlat ? 1 : 2) + (value == null ? 4 : 8);
     }
 
-    // TODO comment
+    // Pretty much the same as above, but in the situation we want to move the flatness check
+    // above the loop.
     static int test6(Object[] array) {
         int res = 0;
         for (int i = 0; i < 4; i++) {
