@@ -43,12 +43,34 @@ julong uniform_random<julong>() {
   return (julong(os::random()) << 32) | julong(juint(os::random()));
 }
 
+struct TypeTester {
+  template <typename T>
+  static T make(const TypeIntPrototype<typename T::NativeType, typename T::NativeUType>& t, int widen) {
+    auto canonicalized_t = t.canonicalize_constraints();
+    return T(canonicalized_t._data, widen);
+  }
+};
+
 static void test_canonicalize_constraints_trivial() {
   ASSERT_TRUE(TypeInt::CC_NE->contains(-1));
   ASSERT_TRUE(TypeInt::CC_NE->contains(1));
   ASSERT_FALSE(TypeInt::CC_NE->contains(0));
   ASSERT_FALSE(TypeInt::CC_NE->contains(-2));
   ASSERT_FALSE(TypeInt::CC_NE->contains(2));
+
+  {
+    TypeInt non_zero_int = TypeTester::make<TypeInt>(TypeIntPrototype<jint, juint>{{min_jint, max_jint}, {1, max_juint}, {0, 0}}, Type::WidenMin);
+    ASSERT_FALSE(non_zero_int.contains(0));
+    ASSERT_TRUE(non_zero_int.contains(1));
+    ASSERT_TRUE(non_zero_int.contains(-1));
+  }
+
+  {
+    TypeLong non_zero_long = TypeTester::make<TypeLong>(TypeIntPrototype<jlong, julong>{{min_jlong, max_jlong}, {1, max_julong}, {0, 0}}, Type::WidenMin);
+    ASSERT_FALSE(non_zero_long.contains(jlong(0)));
+    ASSERT_TRUE(non_zero_long.contains(jlong(1)));
+    ASSERT_TRUE(non_zero_long.contains(jlong(-1)));
+  }
 }
 
 template <class S, class U>

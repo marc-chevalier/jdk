@@ -787,6 +787,7 @@ private:
   TypeInt(const TypeIntPrototype<jint, juint>& t, int w);
 
   friend class TypeIntHelper;
+  friend struct TypeTester;
 
 protected:
   virtual const Type* filter_helper(const Type* kills, bool include_speculative) const;
@@ -876,6 +877,7 @@ private:
   TypeLong(const TypeIntPrototype<jlong, julong>& t, int w);
 
   friend class TypeIntHelper;
+  friend struct TypeTester;
 
 protected:
   // Do not kill _widen bits.
