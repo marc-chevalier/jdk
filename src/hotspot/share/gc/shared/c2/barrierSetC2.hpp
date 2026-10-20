@@ -59,6 +59,7 @@ const DecoratorSet C2_ARRAY_COPY             = DECORATOR_LAST << 10;
 const DecoratorSet C2_IMMUTABLE_MEMORY       = DECORATOR_LAST << 11;
 // Type of the address is not a sound way to find the affected slices.
 const DecoratorSet C2_UNSOUND_ADDRESS_ACCESS = DECORATOR_LAST << 12;
+const DecoratorSet C2_STORE_SPECIAL = DECORATOR_LAST << 13;
 
 class Compile;
 class ConnectionGraph;
@@ -127,7 +128,7 @@ public:
   Node* base() const              { return _base; }
   C2AccessValuePtr& addr() const  { return _addr; }
   BasicType type() const          { return _type; }
-  bool is_oop() const             { return is_reference_type(_type); }
+  virtual bool is_oop() const     { return is_reference_type(_type); }
   bool is_raw() const             { return (_decorators & AS_RAW) != 0; }
   Node* raw_access() const        { return _raw_access; }
 
@@ -151,26 +152,30 @@ protected:
   GraphKit*         _kit;
   Node* _ctl;
   const ValueTypeNode* _vt; // For flat, atomic accesses that might require GC barriers on oop fields
+  Node* _oop_offset;
 
   void* barrier_set_state() const;
 
 public:
   C2ParseAccess(GraphKit* kit, DecoratorSet decorators,
                 BasicType type, Node* base, C2AccessValuePtr& addr,
-                Node* ctl = nullptr, const ValueTypeNode* vt = nullptr) :
+                Node* ctl = nullptr, const ValueTypeNode* vt = nullptr, Node* oop_offset = nullptr) :
     C2Access(decorators, type, base, addr),
     _kit(kit),
     _ctl(ctl),
-    _vt (vt) {
+    _vt (vt),
+    _oop_offset(oop_offset) {
     fixup_decorators();
   }
 
   GraphKit* kit() const           { return _kit; }
   Node* control() const;
   const ValueTypeNode* vt() const { return _vt; }
+  Node* oop_offset() const { return _oop_offset; }
 
-  virtual PhaseGVN& gvn() const;
-  virtual bool is_parse_access() const { return true; }
+  PhaseGVN& gvn() const override;
+  bool is_parse_access() const override { return true; }
+  bool is_oop() const final { return is_reference_type(_type) || (_decorators & C2_STORE_SPECIAL) != 0; }
 };
 
 // This class wraps a bunch of context parameters that are passed around in the

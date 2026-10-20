@@ -1865,6 +1865,10 @@ void Matcher::combine_adr_type(const Node* n, MachNode* mach) const {
     assert(mach->_in_adr_type == nullptr || mach->_in_adr_type == leaf_in_adr_type, "inconsistent in_adr_type in a subtree");
     mach->_in_adr_type = leaf_in_adr_type;
   }
+
+  if (const StoreNode* store_node = n->isa_Store(); store_node != nullptr) {
+    mach->_unsound_address_from_input = store_node->is_unsound_address_access();
+  }
 }
 
 void Matcher::ReduceInst_Chain_Rule(State* s, int rule, Node* &mem, MachNode* mach) {

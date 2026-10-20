@@ -99,8 +99,6 @@ instruct g1StoreP(memory mem, any_RegP src, rRegP tmp1, rRegP tmp2, rRegP tmp3, 
   ins_pipe(ialu_mem_reg);
 %}
 
-// TODO 8350865 (same applies to g1StoreLSpecialTwoOops)
-// - Do not set/overwrite barrier data here, also handle G1C2BarrierPostNotNull
 instruct g1StoreLSpecialOneOopOff0(memory mem, rRegL src, immI_0 off, rRegP tmp1, rRegP tmp2, rRegP tmp3, rFlagsReg cr)
 %{
   predicate(UseG1GC);
@@ -108,8 +106,6 @@ instruct g1StoreLSpecialOneOopOff0(memory mem, rRegL src, immI_0 off, rRegP tmp1
   effect(TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
   format %{ "movq    $mem, $src\t# g1StoreLSpecialOneOopOff0" %}
   ins_encode %{
-    ((MachNode*)this)->set_barrier_data(G1C2BarrierPre | G1C2BarrierPost);
-
     __ lea($tmp1$$Register, $mem$$Address);
     write_barrier_pre(masm, this,
                       $tmp1$$Register /* obj */,
@@ -137,8 +133,6 @@ instruct g1StoreLSpecialOneOopOff4(memory mem, rRegL src, immI_4 off, rRegP tmp1
   effect(TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
   format %{ "movq    $mem, $src\t# g1StoreLSpecialOneOopOff4" %}
   ins_encode %{
-    ((MachNode*)this)->set_barrier_data(G1C2BarrierPre | G1C2BarrierPost);
-
     // Adjust address to point to narrow oop
     Address dst = $mem$$Address;
     __ lea($tmp1$$Register, dst.plus_disp(4));
@@ -170,8 +164,6 @@ instruct g1StoreLSpecialTwoOops(memory mem, rRegL src, rRegP tmp1, rRegP tmp2, r
   effect(TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
   format %{ "movq    $mem, $src\t# g1StoreLSpecialTwoOops" %}
   ins_encode %{
-    ((MachNode*)this)->set_barrier_data(G1C2BarrierPre | G1C2BarrierPost);
-
     __ lea($tmp1$$Register, $mem$$Address);
     write_barrier_pre(masm, this,
                       $tmp1$$Register /* obj */,
