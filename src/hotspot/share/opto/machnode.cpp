@@ -402,7 +402,9 @@ void MachNode::verify_adr_type(const TypePtr* declared, const TypePtr* verify) c
 
   if (declared != verify && declared->cast_to_ptr_type(TypePtr::BotPTR) != verify) {
     stringStream ss;
+    ss.print("from inputs=");
     verify->dump_on(&ss); ss.cr();
+    ss.print("declared=");
     declared->dump_on(&ss); ss.cr();
     tty->print_cr("%s", ss.as_string());
     assert(false, "adr_type may be incorrect");
@@ -413,6 +415,10 @@ void MachNode::verify_adr_type(const TypePtr* declared, const TypePtr* verify) c
 // Fall-back computation for nodes that miss _adr_type assignments due to post-match expansion,
 // seen on PPC
 const TypePtr* MachNode::compute_adr_type_from_inputs() const {
+  if (_unsound_address_from_input) {
+    return nullptr;
+  }
+
   intptr_t offset = 0;
   const TypePtr *adr_type = TYPE_PTR_SENTINAL;  // attempt computing adr_type
   const Node *base = get_base_and_disp(offset, adr_type);
