@@ -197,7 +197,7 @@ public:
 private:
   const TypePtr* out_adr_type_impl() const final { return is_Load() ? nullptr : in_adr_type_impl(); }
   [[nodiscard]] const TypePtr* in_adr_type_impl() const final {
-    if (_mismatched_access) {
+    if (_unsound_address_access) {
       return _adr_type;
     } else {
       return in_adr_type_from_inputs();
@@ -703,7 +703,7 @@ public:
   static StoreNode* make(PhaseGVN& gvn, Node* c, Node* mem, Node* adr,
                          const TypePtr* at, Node* val, BasicType bt,
                          MemOrd mo, bool require_atomic_access = false,
-                         bool unsound_address = false);
+                         bool unsound_address = false, bool store_special = false, Node* oop_offset = nullptr);
 
   virtual uint hash() const;    // Check the type
 

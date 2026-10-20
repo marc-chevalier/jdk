@@ -2386,17 +2386,20 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
     assert(oop_off_2 == -1 || !UseG1GC, "sanity");
     // ZGC does not support compressed oops, so only one oop can be in the payload which is written by a "normal" oop store.
     assert((oop_off_1 == -1 && oop_off_2 == -1) || !UseZGC, "ZGC does not support embedded oops in flat fields");
-    kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, Type::get_const_basic_type(payload_bt), payload_bt, _decorators | C2_MISMATCHED | C2_UNSOUND_ADDRESS_ACCESS, true, value);
+    kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, Type::get_const_basic_type(payload_bt), payload_bt, _decorators | C2_MISMATCHED | C2_UNSOUND_ADDRESS_ACCESS, true, value, nullptr);
   } else {
     // Contains oops and requires late barrier expansion. Emit a special store node that allows to emit GC barriers in the backend.
     assert(UseG1GC, "Unexpected GC");
     assert(payload_bt == T_LONG, "Unexpected payload type");
     // If one oop, set the offset (if no offset is set, two oops are assumed by the backend)
     Node* oop_offset = (oop_off_2 == -1) ? igvn.intcon(oop_off_1) : nullptr;
+    kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, Type::get_const_basic_type(payload_bt), payload_bt, _decorators | C2_MISMATCHED | C2_UNSOUND_ADDRESS_ACCESS | C2_STORE_SPECIAL, true, value, oop_offset);
+#if 0
     Node* mem = kit.reset_memory();
     kit.set_all_memory(mem);
     Node* store = igvn.transform(new StoreLSpecialNode(kit.control(), mem, ptr, TypePtr::BOTTOM, payload, oop_offset, MemNode::unordered));
     kit.set_all_memory(store);
+#endif
   }
 
   Node* old_ctrl = proj_out_or_null(TypeFunc::Control);

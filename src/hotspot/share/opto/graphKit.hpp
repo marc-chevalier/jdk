@@ -592,7 +592,10 @@ class GraphKit : public Phase {
                         bool mismatched,
                         bool unsafe,
                         bool unsound_address,
-                        int barrier_data);
+                        bool store_special,
+                        int barrier_data,
+                        Node* oop_offset  // != nullptr only if store_special == true
+                        );
   Node* store_to_memory(Node* ctl, Node* adr, Node* val, BasicType bt,
                         MemNode::MemOrd);
 
@@ -605,8 +608,17 @@ class GraphKit : public Phase {
                         const Type* val_type,
                         BasicType bt,
                         DecoratorSet decorators,
-                        bool safe_for_replace = true,
-                        const ValueTypeNode* vt = nullptr);
+                        bool safe_for_replace,
+                        const ValueTypeNode* vt,
+                        Node* oop_offset  // For StoreLSpecial, nullptr otherwise
+                        );
+  Node* access_store_at(Node* obj,   // containing obj
+                        Node* adr,   // actual address to store val at
+                        const TypePtr* adr_type,
+                        Node* val,
+                        const Type* val_type,
+                        BasicType bt,
+                        DecoratorSet decorators);
 
   Node* access_load_at(Node* obj,   // containing obj
                        Node* adr,   // actual address to load val at

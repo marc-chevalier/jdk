@@ -227,7 +227,7 @@ private:
 
 public:
   MachNode() : Node((uint)0), _bottom_type(nullptr), _out_adr_type(TYPE_PTR_SENTINAL), _in_adr_type(TYPE_PTR_SENTINAL),
-               _barrier(0), _num_opnds(0), _opnds(nullptr) {
+               _unsound_address_from_input(false), _barrier(0), _num_opnds(0), _opnds(nullptr) {
     init_class_id(Class_Mach);
   }
   // Required boilerplate
@@ -297,6 +297,7 @@ private:
   // that are matched into it
   const TypePtr* _out_adr_type;
   const TypePtr* _in_adr_type;
+  bool _unsound_address_from_input;
 
 public:
   // The GC might require some barrier metadata for machine code emission.
