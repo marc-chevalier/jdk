@@ -106,6 +106,18 @@ instruct g1StoreLSpecialOneOopOff0(memory mem, rRegL src, immI_0 off, rRegP tmp1
   effect(TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
   format %{ "movq    $mem, $src\t# g1StoreLSpecialOneOopOff0" %}
   ins_encode %{
+    if (this->out_adr_type() == TypeRawPtr::BOTTOM) {
+      assert(this->barrier_data() == 0, "A captured StoreLSpecialOneOopOff0 should have no barrier. Found: %d", this->barrier_data());
+    } else {
+      if (this->out_adr_type() != TypePtr::BOTTOM) {
+        stringStream ss;
+        ss.print("expected TypePtr::BOTTOM memory, but got: ");
+        this->out_adr_type()->dump_on(&ss);
+        assert(this->out_adr_type() == TypePtr::BOTTOM, "%s", ss.as_string());
+      }
+      assert(this->barrier_data() != 0, "A non-captured StoreLSpecialOneOopOff0 should have some barrier. Found: %d", this->barrier_data());
+    }
+
     __ lea($tmp1$$Register, $mem$$Address);
     write_barrier_pre(masm, this,
                       $tmp1$$Register /* obj */,
@@ -133,6 +145,18 @@ instruct g1StoreLSpecialOneOopOff4(memory mem, rRegL src, immI_4 off, rRegP tmp1
   effect(TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
   format %{ "movq    $mem, $src\t# g1StoreLSpecialOneOopOff4" %}
   ins_encode %{
+    if (this->out_adr_type() == TypeRawPtr::BOTTOM) {
+      assert(this->barrier_data() == 0, "A captured g1StoreLSpecialOneOopOff4 should have no barrier. Found: %d", this->barrier_data());
+    } else {
+      if (this->out_adr_type() != TypePtr::BOTTOM) {
+        stringStream ss;
+        ss.print("expected TypePtr::BOTTOM memory, but got: ");
+        this->out_adr_type()->dump_on(&ss);
+        assert(this->out_adr_type() == TypePtr::BOTTOM, "%s", ss.as_string());
+      }
+      assert(this->barrier_data() != 0, "A non-captured g1StoreLSpecialOneOopOff4 should have some barrier. Found: %d", this->barrier_data());
+    }
+
     // Adjust address to point to narrow oop
     Address dst = $mem$$Address;
     __ lea($tmp1$$Register, dst.plus_disp(4));
@@ -164,6 +188,18 @@ instruct g1StoreLSpecialTwoOops(memory mem, rRegL src, rRegP tmp1, rRegP tmp2, r
   effect(TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
   format %{ "movq    $mem, $src\t# g1StoreLSpecialTwoOops" %}
   ins_encode %{
+    if (this->out_adr_type() == TypeRawPtr::BOTTOM) {
+      assert(this->barrier_data() == 0, "A captured g1StoreLSpecialTwoOops should have no barrier. Found: %d", this->barrier_data());
+    } else {
+      if (this->out_adr_type() != TypePtr::BOTTOM) {
+        stringStream ss;
+        ss.print("expected TypePtr::BOTTOM memory, but got: ");
+        this->out_adr_type()->dump_on(&ss);
+        assert(this->out_adr_type() == TypePtr::BOTTOM, "%s", ss.as_string());
+      }
+      assert(this->barrier_data() != 0, "A non-captured g1StoreLSpecialTwoOops should have some barrier. Found: %d", this->barrier_data());
+    }
+
     __ lea($tmp1$$Register, $mem$$Address);
     write_barrier_pre(masm, this,
                       $tmp1$$Register /* obj */,
