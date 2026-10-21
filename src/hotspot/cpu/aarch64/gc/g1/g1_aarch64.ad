@@ -84,7 +84,20 @@ instruct g1StoreLSpecialOneOopOff0(indirect mem, iRegLNoSp src, immI0 off, iRegP
   ins_cost(INSN_COST);
   format %{ "str  $src, $mem\t# g1StoreLSpecialOneOopOff0" %}
   ins_encode %{
-    ((MachNode*)this)->set_barrier_data(G1C2BarrierPre | G1C2BarrierPost);
+#ifdef ASSERT
+    if (this->out_adr_type() == TypeRawPtr::BOTTOM) {
+      assert(this->barrier_data() == 0, "A captured g1StoreLSpecialOneOopOff4 should have no barrier. Found: %d", this->barrier_data());
+    } else {
+      if (this->out_adr_type() != TypePtr::BOTTOM) {
+        stringStream ss;
+        ss.print("expected TypePtr::BOTTOM memory, but got: ");
+        this->out_adr_type()->dump_on(&ss);
+        assert(this->out_adr_type() == TypePtr::BOTTOM, "%s", ss.as_string());
+      }
+      assert(this->barrier_data() != 0, "A non-captured g1StoreLSpecialOneOopOff4 should have some barrier. Found: %d", this->barrier_data());
+    }
+#endif
+
     write_barrier_pre(masm, this,
                       $mem$$Register /* obj */,
                       $tmp1$$Register /* pre_val */,
@@ -114,7 +127,19 @@ instruct g1StoreLSpecialOneOopOff4(indirect mem, iRegLNoSp src, immI_4 off, iReg
   ins_cost(INSN_COST);
   format %{ "str  $src, $mem\t# g1StoreLSpecialOneOopOff4" %}
   ins_encode %{
-    ((MachNode*)this)->set_barrier_data(G1C2BarrierPre | G1C2BarrierPost);
+#ifdef ASSERT
+    if (this->out_adr_type() == TypeRawPtr::BOTTOM) {
+      assert(this->barrier_data() == 0, "A captured g1StoreLSpecialOneOopOff4 should have no barrier. Found: %d", this->barrier_data());
+    } else {
+      if (this->out_adr_type() != TypePtr::BOTTOM) {
+        stringStream ss;
+        ss.print("expected TypePtr::BOTTOM memory, but got: ");
+        this->out_adr_type()->dump_on(&ss);
+        assert(this->out_adr_type() == TypePtr::BOTTOM, "%s", ss.as_string());
+      }
+      assert(this->barrier_data() != 0, "A non-captured g1StoreLSpecialOneOopOff4 should have some barrier. Found: %d", this->barrier_data());
+    }
+#endif
 
     // Adjust address to point to narrow oop
     __ add($tmp4$$Register, $mem$$Register, 4);
@@ -147,7 +172,19 @@ instruct g1StoreLSpecialTwoOops(indirect mem, iRegLNoSp src, iRegPNoSp tmp1, iRe
   ins_cost(INSN_COST);
   format %{ "str  $src, $mem\t# g1StoreLSpecialTwoOops" %}
   ins_encode %{
-    ((MachNode*)this)->set_barrier_data(G1C2BarrierPre | G1C2BarrierPost);
+#ifdef ASSERT
+    if (this->out_adr_type() == TypeRawPtr::BOTTOM) {
+      assert(this->barrier_data() == 0, "A captured g1StoreLSpecialOneOopOff4 should have no barrier. Found: %d", this->barrier_data());
+    } else {
+      if (this->out_adr_type() != TypePtr::BOTTOM) {
+        stringStream ss;
+        ss.print("expected TypePtr::BOTTOM memory, but got: ");
+        this->out_adr_type()->dump_on(&ss);
+        assert(this->out_adr_type() == TypePtr::BOTTOM, "%s", ss.as_string());
+      }
+      assert(this->barrier_data() != 0, "A non-captured g1StoreLSpecialOneOopOff4 should have some barrier. Found: %d", this->barrier_data());
+    }
+#endif
 
     write_barrier_pre(masm, this,
                       $mem$$Register /* obj */,
