@@ -43,6 +43,8 @@ public:
 
   G1BarrierStubC2(const MachNode* node);
   virtual void emit_code(MacroAssembler& masm) = 0;
+
+  static void verify_store_special_barriers(const MachNode* node) NOT_DEBUG_RETURN;
 };
 
 class G1PreBarrierStubC2 : public G1BarrierStubC2 {

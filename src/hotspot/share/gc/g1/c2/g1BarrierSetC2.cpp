@@ -417,6 +417,27 @@ bool G1BarrierStubC2::post_new_val_may_be_null(const MachNode* node) {
   return (node->barrier_data() & G1C2BarrierPostNotNull) == 0;
 }
 
+#ifdef ASSERT
+void G1BarrierStubC2::verify_store_special_barriers(const MachNode* node) {
+  precond(node->ideal_Opcode() == Op_StoreLSpecial);
+  if (node->out_adr_type() == TypeRawPtr::BOTTOM) {
+    if (node->barrier_data() != 0) {
+      stringStream ss;
+      ss.print("A captured StoreLSpecial should have no barrier. Actual: ");
+      node->dump("", false, &ss);
+      assert(node->barrier_data() == 0, "%s", ss.as_string());
+    }
+  } else {
+    if (node->out_adr_type() != TypePtr::BOTTOM) {
+      stringStream ss;
+      ss.print("expected TypePtr::BOTTOM memory, but got: ");
+      node->out_adr_type()->dump_on(&ss);
+      assert(node->out_adr_type() == TypePtr::BOTTOM, "%s", ss.as_string());
+    }
+  }
+}
+#endif
+
 G1PreBarrierStubC2::G1PreBarrierStubC2(const MachNode* node) : G1BarrierStubC2(node) {}
 
 bool G1PreBarrierStubC2::needs_barrier(const MachNode* node) {
