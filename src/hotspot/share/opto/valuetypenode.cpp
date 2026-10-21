@@ -2393,7 +2393,7 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
     assert(payload_bt == T_LONG, "Unexpected payload type");
     // If one oop, set the offset (if no offset is set, two oops are assumed by the backend)
     Node* oop_offset = (oop_off_2 == -1) ? igvn.intcon(oop_off_1) : nullptr;
-    kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, Type::get_const_basic_type(payload_bt), payload_bt, _decorators | C2_MISMATCHED | C2_UNSOUND_ADDRESS_ACCESS | C2_STORE_SPECIAL, true, value, oop_offset);
+    kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, TypeLong::LONG, T_LONG, _decorators | C2_MISMATCHED | C2_UNSOUND_ADDRESS_ACCESS | C2_STORE_SPECIAL, true, value, oop_offset);
 #if 0
     Node* mem = kit.reset_memory();
     kit.set_all_memory(mem);
