@@ -2379,8 +2379,8 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
 
   int oop_off_1 = -1;
   int oop_off_2 = -1;
-  Node* oop_1 = nullptr;
-  Node* oop_2 = nullptr;
+  Node* oop_1 = igvn.C->top();
+  Node* oop_2 = igvn.C->top();
   Node* payload = convert_to_payload(igvn, kit.control(), value, _null_free, oop_off_1, oop_1, oop_off_2, oop_2);
 
   ciValueKlass* vk = igvn.type(value)->value_klass();
@@ -2401,8 +2401,9 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
     assert(store_special->Opcode() == Op_StoreLSpecial, "must be special");
 
     // If one oop, set the offset (if no offset is set, two oops are assumed by the backend)
-    Node* oop_offset = (oop_off_2 == -1) ? igvn.intcon(oop_off_1) : nullptr;
+    Node* oop_offset = (oop_off_2 == -1) ? igvn.intcon(oop_off_1) : igvn.C->top();
     store_special->add_req(oop_offset);
+    assert(!oop_1->is_top(), "if no oop, the store shouldn't be special");
     store_special->add_req(oop_1);
     store_special->add_req(oop_2);
   }
@@ -2451,10 +2452,10 @@ Node* StoreFlatNode::convert_to_payload(PhaseIterGVN& igvn, Node* ctrl, ValueTyp
       }
 
       field_value = igvn.transform(new EncodePNode(field_value, val_type));
-      if (oop_1 == nullptr) {
+      if (oop_1->is_top()) {
         oop_1 = field_value;
       } else {
-        assert(oop_2 == nullptr, "already set");
+        assert(oop_2->is_top(), "already set");
         oop_2 = field_value;
       }
       field_value = igvn.transform(new CastP2XNode(ctrl, field_value));

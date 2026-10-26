@@ -28,7 +28,7 @@
  * @enablePreview
  * @modules java.base/jdk.internal.value
  *          java.base/jdk.internal.vm.annotation
- * @build test.java.lang.invoke.lib.InstructionHelper
+ * @library /test/lib /
  * @run driver ${test.main.class}
  */
 
