@@ -89,7 +89,7 @@ const TypePtr* MemNode::in_adr_type_from_inputs() const {
 #ifdef ASSERT
 void MemNode::validate_in_adr_type() const {
   if (!Compile::current()->do_aliasing()) return;
-  if (is_mismatched_access()) {
+  if (is_unsound_address_access()) {
     assert(_adr_type != nullptr, "give me a valid adr_type!");
     return;
   }
@@ -967,7 +967,7 @@ AccessAnalyzer::AccessIndependence AccessAnalyzer::detect_access_independence(No
     return {false, _phase->C->top()};
   } else if (_adr_type->base() == TypePtr::AnyPtr) {
     // An example for this case is an access into the memory address 0 performed using Unsafe
-    assert(_adr_type->ptr() == TypePtr::Null || !Compile::current()->do_aliasing() || _n->is_mismatched_access(), "MemNode should never access a wide memory");
+    assert(_adr_type->ptr() == TypePtr::Null || !Compile::current()->do_aliasing() || _n->is_unsound_address_access(), "MemNode should never access a wide memory");
     return {false, nullptr};
   }
 
@@ -5038,22 +5038,6 @@ MemBarNode* MemBarNode::leading_membar() const {
          (mb->_kind == LeadingLoadStore && _kind == TrailingLoadStore), "bad leading membar");
   assert(mb->_pair_idx == _pair_idx, "bad leading membar");
   return mb;
-}
-
-Node* MemBarCPUOrderNode::Identity(PhaseGVN* phase) {
-  if (UseNewCode) {
-    if (
-      in(TypeFunc::Control) != nullptr &&
-      in(TypeFunc::Control)->is_Proj() &&
-      in(TypeFunc::Control)->in(0)->Opcode() == Op_MemBarCPUOrder &&
-      in(TypeFunc::Memory) != nullptr &&
-      in(TypeFunc::Memory)->is_Proj() &&
-      in(TypeFunc::Control)->in(0) == in(TypeFunc::Memory)->in(0)
-    ) {
-      return in(TypeFunc::Control)->in(0);
-    }
-  }
-  return MemBarNode::Identity(phase);
 }
 
 

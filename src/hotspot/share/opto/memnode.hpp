@@ -1421,9 +1421,8 @@ class MemBarCPUOrderNode: public MemBarNode {
 public:
   MemBarCPUOrderNode(Compile* C, const TypePtr* out_adr_type, const TypePtr* in_adr_type, Node* precedent)
     : MemBarNode(C, out_adr_type, in_adr_type, precedent) {}
-  int Opcode() const override;
-  Node* Identity(PhaseGVN* phase) override;
-  uint ideal_reg() const override { return 0; } // not matched in the AD file
+  virtual int Opcode() const;
+  virtual uint ideal_reg() const { return 0; } // not matched in the AD file
 };
 
 class OnSpinWaitNode: public MemBarNode {
