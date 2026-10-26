@@ -59,7 +59,8 @@ const DecoratorSet C2_ARRAY_COPY             = DECORATOR_LAST << 10;
 const DecoratorSet C2_IMMUTABLE_MEMORY       = DECORATOR_LAST << 11;
 // Type of the address is not a sound way to find the affected slices.
 const DecoratorSet C2_UNSOUND_ADDRESS_ACCESS = DECORATOR_LAST << 12;
-const DecoratorSet C2_STORE_SPECIAL = DECORATOR_LAST << 13;
+// We are building a special store, that contains at least one oop, but is not reduced to one oop. At the moment, it's only StoreLSpecial.
+const DecoratorSet C2_STORE_SPECIAL          = DECORATOR_LAST << 13;
 
 class Compile;
 class ConnectionGraph;
@@ -152,26 +153,23 @@ protected:
   GraphKit*         _kit;
   Node* _ctl;
   const ValueTypeNode* _vt; // For flat, atomic accesses that might require GC barriers on oop fields
-  Node* _oop_offset;
 
   void* barrier_set_state() const;
 
 public:
   C2ParseAccess(GraphKit* kit, DecoratorSet decorators,
                 BasicType type, Node* base, C2AccessValuePtr& addr,
-                Node* ctl = nullptr, const ValueTypeNode* vt = nullptr, Node* oop_offset = nullptr) :
+                Node* ctl = nullptr, const ValueTypeNode* vt = nullptr) :
     C2Access(decorators, type, base, addr),
     _kit(kit),
     _ctl(ctl),
-    _vt (vt),
-    _oop_offset(oop_offset) {
+    _vt (vt) {
     fixup_decorators();
   }
 
   GraphKit* kit() const           { return _kit; }
   Node* control() const;
   const ValueTypeNode* vt() const { return _vt; }
-  Node* oop_offset() const { return _oop_offset; }
 
   PhaseGVN& gvn() const override;
   bool is_parse_access() const override { return true; }

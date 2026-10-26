@@ -163,7 +163,7 @@ Node* BarrierSetC2::store_at_resolved(C2Access& access, C2AccessValue& val) cons
     GraphKit* kit = parse_access.kit();
     store = kit->store_to_memory(kit->control(), access.addr().node(), val.node(), bt,
                                  mo, requires_atomic_access, unaligned, mismatched,
-                                 unsafe, unsound_address, store_special, access.barrier_data(), parse_access.oop_offset());
+                                 unsafe, unsound_address, store_special, access.barrier_data());
   } else {
     assert(access.is_opt_access(), "either parse or opt access");
     C2OptAccess& opt_access = static_cast<C2OptAccess&>(access);

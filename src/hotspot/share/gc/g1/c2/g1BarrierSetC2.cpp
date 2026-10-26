@@ -226,23 +226,104 @@ void G1BarrierSetC2::eliminate_gc_barrier_data(Node* node) const {
   }
 }
 
+static TypePtr::PTR nullness_of_oops_in_store_l_special_at_offset(const Unique_Node_List& components, int bit_offset) {
+  for (uint i = 0; i < components.size(); ++i) {
+    Node* component = components.at(i);
+    Node* unmasked_component = nullptr;
+
+    // We are looking for something like
+    // LShiftL(AndL(I2L(L2I(CastP2XNode(ptr))), 0xFF'FF'FF'FF), bit_offset)
+    // because we want to check the nullness of ptr.
+    // For extra fun, LShiftL will be missing (idealized away) if bit_offset == 0
+    // And if bit_offset == 32, then the AndL is missing (since the shift already clears the upper bits)
+
+    if (bit_offset == 0 && component->Opcode() == Op_AndL && component->in(2)->is_ConL() && component->in(2)->as_ConL()->type()->is_long()->is_con( UINT_MAX)) {
+      unmasked_component = component->in(1);
+    } else if (bit_offset != 0 && component->is_LShift() && component->in(2)->is_ConI() && component->in(2)->as_ConI()->type()->is_int()->is_con(bit_offset)) {
+      unmasked_component = component->in(1);
+    }
+    if (unmasked_component == nullptr) {
+      continue;
+    }
+    if (unmasked_component->Opcode() != Op_ConvI2L ||
+        unmasked_component->in(1)->Opcode() != Op_ConvL2I ||
+        unmasked_component->in(1)->in(1)->Opcode() != Op_CastP2X
+    ) {
+      continue;
+    }
+    Node* ptr = unmasked_component->in(1)->in(1)->in(1);
+    const Type* ptr_bottom_type = ptr->bottom_type();
+    const TypePtr* ptr_bottom_type_as_ptr = ptr_bottom_type->make_ptr();
+    assert(ptr_bottom_type_as_ptr != nullptr, "we should have a pointer there");
+    return ptr_bottom_type_as_ptr->ptr();
+  }
+  return TypePtr::BotPTR;
+}
+
+static Unique_Node_List find_components_of_store_l_special_value_in(const MemNode* store) {
+  Unique_Node_List or_nodes;
+  Unique_Node_List components;
+
+  auto add_to_list = [&](Node* n) -> void {
+    if (n->Opcode() == Op_OrL) {
+      or_nodes.push(n);
+    } else {
+      components.push(n);
+    }
+  };
+  Node* value_in = store->in(MemNode::ValueIn);
+  add_to_list(value_in);
+
+  for (uint i = 0; i < or_nodes.size(); ++i) {
+    Node* or_node = or_nodes.pop();
+    add_to_list(or_node->in(1));
+    add_to_list(or_node->in(2));
+  }
+
+  return components;
+}
+
+static TypePtr::PTR nullness_of_oops_in_store_l_special(const MemNode* store) {
+  Unique_Node_List components = find_components_of_store_l_special_value_in(store);
+  if (store->in(StoreLSpecialNode::OopOffset) == nullptr) {
+    TypePtr::PTR at_offset_0 = nullness_of_oops_in_store_l_special_at_offset(components, 0);
+    TypePtr::PTR at_offset_4 = nullness_of_oops_in_store_l_special_at_offset(components, 4 * BitsPerByte);
+    // They might disagree, but both will share the same barrier. We must be conservative.
+    return TypePtr::meet_ptr(at_offset_0, at_offset_4);
+  }
+  assert (store->in(StoreLSpecialNode::OopOffset) != nullptr , "must have an oop_offset now");
+  Node* oop_offset_node = store->in(MemNode::ValueIn + 1);
+  if (!oop_offset_node->is_ConI()) {
+    return TypePtr::BotPTR;
+  }
+  int oop_offset = oop_offset_node->as_ConI()->type()->is_int()->get_con();
+  assert(oop_offset == 0 || oop_offset == 4, "unexpected oop offset for StoreLSpecial: %d", oop_offset);
+  return nullness_of_oops_in_store_l_special_at_offset(components, oop_offset * BitsPerByte);
+}
+
 static void refine_barrier_by_new_val_type(const Node* n) {
   if (n->Opcode() != Op_StoreP &&
-      n->Opcode() != Op_StoreN) {
+      n->Opcode() != Op_StoreN &&
+      n->Opcode() != Op_StoreLSpecial) {
     return;
   }
   MemNode* store = n->as_Mem();
-  const Node* newval = n->in(MemNode::ValueIn);
-  assert(newval != nullptr, "");
-  const Type* newval_bottom = newval->bottom_type();
-  TypePtr::PTR newval_type = newval_bottom->make_ptr()->ptr();
   uint8_t barrier_data = store->barrier_data();
-  if (!newval_bottom->isa_oopptr() &&
-      !newval_bottom->isa_narrowoop() &&
-      newval_type != TypePtr::Null) {
-    // newval is neither an OOP nor null, so there is no barrier to refine.
-    assert(barrier_data == 0, "non-OOP stores should have no barrier data");
-    return;
+  TypePtr::PTR newval_type;
+  if (n->Opcode() == Op_StoreLSpecial) {
+    newval_type = nullness_of_oops_in_store_l_special(store);
+  } else {
+    const Node* newval = n->in(MemNode::ValueIn);
+    assert(newval != nullptr, "");
+    const Type* newval_bottom = newval->bottom_type();
+    newval_type = newval_bottom->make_ptr()->ptr();
+    if (!newval_bottom->isa_oopptr() &&
+        !newval_bottom->isa_narrowoop() &&
+        newval_type != TypePtr::Null) {
+      // newval is neither an OOP nor null, so there is no barrier to refine.
+      assert(barrier_data == 0, "non-OOP stores should have no barrier data");
+      return;
+    }
   }
   if (barrier_data == 0) {
     // No barrier to refine.
