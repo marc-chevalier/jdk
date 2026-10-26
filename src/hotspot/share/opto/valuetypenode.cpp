@@ -2375,31 +2375,32 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
 
   int oop_off_1 = -1;
   int oop_off_2 = -1;
-  Node* payload = convert_to_payload(igvn, kit.control(), value, _null_free, oop_off_1, oop_off_2);
+  Node* oop_1 = nullptr;
+  Node* oop_2 = nullptr;
+  Node* payload = convert_to_payload(igvn, kit.control(), value, _null_free, oop_off_1, oop_1, oop_off_2, oop_2);
 
   ciValueKlass* vk = igvn.type(value)->value_klass();
   assert(oop_off_1 == -1 || oop_off_1 == 0 || oop_off_1 == 4, "invalid layout for %s, first oop at offset %d", vk->name()->as_utf8(), oop_off_1);
-  assert(oop_off_2 == -1 || oop_off_2 == 4, "invalid layout for %s, second oop at offset %d", vk->name()->as_utf8(), oop_off_2);
+  assert(oop_off_2 == -1 || oop_off_2 == 0 || oop_off_2 == 4, "invalid layout for %s, second oop at offset %d", vk->name()->as_utf8(), oop_off_2);
   BasicType payload_bt = vk->atomic_size_to_basic_type(_null_free);
   if (!UseG1GC || oop_off_1 == -1) {
     // No oop fields or no late barrier expansion. Emit an atomic store of the payload and add GC barriers if needed.
     assert(oop_off_2 == -1 || !UseG1GC, "sanity");
     // ZGC does not support compressed oops, so only one oop can be in the payload which is written by a "normal" oop store.
     assert((oop_off_1 == -1 && oop_off_2 == -1) || !UseZGC, "ZGC does not support embedded oops in flat fields");
-    kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, Type::get_const_basic_type(payload_bt), payload_bt, _decorators | C2_MISMATCHED | C2_UNSOUND_ADDRESS_ACCESS, true, value, nullptr);
+    kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, Type::get_const_basic_type(payload_bt), payload_bt, _decorators | C2_MISMATCHED | C2_UNSOUND_ADDRESS_ACCESS, true, value);
   } else {
     // Contains oops and requires late barrier expansion. Emit a special store node that allows to emit GC barriers in the backend.
     assert(UseG1GC, "Unexpected GC");
     assert(payload_bt == T_LONG, "Unexpected payload type");
+    Node* store_special = kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, TypeLong::LONG, T_LONG, _decorators | C2_MISMATCHED | C2_UNSOUND_ADDRESS_ACCESS | C2_STORE_SPECIAL, true, value);
+    assert(store_special->Opcode() == Op_StoreLSpecial, "must be special");
+
     // If one oop, set the offset (if no offset is set, two oops are assumed by the backend)
     Node* oop_offset = (oop_off_2 == -1) ? igvn.intcon(oop_off_1) : nullptr;
-    kit.access_store_at(base, ptr, TypeRawPtr::BOTTOM, payload, TypeLong::LONG, T_LONG, _decorators | C2_MISMATCHED | C2_UNSOUND_ADDRESS_ACCESS | C2_STORE_SPECIAL, true, value, oop_offset);
-#if 0
-    Node* mem = kit.reset_memory();
-    kit.set_all_memory(mem);
-    Node* store = igvn.transform(new StoreLSpecialNode(kit.control(), mem, ptr, TypePtr::BOTTOM, payload, oop_offset, MemNode::unordered));
-    kit.set_all_memory(store);
-#endif
+    store_special->add_req(oop_offset);
+    store_special->add_req(oop_1);
+    store_special->add_req(oop_2);
   }
 
   Node* old_ctrl = proj_out_or_null(TypeFunc::Control);
@@ -2414,7 +2415,7 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
 }
 
 // Convert the field values to a payload value of type 'bt'
-Node* StoreFlatNode::convert_to_payload(PhaseIterGVN& igvn, Node* ctrl, ValueTypeNode* value, bool null_free, int& oop_off_1, int& oop_off_2) {
+Node* StoreFlatNode::convert_to_payload(PhaseIterGVN& igvn, Node* ctrl, ValueTypeNode* value, bool null_free, int& oop_off_1, Node*& oop_1, int& oop_off_2, Node*& oop_2) {
   ciValueKlass* vk = igvn.type(value)->value_klass();
   BasicType payload_bt = vk->atomic_size_to_basic_type(null_free);
   Node* payload = igvn.zerocon(payload_bt);
@@ -2446,6 +2447,12 @@ Node* StoreFlatNode::convert_to_payload(PhaseIterGVN& igvn, Node* ctrl, ValueTyp
       }
 
       field_value = igvn.transform(new EncodePNode(field_value, val_type));
+      if (oop_1 == nullptr) {
+        oop_1 = field_value;
+      } else {
+        assert(oop_2 == nullptr, "already set");
+        oop_2 = field_value;
+      }
       field_value = igvn.transform(new CastP2XNode(ctrl, field_value));
       field_value = igvn.transform(new ConvL2INode(field_value));
       field_bt = T_INT;

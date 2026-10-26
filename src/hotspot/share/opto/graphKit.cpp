@@ -1723,7 +1723,7 @@ Node* GraphKit::make_load(Node* ctl, Node* adr, const Type* t, BasicType bt,
 }
 
 Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt, MemNode::MemOrd mo) {
-  return store_to_memory(ctl, adr, val, bt, mo, false, false, false, false, false, false, 0, nullptr);
+  return store_to_memory(ctl, adr, val, bt, mo, false, false, false, false, false, false, 0);
 }
 Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt,
                                 MemNode::MemOrd mo,
@@ -1733,8 +1733,7 @@ Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt,
                                 bool unsafe,
                                 bool unsound_address,
                                 bool store_special,
-                                int barrier_data,
-                                Node* oop_offset) {
+                                int barrier_data) {
   assert(!unsound_address || mismatched, "unsound => mismatch");
   int adr_idx =
     unsound_address
@@ -1752,7 +1751,7 @@ Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt,
     adr_type = C->get_adr_type(adr_idx);
   }
 
-  Node* st = StoreNode::make(_gvn, ctl, mem, adr, adr_type, val, bt, mo, require_atomic_access, unsound_address, store_special, oop_offset);
+  Node* st = StoreNode::make(_gvn, ctl, mem, adr, adr_type, val, bt, mo, require_atomic_access, unsound_address, store_special);
   if (unaligned) {
     st->as_Store()->set_unaligned_access();
   }
@@ -1788,7 +1787,7 @@ Node* GraphKit::access_store_at(Node* obj,
                                 const Type* val_type,
                                 BasicType bt,
                                 DecoratorSet decorators) {
-  return access_store_at(obj, adr, adr_type, val, val_type, bt, decorators, true, nullptr, nullptr);
+  return access_store_at(obj, adr, adr_type, val, val_type, bt, decorators, true, nullptr);
 }
 
 Node* GraphKit::access_store_at(Node* obj,
@@ -1799,8 +1798,7 @@ Node* GraphKit::access_store_at(Node* obj,
                                 BasicType bt,
                                 DecoratorSet decorators,
                                 bool safe_for_replace,
-                                const ValueTypeNode* vt,
-                                Node* oop_offset) {
+                                const ValueTypeNode* vt) {
   // Transformation of a value which could be null pointer (CastPP #null)
   // could be delayed during Parse (for example, in adjust_map_after_if()).
   // Execute transformation here to avoid barrier generation in such case.
@@ -1823,7 +1821,7 @@ Node* GraphKit::access_store_at(Node* obj,
 
   C2AccessValuePtr addr(adr, adr_type);
   C2AccessValue value(val, val_type);
-  C2ParseAccess access(this, decorators | C2_WRITE_ACCESS, bt, obj, addr, nullptr, vt, oop_offset);
+  C2ParseAccess access(this, decorators | C2_WRITE_ACCESS, bt, obj, addr, nullptr, vt);
   if (access.is_raw()) {
     return _barrier_set->BarrierSetC2::store_at(access, value);
   } else {
@@ -5060,7 +5058,7 @@ void GraphKit::inflate_string_slow(Node* src, Node* dst, Node* start, Node* coun
   Node* ch = load_array_element(src, i_byte, TypeAryPtr::BYTES, /* set_ctrl */ true);
   Node* st = store_to_memory(control(), array_element_address(dst, i_char, T_BYTE),
                              AndI(ch, intcon(0xff)), T_CHAR, MemNode::unordered, false,
-                             false, true /* mismatched */, false, false, false, 0, nullptr);
+                             false, true /* mismatched */, false, false, false, 0);
 
   IfNode* iff = create_and_map_if(head, Bool(CmpI(i_byte, count), BoolTest::lt), PROB_FAIR, COUNT_UNKNOWN);
   head->init_req(2, IfTrue(iff));
