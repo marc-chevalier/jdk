@@ -5289,6 +5289,76 @@ bool InitializeNode::detect_init_independence(Node* value, PhaseGVN* phase) {
   return true;
 }
 
+bool is_memory_slice_used_before_the_write(StoreNode* st, PhaseGVN* phase, Node* ctl, Node* adr, Node* alloc, ProjNode* mem_proj_from_init, int alias_idx) {
+  ResourceMark rm;
+  Unique_Node_List<Node> mems;
+  mems.push(mem_proj_from_init);
+  for (uint next = 0; next < mems.size(); ++next) {
+    Node *m  = mems.at(next);
+    for (DUIterator_Fast jmax, j = m->fast_outs(jmax); j < jmax; j++) {
+      Node *n = m->fast_out(j);
+      if (n->outcnt() == 0) {
+        continue;
+      }
+      if (n == st) {
+        continue;
+      } else if (n->in(0) != nullptr && n->in(0) != ctl) {
+        // If the control of this use is different from the control
+        // of the Store which is right after the InitializeNode then
+        // this node cannot be between the InitializeNode and the
+        // Store.
+        continue;
+      } else if (n->is_MergeMem()) {
+        if (
+          (alias_idx == Compile::AliasIdxBot && n->as_MergeMem()->base_memory() == m) ||
+          (alias_idx != Compile::AliasIdxBot && n->as_MergeMem()->memory_at(alias_idx) == m)
+        ){
+          // We can hit a MergeMemNode (that will likely go away
+          // later) that is a direct use of the memory state
+          // following the InitializeNode on the same slice as the
+          // store node that we'd like to capture. We need to check
+          // the uses of the MergeMemNode.
+          mems.push(n);
+        }
+      } else if (n->is_Mem()) {
+        Node* other_adr = n->in(MemNode::Address);
+        if (other_adr == adr) {
+          return true;
+        } else {
+          const TypePtr* other_t_adr = phase->type(other_adr)->isa_ptr();
+          if (other_t_adr != nullptr) {
+            int other_alias_idx = phase->C->get_alias_index(other_t_adr);
+            if (other_alias_idx == alias_idx) {
+              // A load from the same memory slice as the store right
+              // after the InitializeNode. We check the control of the
+              // object/array that is loaded from. If it's the same as
+              // the store control then we cannot capture the store.
+              assert(!n->is_Store(), "2 stores to same slice on same control?");
+              Node* base = other_adr;
+              if (base->is_Phi()) {
+                // In rare case, base may be a PhiNode and it may read
+                // the same memory slice between InitializeNode and store.
+                return true;
+              }
+              assert(base->is_AddP(), "should be addp but is %s", base->Name());
+              base = base->in(AddPNode::Base);
+              if (base != nullptr) {
+                base = base->uncast();
+                if (base->is_Proj() && base->in(0) == alloc) {
+                  return true;
+                }
+              }
+            }
+          }
+        }
+      } else {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // Here are all the checks a Store must pass before it can be moved into
 // an initialization.  Returns zero if a check fails.
 // On success, returns the (constant) offset to which the store applies,
@@ -5303,6 +5373,10 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
     return FAIL;                // must be unconditional after the initialization
 
   Node* mem = st->in(MemNode::Memory);
+  ResourceMark rm;
+  Node_Stack<ProjNode> mems(8);
+
+  Node* adr = st->in(MemNode::Address);
   if (st->is_unsound_address_access()) {
     if (!mem->is_MergeMem()) return FAIL;
 
@@ -5316,39 +5390,59 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
 
     auto slice_comes_from_init = [&](uint idx) -> bool {
       if (idx >= mem->req()) return false;
-      if (mem->in(idx) == nullptr) return false;
-      if (!mem->in(idx)->is_Proj()) return false;
-      if (mem->in(idx)->in(0) != this) return false;
+      Node* proj = mem->in(idx);
+      if (proj == nullptr || !proj->is_Proj()) return false;
+      if (proj->in(0) != this) return false;
+      mems.push(proj->as_Proj(), idx);
       return true;
     };
 
-    auto slice_comes_from_init_if_meaningful = [&](uint idx, int field_start, int field_stop) -> bool {
-      if (field_start >= stop || start >= field_stop)
+    auto slice_comes_from_init_if_meaningful = [&](uint idx, int field_start, int field_size) -> bool {
+      int field_stop = field_start + field_size;
+      if (field_start >= stop || start >= field_stop) {
         return true;
+      }
       return slice_comes_from_init(idx);
     };
 
     if (!slice_comes_from_init(Compile::AliasIdxRaw)) return FAIL;
 
     int mark_idx = phase->C->get_alias_index(in_adr_type->with_offset(oopDesc::mark_offset_in_bytes()));
-    if (!slice_comes_from_init_if_meaningful(mark_idx, oopDesc::mark_offset_in_bytes(), oopDesc::mark_offset_in_bytes() + static_cast<int>(sizeof(markWord)))) return FAIL;
+    if (!slice_comes_from_init_if_meaningful(mark_idx, oopDesc::mark_offset_in_bytes(), sizeof(markWord))) {
+      return FAIL;
+    }
 
     int klass_idx = phase->C->get_alias_index(in_adr_type->with_offset(oopDesc::klass_offset_in_bytes()));
-    if (!slice_comes_from_init_if_meaningful(klass_idx, oopDesc::klass_offset_in_bytes(), oopDesc::klass_offset_in_bytes() + static_cast<int>(sizeof(narrowKlass)))) return FAIL;
+    if (!slice_comes_from_init_if_meaningful(klass_idx, oopDesc::klass_offset_in_bytes(), sizeof(narrowKlass))) {
+      return FAIL;
+    }
 
+    int tracking_limit = TrackedInitializationLimit * HeapWordSize;
+    if (stop > tracking_limit) {
+      if (!slice_comes_from_init(Compile::AliasIdxBot)) {
+        return FAIL;
+      }
+    }
     for (int i = 0, len = ik->nof_nonstatic_fields(); i < len; i++) {
       ciField* field = ik->nonstatic_field_at(i);
-      if (field->offset_in_bytes() >= TrackedInitializationLimit * HeapWordSize)
-        continue;  // do not bother to track really large numbers of fields
+      if (field->offset_in_bytes() >= tracking_limit) {
+        continue;
+      }
 
       int field_start = field->offset_in_bytes();
-      int field_stop = field_start + field->type()->size();
+      int field_size = type2aelembytes(field->layout_type());
       int fieldidx = phase->C->alias_type(field)->index();
-      if (!slice_comes_from_init_if_meaningful(fieldidx, field_start, field_stop)) return FAIL;
+      if (!slice_comes_from_init_if_meaningful(fieldidx, field_start, field_size)) {
+        return FAIL;
+      }
     }
   } else {
     if (!(mem->is_Proj() && mem->in(0) == this))
       return FAIL;                // must not be preceded by other stores
+
+    const TypePtr* t_adr = phase->type(adr)->isa_ptr();
+    int alias_idx = phase->C->get_alias_index(t_adr);
+    mems.push(mem->as_Proj(), alias_idx);
   }
 
   BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
@@ -5356,7 +5450,6 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
       !bs->can_initialize_object(st)) {
     return FAIL;
   }
-  Node* adr = st->in(MemNode::Address);
   intptr_t offset;
   AllocateNode* alloc = AllocateNode::Ideal_allocation(adr, phase, offset);
   if (alloc == nullptr)
@@ -5382,73 +5475,10 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
     // We are going to look at each use of the memory state following
     // the allocation to make sure nothing reads the memory that the
     // Store writes.
-    const TypePtr* t_adr = phase->type(adr)->isa_ptr();
-    int alias_idx = phase->C->get_alias_index(t_adr);
-    ResourceMark rm;
-    Unique_Node_List<Node> mems;
-    mems.push(mem);
-    for (uint next = 0; next < mems.size(); ++next) {
-      Node *m  = mems.at(next);
-      for (DUIterator_Fast jmax, j = m->fast_outs(jmax); j < jmax; j++) {
-        Node *n = m->fast_out(j);
-        if (n->outcnt() == 0) {
-          continue;
-        }
-        if (n == st) {
-          continue;
-        } else if (n->in(0) != nullptr && n->in(0) != ctl) {
-          // If the control of this use is different from the control
-          // of the Store which is right after the InitializeNode then
-          // this node cannot be between the InitializeNode and the
-          // Store.
-          continue;
-        } else if (n->is_MergeMem()) {
-          if (n->as_MergeMem()->memory_at(alias_idx) == m) {
-            // We can hit a MergeMemNode (that will likely go away
-            // later) that is a direct use of the memory state
-            // following the InitializeNode on the same slice as the
-            // store node that we'd like to capture. We need to check
-            // the uses of the MergeMemNode.
-            mems.push(n);
-          }
-        } else if (n->is_Mem()) {
-          Node* other_adr = n->in(MemNode::Address);
-          if (other_adr == adr) {
-            failed = true;
-            break;
-          } else {
-            const TypePtr* other_t_adr = phase->type(other_adr)->isa_ptr();
-            if (other_t_adr != nullptr) {
-              int other_alias_idx = phase->C->get_alias_index(other_t_adr);
-              if (other_alias_idx == alias_idx) {
-                // A load from the same memory slice as the store right
-                // after the InitializeNode. We check the control of the
-                // object/array that is loaded from. If it's the same as
-                // the store control then we cannot capture the store.
-                assert(!n->is_Store(), "2 stores to same slice on same control?");
-                Node* base = other_adr;
-                if (base->is_Phi()) {
-                  // In rare case, base may be a PhiNode and it may read
-                  // the same memory slice between InitializeNode and store.
-                  failed = true;
-                  break;
-                }
-                assert(base->is_AddP(), "should be addp but is %s", base->Name());
-                base = base->in(AddPNode::Base);
-                if (base != nullptr) {
-                  base = base->uncast();
-                  if (base->is_Proj() && base->in(0) == alloc) {
-                    failed = true;
-                    break;
-                  }
-                }
-              }
-            }
-          }
-        } else {
-          failed = true;
-          break;
-        }
+    for (uint i = 0; i < mems.size(); i++) {
+      if (is_memory_slice_used_before_the_write(st, phase, ctl, adr, alloc, mems.node_at(i), mems.index_at(i))) {
+        failed = true;
+        break;
       }
     }
   }

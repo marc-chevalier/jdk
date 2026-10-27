@@ -134,8 +134,6 @@ instruct g1StoreLSpecialOneOopOff4(indirect mem, iRegLNoSp src, immI_4 off, iReg
 
     // Shift long value to extract the narrow oop field value
     __ lsr($tmp1$$Register, $src$$Register, 32);
-    __ decode_heap_oop($tmp1$$Register, $tmp1$$Register);
-
     if ((barrier_data() & G1C2BarrierPost) != 0) {
       if ((barrier_data() & G1C2BarrierPostNotNull) == 0) {
         __ decode_heap_oop($tmp1$$Register, $tmp1$$Register);
