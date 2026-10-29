@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, Alibaba Group Holding Limited. All Rights Reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -19,37 +20,41 @@
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
  * or visit www.oracle.com if you need additional information or have any
  * questions.
+ *
  */
 
 /*
  * @test
- * @bug 8325030 8362832
- * @summary Regression test for an assert triggered during allocation elimination because top is found during
- * constructing new phis.
- * @run main/othervm -XX:-ProfileExceptionHandlers compiler.macronodes.TestTopInMacroElimination
+ * @bug 8270307
+ * @summary C2: assert(false) failed: bad AD file after JDK-8267687
+ * @library /test/lib
+ * @run main/othervm -Xcomp -XX:-TieredCompilation -XX:CompileOnly=${test.main.class}::vMeth ${test.main.class}
  */
 
-package compiler.macronodes;
+public class TestCMoveHasBoottomInput {
+    public static boolean arr[] = new boolean[20];
 
-public class TestTopInMacroElimination {
-    public static class A {
-        int a;
-    }
-
-    public static void main(String[] strArr) {
-        int i2 = 0;
-        for (int i = 0; i < 50; ++i) {
-            try {
-                synchronized (new A()) {
-                    synchronized (TestTopInMacroElimination.class) {
-                        for (int var19 = 0; var19 < Integer.valueOf(i2);) {
-                            Integer.valueOf(var19);
-                        }
+    public void vMeth(long l) {
+        for (int a = 2; a < 155; a++) {
+            for (int b = 1; b < 10; ++b) {
+                for (int c = 1; c < 2; c++) {
+                    l += 3 * l;
+                    arr[b - 1] = false;
+                    switch (a) {
+                        case 14:
+                        case 17:
+                            l -= b;
+                            break;
                     }
                 }
-                for (int var8 = 0; var8 < 10000; ++var8) ;
-            } catch (ArithmeticException a_e) {
             }
+        }
+    }
+
+    public static void main(String... args) {
+        TestCMoveHasBoottomInput test = new TestCMoveHasBoottomInput();
+        for (int i = 0; i < 10; i++) {
+            test.vMeth(i);
         }
     }
 }

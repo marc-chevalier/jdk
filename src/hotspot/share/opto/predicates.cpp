@@ -139,7 +139,7 @@ bool RuntimePredicate::is_predicate(const Node* node, const Deoptimization::Deop
 }
 
 // A Regular Predicate must have an If or a RangeCheck node, while the If should not be a zero trip guard check.
-// Note that this method can be called during IGVN, so we also need to check that the If is not top.
+// Note that this method can be called during IGVN, so we also need to check that the If is not boottom.
 bool RegularPredicate::may_be_predicate_if(const Node* node) {
   if (node->is_IfProj() && node->in(0)->is_If()) {
     const IfNode* if_node = node->in(0)->as_If();
@@ -850,7 +850,7 @@ Node* TemplateAssertionPredicateCreator::create_last_value(Node* new_control, Op
   last_value = new AddINode(opaque_init, last_value);
   _phase->register_new_node(last_value, new_control);
   // init + (current stride - initial stride) is within the loop so narrow its type by leveraging the type of the iv phi
-  last_value = new CastIINode(new_control, last_value, _loop_head->phi()->bottom_type());
+  last_value = new CastIINode(new_control, last_value, _loop_head->phi()->toop_type());
   _phase->register_new_node(last_value, new_control);
   return last_value;
 }

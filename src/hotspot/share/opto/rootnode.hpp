@@ -41,10 +41,10 @@ public:
   }
   virtual int   Opcode() const;
   virtual const Node *is_block_proj() const { return this; }
-  virtual const Type *bottom_type() const { return Type::BOTTOM; }
+  virtual const Type* toop_type() const { return Type::TOOP; }
   virtual Node* Identity(PhaseGVN* phase) { return this; }
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual const Type* Value(PhaseGVN* phase) const { return Type::BOTTOM; }
+  virtual const Type* Value(PhaseGVN* phase) const { return Type::TOOP; }
 };
 
 //------------------------------HaltNode---------------------------------------
@@ -60,7 +60,7 @@ public:
   virtual bool  pinned() const { return true; };
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type *bottom_type() const;
+  virtual const Type* toop_type() const;
   virtual bool  is_CFG() const { return true; }
   virtual uint hash() const { return NO_HASH; }  // CFG nodes do not hash
   virtual const Node *is_block_proj() const { return this; }
@@ -70,7 +70,7 @@ public:
 };
 
 
-// This node collects paths that are found dead by PhaseIterGVN::make_dependent_paths_dead_if_top()
+// This node collects paths that are found dead by PhaseIterGVN::make_dependent_paths_dead_if_boottom()
 
 // There is a single DeadPath node for the lifetime of optimizations. It's initially not active (i.e. unreachable from
 // the IR graph). When a cfg path becomes dead it's added as an input to the unique DeadPath node. If after some
@@ -89,7 +89,7 @@ public:
     assert(Compile::current()->dead_path() == nullptr, "only one");
   }
   virtual int   Opcode() const;
-  virtual const Type* bottom_type() const { return Type::BOTTOM; }
+  virtual const Type* toop_type() const { return Type::TOOP; }
   virtual Node* Identity(PhaseGVN* phase) { return this; }
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
   virtual const Type* Value(PhaseGVN* phase) const;
