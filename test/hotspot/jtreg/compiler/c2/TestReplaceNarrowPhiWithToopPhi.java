@@ -34,7 +34,7 @@ package compiler.c2;
 import compiler.lib.ir_framework.*;
 import compiler.lib.ir_framework.Test;
 
-public class TestReplaceNarrowPhiWithBottomPhi {
+public class TestReplaceNarrowPhiWithToopPhi {
     private int field1;
     private volatile int field2;
 
@@ -51,8 +51,8 @@ public class TestReplaceNarrowPhiWithBottomPhi {
         }
         inlined1(j);
 
-        // Initially, there are 2 memory Phis: one for bottom, one for field1. After loop opts, both
-        // Phis have the same inputs and the narrower Phi should be replaced by the bottom Phi.
+        // Initially, there are 2 memory Phis: one for toop, one for field1. After loop opts, both
+        // Phis have the same inputs and the narrower Phi should be replaced by the toop Phi.
         for (int i = 1; i < 100; i *= 2) {
             field2 = 42;
         }

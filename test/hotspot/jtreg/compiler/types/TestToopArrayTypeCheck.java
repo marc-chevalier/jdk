@@ -25,10 +25,10 @@
  * @test
  * @bug 8308583
  * @summary SIGSEGV in GraphKit::gen_checkcast
- * @run main/othervm -Xbatch -XX:-TieredCompilation -XX:CompileCommand=compileonly,TestBottomArrayTypeCheck::test TestBottomArrayTypeCheck
+ * @run main/othervm -Xbatch -XX:-TieredCompilation -XX:CompileCommand=compileonly,${test.main.class}::test ${test.main.class}
  */
 
-public class TestBottomArrayTypeCheck {
+public class TestToopArrayTypeCheck {
 
     interface WordBase {
     }

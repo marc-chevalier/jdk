@@ -56,7 +56,7 @@ public class TestPushValueTypeDownDeadBranch {
         // During IGVN:                 ValueType(null)                 -> CastPP -> CheckCastPP -> Phi -> ValueType -> Return
         //                              ValueType(null)                 -> CastPP -> CheckCastPP -> Phi -> ValueType -> Return
         //                              ValueType(null)                                                 -> ValueType -> Return
-        // Before Patch:                ValueType(TOP /* wrong! */)                                     -> ValueType -> Return
+        // Before Patch:                ValueType(BOOTTOM /* wrong! */)                                 -> ValueType -> Return
         //                              <empty>
         // After Patch:                 ValueType(null)                                                 -> ValueType -> Return
         Object obj = foo(null);

@@ -42,12 +42,12 @@ static Node* ideal_mem_intrinsic_node(PhaseGVN* phase, bool can_reshape, Node* n
   }
 
   // Don't bother trying to transform a dead node
-  if (n->in(0) && n->in(0)->is_top()) {
+  if (n->in(0) && n->in(0)->is_boottom()) {
     return nullptr;
   }
 
   // If mem input is a MergeMem, get the desired slice
-  if (const TypePtr* adr_type = n->in_adr_type(); can_reshape && adr_type != TypePtr::BOTTOM) {
+  if (const TypePtr* adr_type = n->in_adr_type(); can_reshape && adr_type != TypePtr::TOOP) {
     Node* mem = n->in(MemNode::Memory);
     uint alias_idx = phase->C->get_alias_index(adr_type);
     Node* new_mem = mem->is_MergeMem() ? mem->as_MergeMem()->memory_at(alias_idx) : mem;
@@ -69,8 +69,8 @@ Node* StrIntrinsicNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 
 //------------------------------Value------------------------------------------
 const Type* StrIntrinsicNode::Value(PhaseGVN* phase) const {
-  if (in(0) && phase->type(in(0)) == Type::TOP) return Type::TOP;
-  return bottom_type();
+  if (in(0) && phase->type(in(0)) == Type::BOOTTOM) return Type::BOOTTOM;
+  return toop_type();
 }
 
 uint VectorizedHashCodeNode::match_edge(uint idx) const {
@@ -83,8 +83,8 @@ Node* VectorizedHashCodeNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 }
 
 const Type* VectorizedHashCodeNode::Value(PhaseGVN* phase) const {
-  if (in(0) && phase->type(in(0)) == Type::TOP) return Type::TOP;
-  return bottom_type();
+  if (in(0) && phase->type(in(0)) == Type::BOOTTOM) return Type::BOOTTOM;
+  return toop_type();
 }
 
 
@@ -104,8 +104,8 @@ Node* EncodeISOArrayNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 
 //------------------------------Value------------------------------------------
 const Type* EncodeISOArrayNode::Value(PhaseGVN* phase) const {
-  if (in(0) && phase->type(in(0)) == Type::TOP) return Type::TOP;
-  return bottom_type();
+  if (in(0) && phase->type(in(0)) == Type::BOOTTOM) return Type::BOOTTOM;
+  return toop_type();
 }
 
 //------------------------------CopySign-----------------------------------------
@@ -125,14 +125,14 @@ SignumFNode* SignumFNode::make(PhaseGVN& gvn, Node* in) {
 Node* CompressBitsNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   Node* src = in(1);
   Node* mask = in(2);
-  if (bottom_type()->isa_int()) {
+  if (toop_type()->isa_int()) {
     if (mask->Opcode() == Op_LShiftI && phase->type(mask->in(1))->isa_int() && phase->type(mask->in(1))->is_int()->is_con()) {
       // compress(x, 1 << n) == (x >> n & 1)
-      if (phase->type(mask->in(1))->higher_equal(TypeInt::ONE)) {
+      if (phase->type(mask->in(1))->is_subseteq_of(TypeInt::ONE)) {
         Node* rshift = phase->transform(new RShiftINode(in(1), mask->in(2)));
         return new AndINode(rshift, phase->makecon(TypeInt::ONE));
       // compress(x, -1 << n) == x >>> n
-      } else if (phase->type(mask->in(1))->higher_equal(TypeInt::MINUS_1)) {
+      } else if (phase->type(mask->in(1))->is_subseteq_of(TypeInt::MINUS_1)) {
         return new URShiftINode(in(1), mask->in(2));
       }
     }
@@ -143,14 +143,14 @@ Node* CompressBitsNode::Ideal(PhaseGVN* phase, bool can_reshape) {
       return new AndINode(compr, src->in(1));
     }
   } else {
-    assert(bottom_type()->isa_long(), "");
+    assert(toop_type()->isa_long(), "");
     if (mask->Opcode() == Op_LShiftL && phase->type(mask->in(1))->isa_long() && phase->type(mask->in(1))->is_long()->is_con()) {
       // compress(x, 1 << n) == (x >> n & 1)
-      if (phase->type(mask->in(1))->higher_equal(TypeLong::ONE)) {
+      if (phase->type(mask->in(1))->is_subseteq_of(TypeLong::ONE)) {
         Node* rshift = phase->transform(new RShiftLNode(in(1), mask->in(2)));
         return new AndLNode(rshift, phase->makecon(TypeLong::ONE));
       // compress(x, -1 << n) == x >>> n
-      } else if (phase->type(mask->in(1))->higher_equal(TypeLong::MINUS_1)) {
+      } else if (phase->type(mask->in(1))->is_subseteq_of(TypeLong::MINUS_1)) {
         return new URShiftLNode(in(1), mask->in(2));
       }
     }
@@ -165,14 +165,14 @@ Node* CompressBitsNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 }
 
 static Node* compress_expand_identity(PhaseGVN* phase, Node* n) {
-  BasicType bt = n->bottom_type()->basic_type();
+  BasicType bt = n->toop_type()->basic_type();
   // compress(x, 0) == 0, expand(x, 0) == 0
-  if(phase->type(n->in(2))->higher_equal(TypeInteger::zero(bt))) return n->in(2);
+  if(phase->type(n->in(2))->is_subseteq_of(TypeInteger::zero(bt))) return n->in(2);
   // compress(x, -1) == x, expand(x, -1) == x
-  if(phase->type(n->in(2))->higher_equal(TypeInteger::minus_1(bt))) return n->in(1);
+  if(phase->type(n->in(2))->is_subseteq_of(TypeInteger::minus_1(bt))) return n->in(1);
   // expand(-1, x) == x
   if(n->Opcode() == Op_ExpandBits &&
-     phase->type(n->in(1))->higher_equal(TypeInteger::minus_1(bt))) return n->in(2);
+     phase->type(n->in(1))->is_subseteq_of(TypeInteger::minus_1(bt))) return n->in(2);
   return n;
 }
 
@@ -183,14 +183,14 @@ Node* CompressBitsNode::Identity(PhaseGVN* phase) {
 Node* ExpandBitsNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   Node* src = in(1);
   Node* mask = in(2);
-  if (bottom_type()->isa_int()) {
+  if (toop_type()->isa_int()) {
     if (mask->Opcode() == Op_LShiftI && phase->type(mask->in(1))->isa_int() && phase->type(mask->in(1))->is_int()->is_con()) {
       // expand(x, 1 << n) == (x & 1) << n
-      if (phase->type(mask->in(1))->higher_equal(TypeInt::ONE)) {
+      if (phase->type(mask->in(1))->is_subseteq_of(TypeInt::ONE)) {
         Node* andnode = phase->transform(new AndINode(in(1), phase->makecon(TypeInt::ONE)));
         return new LShiftINode(andnode, mask->in(2));
       // expand(x, -1 << n) == x << n
-      } else if (phase->type(mask->in(1))->higher_equal(TypeInt::MINUS_1)) {
+      } else if (phase->type(mask->in(1))->is_subseteq_of(TypeInt::MINUS_1)) {
         return new LShiftINode(in(1), mask->in(2));
       }
     }
@@ -200,14 +200,14 @@ Node* ExpandBitsNode::Ideal(PhaseGVN* phase, bool can_reshape) {
       return new AndINode(src->in(1), mask);
     }
   } else {
-    assert(bottom_type()->isa_long(), "");
+    assert(toop_type()->isa_long(), "");
     if (mask->Opcode() == Op_LShiftL && phase->type(mask->in(1))->isa_long() && phase->type(mask->in(1))->is_long()->is_con()) {
       // expand(x, 1 << n) == (x & 1) << n
-      if (phase->type(mask->in(1))->higher_equal(TypeLong::ONE)) {
+      if (phase->type(mask->in(1))->is_subseteq_of(TypeLong::ONE)) {
         Node* andnode = phase->transform(new AndLNode(in(1), phase->makecon(TypeLong::ONE)));
         return new LShiftLNode(andnode, mask->in(2));
       // expand(x, -1 << n) == x << n
-      } else if (phase->type(mask->in(1))->higher_equal(TypeLong::MINUS_1)) {
+      } else if (phase->type(mask->in(1))->is_subseteq_of(TypeLong::MINUS_1)) {
         return new LShiftLNode(in(1), mask->in(2));
       }
     }
@@ -308,11 +308,11 @@ jlong CompressBitsNode::compress_bits(jlong src, jlong mask, int bit_count) {
 const Type* CompressBitsNode::Value(PhaseGVN* phase) const {
   const Type* t1 = phase->type(in(1));
   const Type* t2 = phase->type(in(2));
-  if (t1 == Type::TOP || t2 == Type::TOP) {
-    return Type::TOP;
+  if (t1 == Type::BOOTTOM || t2 == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
-  BasicType bt = bottom_type()->basic_type();
+  BasicType bt = toop_type()->basic_type();
   if (bt == T_INT) {
     return RangeInference::infer_compress_bits(t1->is_int(), t2->is_int());
   } else {
@@ -336,11 +336,11 @@ jlong ExpandBitsNode::expand_bits(jlong src, jlong mask, int bit_count) {
 const Type* ExpandBitsNode::Value(PhaseGVN* phase) const {
   const Type* t1 = phase->type(in(1));
   const Type* t2 = phase->type(in(2));
-  if (t1 == Type::TOP || t2 == Type::TOP) {
-    return Type::TOP;
+  if (t1 == Type::BOOTTOM || t2 == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
-  BasicType bt = bottom_type()->basic_type();
+  BasicType bt = toop_type()->basic_type();
   const TypeInteger* src_type = t1->is_integer(bt);
   const TypeInteger* mask_type = t2->is_integer(bt);
   int w = bt == T_INT ? 32 : 64;

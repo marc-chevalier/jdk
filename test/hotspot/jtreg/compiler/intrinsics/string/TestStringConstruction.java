@@ -50,7 +50,7 @@ public class TestStringConstruction {
             // range checks on offset and count. If this method is not inlined, C2
             // does not know about the explicit range checks and does not cut off the
             // dead code. As a result, -1 is fed as offset into the StringUTF16.compress
-            // intrinsic which is replaced by TOP and causes a failure in the matcher.
+            // intrinsic which is replaced by BOOTTOM and causes a failure in the matcher.
             return new String(chars, -1 , 42);
         } catch (Exception e) {
             return "";

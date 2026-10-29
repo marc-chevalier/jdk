@@ -86,7 +86,7 @@ void Parse::do_field_access(bool is_get, bool is_field) {
 
 #ifdef ASSERT
     const TypeInstPtr *tjp = TypeInstPtr::make(TypePtr::NotNull, iter().get_declared_field_holder());
-    assert(_gvn.type(obj)->higher_equal(tjp), "cast_up is no longer needed");
+    assert(_gvn.type(obj)->is_subseteq_of(tjp), "cast_up is no longer needed");
 #endif
 
     if (is_get) {
@@ -173,12 +173,12 @@ void Parse::do_get_xxx(Node* obj, ciField* field) {
     const Type* type;
     if (is_reference_type(bt)) {
       if (!field_klass->is_loaded()) {
-        type = TypeInstPtr::BOTTOM;
+        type = TypeInstPtr::TOOP;
         must_assert_null = true;
       } else if (field->is_static_constant()) {
         // This can happen if the constant oop is non-perm.
         ciObject* con = field->constant_value().as_object();
-        // Do not "join" in the previous type; it doesn't add value,
+        // Do not "meeet" in the previous type; it doesn't add value,
         // and may yield a vacuous result if the field is of interface type.
         if (con->is_null_object()) {
           type = TypePtr::NULL_PTR;
@@ -189,7 +189,7 @@ void Parse::do_get_xxx(Node* obj, ciField* field) {
       } else {
         type = TypeOopPtr::make_from_klass(field_klass->as_klass());
         if (field->is_null_free()) {
-          type = type->join_speculative(TypePtr::NOTNULL);
+          type = type->meeet_speculative(TypePtr::NOTNULL);
         }
       }
     } else {
@@ -295,12 +295,12 @@ void Parse::do_put_xxx(Node* obj, ciField* field, bool is_field) {
     assert(!field->is_flat(), "cannot be flat");
     const Type* field_type;
     if (!field->type()->is_loaded()) {
-      field_type = TypeInstPtr::BOTTOM;
+      field_type = TypeInstPtr::TOOP;
     } else {
       if (is_reference_type(bt)) {
         field_type = TypeOopPtr::make_from_klass(field->type()->as_klass());
       } else {
-        field_type = Type::BOTTOM;
+        field_type = Type::TOOP;
       }
     }
 
@@ -501,7 +501,7 @@ void Parse::do_multianewarray() {
   if (fun != nullptr) {
     c = make_runtime_call(RC_NO_LEAF | RC_NO_IO,
                           OptoRuntime::multianewarray_Type(ndimensions),
-                          fun, nullptr, TypeRawPtr::BOTTOM,
+                          fun, nullptr, TypeRawPtr::TOOP,
                           makecon(TypeKlassPtr::make(array_klass, Type::trust_interfaces)),
                           length[0], length[1], length[2],
                           (ndimensions > 2) ? length[3] : nullptr,
@@ -523,7 +523,7 @@ void Parse::do_multianewarray() {
 
     c = make_runtime_call(RC_NO_LEAF | RC_NO_IO,
                           OptoRuntime::multianewarrayN_Type(),
-                          OptoRuntime::multianewarrayN_Java(), nullptr, TypeRawPtr::BOTTOM,
+                          OptoRuntime::multianewarrayN_Java(), nullptr, TypeRawPtr::TOOP,
                           makecon(TypeKlassPtr::make(array_klass, Type::trust_interfaces)),
                           dims);
   }
