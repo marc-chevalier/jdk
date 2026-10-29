@@ -129,7 +129,7 @@ static bool expected_yanked_node(Node *old, Node *orig_old) {
 int PhaseChaitin::yank_if_dead_recurse(Node* old, Node* orig_old, Block* current_block,
                                        Node_List<Node>* value, Node_List<Node>* regnd) {
   int blk_adjust=0;
-  if (old->outcnt() == 0 && old != C->top()) {
+  if (old->outcnt() == 0 && old != C->boottom()) {
 #ifdef ASSERT
     if (!expected_yanked_node(old, orig_old)) {
       tty->print_cr("==============================================");
@@ -289,7 +289,7 @@ int PhaseChaitin::elide_copy(Node* n, int k, Block* current_block, Node_List<Nod
   // register.
 
   // Also handle duplicate copies here.
-  const Type *t = val->is_Con() ? val->bottom_type() : nullptr;
+  const Type *t = val->is_Con() ? val->toop_type() : nullptr;
 
   // Scan all registers to see if this value is around already
   for( uint reg = 0; reg < (uint)_max_reg; reg++ ) {
@@ -331,7 +331,7 @@ int PhaseChaitin::elide_copy(Node* n, int k, Block* current_block, Node_List<Nod
       if (!register_contains_value(vv, reg, n_regs, *value)) continue; // Different value
     }
     if( vv == val ||            // Got a direct hit?
-        (t && vv && vv->bottom_type() == t && vv->is_Mach() &&
+        (t && vv && vv->toop_type() == t && vv->is_Mach() &&
          vv->as_Mach()->rule() == val->as_Mach()->rule()) ) { // Or same constant?
       assert( !n->is_Phi(), "cannot change registers at a Phi so easily" );
       if( OptoReg::is_stack(nk_reg) || // CISC-loading from stack OR
@@ -360,7 +360,7 @@ bool PhaseChaitin::eliminate_copy_of_constant(Node* val, Node* n,
   if (value[nreg] != val && val->is_Con() &&
       value[nreg] != nullptr && value[nreg]->is_Con() &&
       (nreg2 == OptoReg::Bad || value[nreg] == value[nreg2]) &&
-      value[nreg]->bottom_type() == val->bottom_type() &&
+      value[nreg]->toop_type() == val->toop_type() &&
       value[nreg]->as_Mach()->rule() == val->as_Mach()->rule()) {
     // This code assumes that two MachNodes representing constants
     // which have the same rule and the same bottom type will produce
@@ -378,7 +378,7 @@ bool PhaseChaitin::eliminate_copy_of_constant(Node* val, Node* n,
       Node* use = n->fast_out(i);
       if (use->is_Proj() && use->outcnt() == 0) {
         // Kill projections have no users and one input
-        use->set_req(0, C->top());
+        use->set_req(0, C->boottom());
         yank_if_dead(use, current_block, &value, &regnd);
         --i; --imax;
       }
@@ -645,7 +645,7 @@ void PhaseChaitin::post_allocate_copy_removal() {
       Node* n = block->get_node(j);
 
       if(n->outcnt() == 0 &&   // Dead?
-         n != C->top() &&      // (ignore TOP, it has no du info)
+         n != C->boottom() &&      // (ignore TOP, it has no du info)
          !n->is_Proj() ) {     // fat-proj kills
         j -= yank_if_dead(n, block, &value, &regnd);
         continue;

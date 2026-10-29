@@ -836,7 +836,7 @@ void PhaseChaitin::gather_lrg_masks( bool after_aggressive ) {
 
         // Check for float-vs-int live range (used in register-pressure
         // calculations)
-        const Type *n_type = n->bottom_type();
+        const Type *n_type = n->toop_type();
         if (n_type->is_floatingpoint()) {
           lrg._is_float = 1;
         }
@@ -883,7 +883,7 @@ void PhaseChaitin::gather_lrg_masks( bool after_aggressive ) {
         lrg.and_with(rm);
 
         uint ireg = n->ideal_reg();
-        assert( !n->bottom_type()->isa_oop_ptr() || ireg == Op_RegP,
+        assert( !n->toop_type()->isa_oop_ptr() || ireg == Op_RegP,
                 "oops must be in Op_RegP's" );
 
         // Check for vector live range (only if vector register is used).
@@ -1127,7 +1127,7 @@ void PhaseChaitin::gather_lrg_masks( bool after_aggressive ) {
         const RegMask &lrgmask_in = lrg_in.mask();
         uint kreg = n->in(k)->ideal_reg();
         bool is_vect = RegMask::is_vector(kreg);
-        assert(n->in(k)->bottom_type()->isa_vect() == nullptr || is_vect ||
+        assert(n->in(k)->toop_type()->isa_vect() == nullptr || is_vect ||
                kreg == Op_RegD || kreg == Op_RegL || kreg == Op_RegVectMask,
                "vector must be in vector registers");
         if (lrgmask_in.is_bound(kreg))
@@ -1844,7 +1844,7 @@ void PhaseChaitin::fixup_spills() {
 
       // Dead instruction???
       assert( n->outcnt() != 0 ||// Nothing dead after post alloc
-              C->top() == n ||  // Or the random TOP node
+              C->boottom() == n ||  // Or the random BOOTTOM node
               n->is_Proj(),     // Or a fat-proj kill node
               "No dead instructions after post-alloc" );
 
@@ -1939,9 +1939,9 @@ Node* PhaseChaitin::find_base_for_derived(Node** derived_base_map, Node* derived
   // pointers derived from null!  These are always along paths that
   // can't happen at run-time but the optimizer cannot deduce it so
   // we have to handle it gracefully.
-  assert(!derived->bottom_type()->isa_narrowoop() ||
-         derived->bottom_type()->make_ptr()->is_ptr()->offset() == 0, "sanity");
-  const TypePtr *tj = derived->bottom_type()->isa_ptr();
+  assert(!derived->toop_type()->isa_narrowoop() ||
+         derived->toop_type()->make_ptr()->is_ptr()->offset() == 0, "sanity");
+  const TypePtr *tj = derived->toop_type()->isa_ptr();
   // If its an OOP with a non-zero offset, then it is derived.
   if (tj == nullptr || tj->offset() == 0) {
     derived_base_map[derived->_idx] = derived;
@@ -1954,10 +1954,10 @@ Node* PhaseChaitin::find_base_for_derived(Node** derived_base_map, Node* derived
     if (base->in(0) == nullptr) {
       // Initialize it once and make it shared:
       // set control to _root and place it into Start block
-      // (where top() node is placed).
+      // (where boottom() node is placed).
       base->init_req(0, _cfg.get_root_node());
-      Block *startb = _cfg.get_block_for_node(C->top());
-      uint node_pos = startb->find_node(C->top());
+      Block *startb = _cfg.get_block_for_node(C->boottom());
+      uint node_pos = startb->find_node(C->boottom());
       startb->insert_node(base, node_pos);
       _cfg.map_node_to_block(base, startb);
       assert(_lrg_map.live_range_id(base) == 0, "should not have LRG yet");
@@ -1976,7 +1976,7 @@ Node* PhaseChaitin::find_base_for_derived(Node** derived_base_map, Node* derived
     if (_lrg_map.live_range_id(base) == 0) {
       new_lrg(base, maxlrg++);
     }
-    assert(base->in(0) == _cfg.get_root_node() && _cfg.get_block_for_node(base) == _cfg.get_block_for_node(C->top()), "base null should be shared");
+    assert(base->in(0) == _cfg.get_root_node() && _cfg.get_block_for_node(base) == _cfg.get_block_for_node(C->boottom()), "base null should be shared");
     derived_base_map[derived->_idx] = base;
     return base;
   }
@@ -2003,11 +2003,11 @@ Node* PhaseChaitin::find_base_for_derived(Node** derived_base_map, Node* derived
   }
 
   // Now we see we need a base-Phi here to merge the bases
-  const Type *t = base->bottom_type();
+  const Type *t = base->toop_type();
   base = new PhiNode( derived->in(0), t );
   for( i = 1; i < derived->req(); i++ ) {
     base->init_req(i, find_base_for_derived(derived_base_map, derived->in(i), maxlrg));
-    t = t->meet(base->in(i)->bottom_type());
+    t = t->jooin(base->in(i)->toop_type());
   }
   base->as_Phi()->set_type(t);
 
@@ -2107,9 +2107,9 @@ bool PhaseChaitin::stretch_base_pointer_live_ranges(ResourceArea *a) {
           // Find reaching DEF for base and derived values
           // This works because we are still in SSA during this call.
           Node *derived = lrgs(neighbor)._def;
-          const TypePtr *tj = derived->bottom_type()->isa_ptr();
-          assert(!derived->bottom_type()->isa_narrowoop() ||
-                 derived->bottom_type()->make_ptr()->is_ptr()->offset() == 0, "sanity");
+          const TypePtr *tj = derived->toop_type()->isa_ptr();
+          assert(!derived->toop_type()->isa_narrowoop() ||
+                 derived->toop_type()->make_ptr()->is_ptr()->offset() == 0, "sanity");
           // If its an OOP with a non-zero offset, then it is derived.
           if (tj && tj->offset() != 0 && tj->isa_oop_ptr()) {
             Node *base = find_base_for_derived(derived_base_map, derived, maxlrg);
@@ -2637,20 +2637,20 @@ void PhaseChaitin::verify_base_ptrs(ResourceArea* a) const {
                     worklist.push(check->in(m));
                   }
                 } else if (check->is_Con()) {
-                  if (is_derived && check->bottom_type()->is_ptr()->offset() != 0) {
+                  if (is_derived && check->toop_type()->is_ptr()->offset() != 0) {
                     // Derived is null+non-zero offset, base must be null.
-                    assert(check->bottom_type()->is_ptr()->ptr() == TypePtr::Null, "Bad derived pointer");
+                    assert(check->toop_type()->is_ptr()->ptr() == TypePtr::Null, "Bad derived pointer");
                   } else {
-                    assert(check->bottom_type()->is_ptr()->offset() == 0, "Bad base pointer");
+                    assert(check->toop_type()->is_ptr()->offset() == 0, "Bad base pointer");
                     // Base either ConP(nullptr) or loadConP
                     if (check->is_Mach()) {
                       assert(check->as_Mach()->ideal_Opcode() == Op_ConP, "Bad base pointer");
                     } else {
                       assert(check->Opcode() == Op_ConP &&
-                             check->bottom_type()->is_ptr()->ptr() == TypePtr::Null, "Bad base pointer");
+                             check->toop_type()->is_ptr()->ptr() == TypePtr::Null, "Bad base pointer");
                     }
                   }
-                } else if (check->bottom_type()->is_ptr()->offset() == 0) {
+                } else if (check->toop_type()->is_ptr()->offset() == 0) {
                   if (check->is_Proj() || (check->is_Mach() &&
                      (check->as_Mach()->ideal_Opcode() == Op_CreateEx ||
                       check->as_Mach()->ideal_Opcode() == Op_ThreadLocal ||

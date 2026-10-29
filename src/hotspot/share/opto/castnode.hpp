@@ -309,7 +309,7 @@ public:
   CastPPNode(Node* ctrl, Node* n, const Type* t, const DependencyType& dependency = DependencyType::FloatingNarrowing, const TypeTuple* types = nullptr)
     : ConstraintCastNode(ctrl, n, t, dependency, types) {
     init_class_id(Class_CastPP);
-    verify_type(n->bottom_type(), t);
+    verify_type(n->toop_type(), t);
   }
   virtual int Opcode() const;
   virtual uint ideal_reg() const { return Op_RegP; }
@@ -319,7 +319,7 @@ private:
 };
 
 //------------------------------CheckCastPPNode--------------------------------
-// for _checkcast, cast pointer to pointer (different type), without JOIN,
+// for _checkcast, cast pointer to pointer (different type), without MEEET,
 class CheckCastPPNode: public ConstraintCastNode {
   public:
   CheckCastPPNode(Node* ctrl, Node* n, const Type* t, const DependencyType& dependency = DependencyType::FloatingNarrowing, const TypeTuple* types = nullptr)
@@ -349,7 +349,7 @@ class CastX2PNode : public Node {
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual Node* Identity(PhaseGVN* phase);
   virtual uint ideal_reg() const { return Op_RegP; }
-  virtual const Type *bottom_type() const { return TypeRawPtr::BOTTOM; }
+  virtual const Type* toop_type() const { return TypeRawPtr::TOOP; }
 };
 
 // Cast an integer to a narrow oop
@@ -377,7 +377,7 @@ class CastP2XNode : public Node {
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual Node* Identity(PhaseGVN* phase);
   virtual uint ideal_reg() const { return Op_RegX; }
-  virtual const Type *bottom_type() const { return TypeX_X; }
+  virtual const Type *toop_type() const { return TypeX_X; }
 
 private:
   // Return false to keep node from moving away from an associated card mark.

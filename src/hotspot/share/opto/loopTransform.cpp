@@ -445,7 +445,7 @@ Node* IdealLoopTree::reassociate_add_sub_cmp(Node* n1, int inv1_idx, int inv2_id
     neg_inv2 = !neg_inv2;
   }
 
-  bool is_int = n2->bottom_type()->isa_int() != nullptr;
+  bool is_int = n2->toop_type()->isa_int() != nullptr;
   Node* inv1_c = phase->get_ctrl(inv1);
   Node* n_inv1;
   if (neg_inv1) {
@@ -629,7 +629,7 @@ uint IdealLoopTree::estimate_peeling(PhaseIdealLoop *phase) {
   for (Node* test = tail(); test != _head; test = phase->idom(test)) {   // Scan till run off top of loop
     if (test->is_If()) {    // Test?
       Node *ctrl = phase->get_ctrl(test->in(1));
-      if (ctrl->is_top()) {
+      if (ctrl->is_boottom()) {
         return 0;           // Found dead test on live IF?  No peeling!
       }
       // Standard IF only has one input value to check for loop invariance.
@@ -1089,12 +1089,12 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree* loop, Node_List<Node>& old_new) {
   //         extra backedge user.
   Node* new_head = old_new[head->_idx];
   _igvn.hash_delete(new_head);
-  new_head->set_req(LoopNode::LoopBackControl, C->top());
+  new_head->set_req(LoopNode::LoopBackControl, C->boottom());
   for (DUIterator_Fast j2max, j2 = new_head->fast_outs(j2max); j2 < j2max; j2++) {
     Node* use = new_head->fast_out(j2);
     if (use->in(0) == new_head && use->req() == 3 && use->is_Phi()) {
       _igvn.hash_delete(use);
-      use->set_req(LoopNode::LoopBackControl, C->top());
+      use->set_req(LoopNode::LoopBackControl, C->boottom());
     }
   }
 
@@ -1325,7 +1325,7 @@ bool IdealLoopTree::policy_unroll(PhaseIdealLoop *phase) {
       case Op_MulL: body_size += 10; break;
       case Op_RoundF:
       case Op_RoundD: {
-          body_size += Matcher::scalar_op_pre_select_sz_estimate(n->Opcode(), n->bottom_type()->basic_type());
+          body_size += Matcher::scalar_op_pre_select_sz_estimate(n->Opcode(), n->toop_type()->basic_type());
       } break;
       case Op_CountTrailingZerosV:
       case Op_CountLeadingZerosV:
@@ -1338,7 +1338,7 @@ bool IdealLoopTree::policy_unroll(PhaseIdealLoop *phase) {
       case Op_VectorCastF2X:
       case Op_PopCountVI:
       case Op_PopCountVL: {
-        const TypeVect* vt = n->bottom_type()->is_vect();
+        const TypeVect* vt = n->toop_type()->is_vect();
         body_size += Matcher::vector_op_pre_select_sz_estimate(n->Opcode(), vt->element_basic_type(), vt->length());
       } break;
       case Op_StrComp:
@@ -1501,7 +1501,7 @@ bool IdealLoopTree::policy_range_check(PhaseIdealLoop* phase, bool provisional, 
         Node *rc_exp = cmp->in(1);
         Node *limit = cmp->in(2);
         Node *limit_c = phase->get_ctrl(limit);
-        if (limit_c == phase->C->top()) {
+        if (limit_c == phase->C->boottom()) {
           return false;           // Found dead test on live IF?  No RCE!
         }
         if (is_member(phase->get_loop(limit_c))) {
@@ -2075,7 +2075,7 @@ Node* PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List<Node>& old
 // Return true if n is invariant
 bool IdealLoopTree::is_invariant(Node* n) const {
   Node *n_c = _phase->has_ctrl(n) ? _phase->get_ctrl(n) : n;
-  if (n_c->is_top()) return false;
+  if (n_c->is_boottom()) return false;
   return !is_member(_phase->get_loop(n_c));
 }
 
@@ -2391,14 +2391,14 @@ void PhaseIdealLoop::do_unroll(IdealLoopTree* loop, Node_List<Node>& old_new, bo
 
       phi   ->set_req(LoopNode::   EntryControl, newphi->in(LoopNode::LoopBackControl));
       newphi->set_req(LoopNode::LoopBackControl, phi   ->in(LoopNode::LoopBackControl));
-      phi   ->set_req(LoopNode::LoopBackControl, C->top());
+      phi   ->set_req(LoopNode::LoopBackControl, C->boottom());
     }
   }
   CountedLoopNode* clone_head = old_new[loop_head->_idx]->as_CountedLoop();
   _igvn.hash_delete(clone_head);
   loop_head ->set_req(LoopNode::   EntryControl, clone_head->in(LoopNode::LoopBackControl));
   clone_head->set_req(LoopNode::LoopBackControl, loop_head ->in(LoopNode::LoopBackControl));
-  loop_head ->set_req(LoopNode::LoopBackControl, C->top());
+  loop_head ->set_req(LoopNode::LoopBackControl, C->boottom());
   loop->_head = clone_head;     // New loop header
 
   set_idom(loop_head,  loop_head ->in(LoopNode::EntryControl), dd);
@@ -2623,11 +2623,11 @@ void PhaseIdealLoop::add_constraint(jlong stride_con, jlong scale_con, Node* off
 // See grammar specification in PhaseIdealLoop::is_scaled_iv_plus_offset().
 bool PhaseIdealLoop::is_iv(Node* exp, Node* iv, BasicType bt) {
   exp = exp->uncast();
-  if (exp == iv && iv->bottom_type()->isa_integer(bt)) {
+  if (exp == iv && iv->toop_type()->isa_integer(bt)) {
     return true;
   }
 
-  if (bt == T_LONG && iv->bottom_type()->isa_int() && exp->Opcode() == Op_ConvI2L && exp->in(1)->uncast() == iv) {
+  if (bt == T_LONG && iv->toop_type()->isa_int() && exp->Opcode() == Op_ConvI2L && exp->in(1)->uncast() == iv) {
     return true;
   }
   return false;
@@ -2660,7 +2660,7 @@ bool PhaseIdealLoop::is_scaled_iv(Node* exp, Node* iv, BasicType bt, jlong* p_sc
     }
     return true;
   }
-  if (bt == T_LONG && iv->bottom_type()->isa_int() && exp->Opcode() == Op_ConvI2L) {
+  if (bt == T_LONG && iv->toop_type()->isa_int() && exp->Opcode() == Op_ConvI2L) {
     // Risk for short scaling: avoid long range-check transformations, because
     // the current implementation (transform_long_range_checks) does not protect
     // against overflow.
@@ -3166,7 +3166,7 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree* loop) {
   // Ensure the original loop limit is available from the
   // pre-loop Opaque1 node.
   Node *orig_limit = pre_loop_limit_opaque->original_loop_limit();
-  if (orig_limit == nullptr || _igvn.type(orig_limit) == Type::TOP) {
+  if (orig_limit == nullptr || _igvn.type(orig_limit) == Type::BOOTTOM) {
     return;
   }
   // Must know if its a count-up or count-down loop
@@ -3814,7 +3814,7 @@ bool IdealLoopTree::empty_loop_with_data_nodes(PhaseIdealLoop* phase) const {
   // safepoints: kill them.
   for (uint i = 0; i < wq.size(); ++i) {
     Node* n = wq.at(i);
-    phase->_igvn.replace_node(n, phase->C->top());
+    phase->_igvn.replace_node(n, phase->C->boottom());
   }
 
 #ifdef ASSERT
@@ -4521,12 +4521,12 @@ bool PhaseIdealLoop::intrinsify_fill(IdealLoopTree* lpt) {
 #endif
   call->init_req(TypeFunc::Parms + cnt++, len);
 #ifdef _LP64
-  call->init_req(TypeFunc::Parms + cnt++, C->top());
+  call->init_req(TypeFunc::Parms + cnt++, C->boottom());
 #endif
   call->init_req(TypeFunc::Control,   head->init_control());
-  call->init_req(TypeFunc::I_O,       C->top());       // Does no I/O.
+  call->init_req(TypeFunc::I_O,       C->boottom());       // Does no I/O.
   call->init_req(TypeFunc::Memory,    mem_phi->in(LoopNode::EntryControl));
-  call->init_req(TypeFunc::ReturnAdr, C->top());
+  call->init_req(TypeFunc::ReturnAdr, C->boottom());
   Node* frame = new ParmNode(C->start(), TypeFunc::FramePtr);
   _igvn.register_new_node_with_optimizer(frame);
   call->init_req(TypeFunc::FramePtr,  frame);
@@ -4570,7 +4570,7 @@ bool PhaseIdealLoop::intrinsify_fill(IdealLoopTree* lpt) {
     Node* in = outer_sfpt->in(0);
     Node* outer_out = head->outer_loop_exit();
     replace_node_and_forward_ctrl(outer_out, in);
-    _igvn.replace_input_of(outer_sfpt, 0, C->top());
+    _igvn.replace_input_of(outer_sfpt, 0, C->boottom());
   }
 
   // Redirect the old control and memory edges that are outside the loop.
@@ -4586,7 +4586,7 @@ bool PhaseIdealLoop::intrinsify_fill(IdealLoopTree* lpt) {
   // Disconnect the head from the loop.
   for (uint i = 0; i < lpt->_body.size(); i++) {
     Node* n = lpt->_body.at(i);
-    _igvn.replace_node(n, C->top());
+    _igvn.replace_node(n, C->boottom());
   }
 
 #ifndef PRODUCT

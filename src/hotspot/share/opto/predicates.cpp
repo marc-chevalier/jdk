@@ -850,7 +850,7 @@ Node* TemplateAssertionPredicateCreator::create_last_value(Node* new_control, Op
   last_value = new AddINode(opaque_init, last_value);
   _phase->register_new_node(last_value, new_control);
   // init + (current stride - initial stride) is within the loop so narrow its type by leveraging the type of the iv phi
-  last_value = new CastIINode(new_control, last_value, _loop_head->phi()->bottom_type());
+  last_value = new CastIINode(new_control, last_value, _loop_head->phi()->toop_type());
   _phase->register_new_node(last_value, new_control);
   return last_value;
 }

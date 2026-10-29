@@ -307,7 +307,7 @@ VTransformNode* SuperWordVTransformBuilder::get_or_make_vtnode_vector_input_at_i
       // Scalar shift operations masks the shift count, but the vector shift does not, so
       // create a special ShiftCount node.
       BasicType element_bt = _vloop_analyzer.types().velt_basic_type(p0);
-      juint mask = (p0->bottom_type() == TypeInt::INT) ? (BitsPerInt - 1) : (BitsPerLong - 1);
+      juint mask = (p0->toop_type() == TypeInt::INT) ? (BitsPerInt - 1) : (BitsPerLong - 1);
       VTransformNode* shift_count = new (_vtransform.arena()) VTransformShiftCountNode(_vtransform, pack->size(), element_bt, mask, p0->Opcode());
       shift_count->init_req(1, same_input_vtn);
       return shift_count;
@@ -319,10 +319,10 @@ VTransformNode* SuperWordVTransformBuilder::get_or_make_vtnode_vector_input_at_i
       // case of a ConvL2I, it can be int or some narrower type such
       // as short etc. But given we replicate the input of the Convert
       // node, we have to use the input type instead.
-      BasicType element_bt = p0->is_Convert() ? p0->in(1)->bottom_type()->basic_type() : _vloop_analyzer.types().velt_basic_type(p0);
+      BasicType element_bt = p0->is_Convert() ? p0->in(1)->toop_type()->basic_type() : _vloop_analyzer.types().velt_basic_type(p0);
       if (index == 2 && VectorNode::is_scalar_rotate(p0) && element_bt == T_LONG) {
         // Scalar rotate has int rotation value, but the scalar rotate expects longs.
-        assert(same_input->bottom_type()->isa_int(), "scalar rotate expects int rotation");
+        assert(same_input->toop_type()->isa_int(), "scalar rotate expects int rotation");
         VTransformNode* conv = new (_vtransform.arena()) VTransformConvI2LNode(_vtransform);
         conv->init_req(1, same_input_vtn);
         same_input_vtn = conv;

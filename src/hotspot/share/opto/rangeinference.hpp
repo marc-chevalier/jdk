@@ -123,7 +123,7 @@ class TypeIntHelper {
 public:
   // Calculate the cardinality of a TypeInt/TypeLong ignoring the bits
   // constraints, the return value is the cardinality minus 1 to not overflow
-  // with the bottom type
+  // with the top type
   template <class S, class U>
   static U cardinality_from_bounds(const RangeInt<S>& srange, const RangeInt<U>& urange) {
     static_assert(S(-1) < S(0));
@@ -145,10 +145,10 @@ public:
   }
 
   template <class CT>
-  static const Type* int_type_xmeet(const CT* i1, const CT* t2);
+  static const Type* int_type_xjooin(const CT* i1, const CT* t2);
 
   template <class CT>
-  static const Type* int_type_xjoin(const CT* i1, const CT* t2);
+  static const Type* int_type_xmeeet(const CT* i1, const CT* t2);
 
   template <class CTP>
   static auto int_type_union(CTP t1, CTP t2) {
@@ -221,7 +221,7 @@ public:
                          canonicalized_t._data._bits};
   }
 
-  TypeIntMirror meet(const TypeIntMirror& o) const {
+  TypeIntMirror jooin(const TypeIntMirror& o) const {
     return TypeIntHelper::int_type_union(this, &o);
   }
 
@@ -345,7 +345,7 @@ private:
         TypeIntMirror<S<CTP>, U<CTP>> current = infer(st1, st2);
 
         if (is_init) {
-          res = res.meet(current);
+          res = res.jooin(current);
         } else {
           is_init = true;
           res = current;

@@ -179,7 +179,7 @@ Node* GraphKit::unbox_vector(Node* v, const TypeInstPtr* vbox_type, BasicType el
   set_all_memory(mem);
   Node* unbox = gvn().transform(new VectorUnboxNode(C, vt, ctrl, v, mem));
   if (gvn().type(unbox)->isa_vect() == nullptr) {
-    assert(gvn().type(unbox) == Type::TOP, "sanity");
+    assert(gvn().type(unbox) == Type::BOOTTOM, "sanity");
     return nullptr; // not a vector
   }
   return unbox;
@@ -615,7 +615,7 @@ bool LibraryCallKit::inline_vector_call(int arity) {
                                   call_type,
                                   entry_addr,
                                   debug_name,
-                                  TypePtr::BOTTOM,
+                                  TypePtr::TOOP,
                                   opd1,
                                   opd2);
 
@@ -648,7 +648,7 @@ bool LibraryCallKit::inline_vector_mask_operation() {
       laneType   == nullptr || !laneType->is_con() ||
       vlen       == nullptr || !vlen->is_con() ||
       oper       == nullptr || !oper->is_con() ||
-      mask->is_top()) {
+      mask->is_boottom()) {
     return false; // dead code
   }
 
@@ -686,7 +686,7 @@ bool LibraryCallKit::inline_vector_mask_operation() {
     return false;
   }
 
-  if (!Matcher::mask_op_prefers_predicate(mopc, mask_vec->bottom_type()->is_vect())) {
+  if (!Matcher::mask_op_prefers_predicate(mopc, mask_vec->toop_type()->is_vect())) {
     mask_vec = gvn().transform(VectorStoreMaskNode::make(gvn(), mask_vec, elem_bt, num_elem));
   }
   const Type* maskoper_ty = mopc == Op_VectorMaskToLong ? (const Type*)TypeLong::LONG : (const Type*)TypeInt::INT;
@@ -996,7 +996,7 @@ bool LibraryCallKit::inline_vector_mem_operation(bool is_store) {
     if (mismatched_ms) {
       store_num_elem = mem_num_elem;
       const TypeVect* to_vect_type = TypeVect::make(mem_elem_bt, store_num_elem);
-      val = gvn().transform(new VectorReinterpretNode(val, val->bottom_type()->is_vect(), to_vect_type));
+      val = gvn().transform(new VectorReinterpretNode(val, val->toop_type()->is_vect(), to_vect_type));
     }
     if (is_mask) {
       val = gvn().transform(VectorStoreMaskNode::make(gvn(), val, elem_bt, num_elem));
@@ -1009,7 +1009,7 @@ bool LibraryCallKit::inline_vector_mem_operation(bool is_store) {
     if (mismatched_ms) {
       vload = gvn().transform(trace_vector(LoadVectorNode::make(0, control(), memory(addr), addr, addr_type, mem_num_elem, mem_elem_bt)));
       const TypeVect* to_vect_type = TypeVect::make(elem_bt, num_elem);
-      vload = gvn().transform(new VectorReinterpretNode(vload, vload->bottom_type()->is_vect(), to_vect_type));
+      vload = gvn().transform(new VectorReinterpretNode(vload, vload->toop_type()->is_vect(), to_vect_type));
     } else {
       // Special handle for masks
       if (is_mask) {
@@ -1208,7 +1208,7 @@ bool LibraryCallKit::inline_vector_mem_masked_operation(bool is_store) {
     if (mismatched_ms) {
       // Reinterpret the incoming vector to byte vector.
       const TypeVect* to_vect_type = TypeVect::make(mem_elem_bt, mem_num_elem);
-      val = gvn().transform(new VectorReinterpretNode(val, val->bottom_type()->is_vect(), to_vect_type));
+      val = gvn().transform(new VectorReinterpretNode(val, val->toop_type()->is_vect(), to_vect_type));
       // Reinterpret the vector mask to byte type.
       const TypeVect* from_mask_type = TypeVect::makemask(elem_bt, num_elem);
       const TypeVect* to_mask_type = TypeVect::makemask(mem_elem_bt, mem_num_elem);
@@ -1240,7 +1240,7 @@ bool LibraryCallKit::inline_vector_mem_masked_operation(bool is_store) {
 
     if (mismatched_ms) {
       const TypeVect* to_vect_type = TypeVect::make(elem_bt, num_elem);
-      vload = gvn().transform(new VectorReinterpretNode(vload, vload->bottom_type()->is_vect(), to_vect_type));
+      vload = gvn().transform(new VectorReinterpretNode(vload, vload->toop_type()->is_vect(), to_vect_type));
     }
 
     Node* box = box_vector(vload, vbox_type, elem_bt, num_elem);
@@ -1711,7 +1711,7 @@ bool LibraryCallKit::inline_vector_test() {
 
   Node* opd2;
   if (Matcher::vectortest_needs_second_argument(booltest == BoolTest::overflow,
-                                                opd1->bottom_type()->isa_pvectmask())) {
+                                                opd1->toop_type()->isa_pvectmask())) {
     opd2 = unbox_vector(argument(5), vbox_type, elem_bt, num_elem);
     if (opd2 == nullptr) {
       log_if_needed("  ** unbox failed m2=%s", NodeClassNames[argument(5)->Opcode()]);
@@ -1723,7 +1723,7 @@ bool LibraryCallKit::inline_vector_test() {
 
   Node* cmp = gvn().transform(trace_vector(new VectorTestNode(opd1, opd2, booltest)));
   BoolTest::mask test = Matcher::vectortest_mask(booltest == BoolTest::overflow,
-                                                 opd1->bottom_type()->isa_pvectmask(), num_elem);
+                                                 opd1->toop_type()->isa_pvectmask(), num_elem);
   Node* bol = gvn().transform(new BoolNode(cmp, test));
   Node* res = gvn().transform(new CMoveINode(bol, gvn().intcon(0), gvn().intcon(1), TypeInt::BOOL));
 
@@ -1948,7 +1948,7 @@ bool LibraryCallKit::inline_vector_compare() {
   Node* v1 = unbox_vector(argument(5), vbox_type, elem_bt, num_elem);
   Node* v2 = unbox_vector(argument(6), vbox_type, elem_bt, num_elem);
 
-  bool is_masked_op = argument(7)->bottom_type() != TypePtr::NULL_PTR;
+  bool is_masked_op = argument(7)->toop_type() != TypePtr::NULL_PTR;
   Node* mask = is_masked_op ? unbox_vector(argument(7), mbox_type, elem_bt, num_elem) : nullptr;
   if (is_masked_op && mask == nullptr) {
     log_if_needed("  ** not supported: mask = null arity=2 op=comp/%d vlen=%d etype=%s ismask=usestore is_masked_op=1",
@@ -2059,7 +2059,7 @@ bool LibraryCallKit::inline_vector_rearrange() {
     return false; // not supported
   }
 
-  bool is_masked_op = argument(7)->bottom_type() != TypePtr::NULL_PTR;
+  bool is_masked_op = argument(7)->toop_type() != TypePtr::NULL_PTR;
   bool use_predicate = is_masked_op;
   if (is_masked_op &&
       (mask_klass == nullptr ||
@@ -2205,7 +2205,7 @@ bool LibraryCallKit::inline_vector_select_from() {
     return false; // not supported
   }
 
-  bool is_masked_op = argument(6)->bottom_type() != TypePtr::NULL_PTR;
+  bool is_masked_op = argument(6)->toop_type() != TypePtr::NULL_PTR;
   bool use_predicate = is_masked_op;
   if (is_masked_op &&
       (mask_klass == nullptr ||
@@ -2284,7 +2284,7 @@ bool LibraryCallKit::inline_vector_select_from() {
       rearrange->add_flag(Node::Flag_is_predicated_vector);
     } else {
       // masked rearrange is not supported so emulate usig blend
-      const TypeVect* vt = v1->bottom_type()->is_vect();
+      const TypeVect* vt = v1->toop_type()->is_vect();
       rearrange = gvn().transform(rearrange);
 
       // create a zero vector with each lane element set as zero
@@ -2387,7 +2387,7 @@ bool LibraryCallKit::inline_vector_broadcast_int() {
   }
 
   Node* cnt  = argument(6);
-  const TypeInt* cnt_type = cnt->bottom_type()->isa_int();
+  const TypeInt* cnt_type = cnt->toop_type()->isa_int();
 
   ciKlass* vbox_klass = vector_klass->const_oop()->as_instance()->java_lang_Class_klass();
   const TypeInstPtr* vbox_type = TypeInstPtr::make_exact(TypePtr::NotNull, vbox_klass);
@@ -2636,7 +2636,7 @@ bool LibraryCallKit::inline_vector_convert() {
 
       op = gvn().transform(trace_vector(VectorCastNode::make(cast_vopc, op, elem_bt_to, num_elem_for_cast)));
       // Now ensure that the destination gets properly resized to needed size.
-      op = gvn().transform(new VectorReinterpretNode(op, op->bottom_type()->is_vect(), dst_type));
+      op = gvn().transform(new VectorReinterpretNode(op, op->toop_type()->is_vect(), dst_type));
     } else if (num_elem_from > num_elem_to) {
       // Since number of elements from input is larger than output, simply reduce size of input
       // (we are supposed to drop top elements anyway).
@@ -2845,7 +2845,7 @@ bool LibraryCallKit::inline_vector_extract() {
         return false;
       }
       // VectorMaskToLongNode requires the input is either a mask or a vector with BOOLEAN type.
-      if (!Matcher::mask_op_prefers_predicate(Op_VectorMaskToLong, opd->bottom_type()->is_vect())) {
+      if (!Matcher::mask_op_prefers_predicate(Op_VectorMaskToLong, opd->toop_type()->is_vect())) {
         opd = gvn().transform(trace_vector(VectorStoreMaskNode::make(gvn(), opd, elem_bt, num_elem)));
       }
       // ((toLong() >>> pos) & 1L
@@ -3089,7 +3089,7 @@ bool LibraryCallKit::inline_vector_select_from_two_vectors() {
     int indexRangeMask = 2 * num_elem - 1;
     Node* wrap_mask = gvn().makecon(TypeInteger::make(indexRangeMask, indexRangeMask, Type::WidenMin, index_elem_bt != T_LONG ? T_INT : index_elem_bt));
     Node* wrap_mask_vec = gvn().transform(VectorNode::scalar2vector(wrap_mask, num_elem, index_elem_bt, false));
-    opd1 = gvn().transform(VectorNode::make(Op_AndV, opd1, wrap_mask_vec, opd1->bottom_type()->is_vect()));
+    opd1 = gvn().transform(VectorNode::make(Op_AndV, opd1, wrap_mask_vec, opd1->toop_type()->is_vect()));
     operation = gvn().transform(trace_vector(VectorNode::make(Op_SelectFromTwoVector, opd1, opd2, opd3, vt)));
   }
 

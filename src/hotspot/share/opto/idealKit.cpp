@@ -71,11 +71,11 @@ void IdealKit::if_then(Node* left, BoolTest::mask relop,
                        Node* right, float prob, float cnt, bool push_new_state) {
   assert((state() & (BlockS|LoopS|IfThenS|ElseS)), "bad state for new If");
   Node* bol;
-  if (left->bottom_type()->isa_ptr() == nullptr) {
-    if (left->bottom_type()->isa_int() != nullptr) {
+  if (left->toop_type()->isa_ptr() == nullptr) {
+    if (left->toop_type()->isa_int() != nullptr) {
       bol = Bool(CmpI(left, right), relop);
     } else {
-      assert(left->bottom_type()->isa_long() != nullptr, "what else?");
+      assert(left->toop_type()->isa_long() != nullptr, "what else?");
       bol = Bool(CmpL(left, right), relop);
     }
   } else {
@@ -275,7 +275,7 @@ void IdealKit::goto_(Node* lab, bool bind) {
 Node* IdealKit::promote_to_phi(Node* n, Node* reg) {
   assert(!was_promoted_to_phi(n, reg), "n already promoted to phi on this region");
   // Get a conservative type for the phi
-  const BasicType bt = n->bottom_type()->basic_type();
+  const BasicType bt = n->toop_type()->basic_type();
   const Type* ct = Type::get_const_basic_type(bt);
   return delay_transform(PhiNode::make(reg, n, ct));
 }
@@ -303,7 +303,7 @@ Node* IdealKit::transform(Node* n) {
 //-----------------------------delay_transform-----------------------------------
 Node* IdealKit::delay_transform(Node* n) {
   // Delay transform until IterativeGVN
-  gvn().set_type(n, n->bottom_type());
+  gvn().set_type(n, n->toop_type());
   gvn().record_for_igvn(n);
   return n;
 }
@@ -356,7 +356,7 @@ Node* IdealKit::load(Node* ctl,
                      MemNode::MemOrd mo,
                      LoadNode::ControlDependency control_dependency) {
 
-  assert(adr_idx != Compile::AliasIdxTop, "use other make_load factory" );
+  assert(adr_idx != Compile::AliasIdxBoot, "use other make_load factory" );
   const TypePtr* adr_type = nullptr; // debug-mode-only argument
   DEBUG_ONLY(adr_type = C->get_adr_type(adr_idx));
   Node* mem = memory(adr_idx);
@@ -379,7 +379,7 @@ Node* IdealKit::store(Node* ctl, Node* adr, Node *val, BasicType bt,
                       int adr_idx,
                       MemNode::MemOrd mo, bool require_atomic_access,
                       bool mismatched) {
-  assert(adr_idx != Compile::AliasIdxTop, "use other store_to_memory factory");
+  assert(adr_idx != Compile::AliasIdxBoot, "use other store_to_memory factory");
   const TypePtr* adr_type = nullptr;
   DEBUG_ONLY(adr_type = C->get_adr_type(adr_idx));
   Node *mem = memory(adr_idx);
@@ -481,7 +481,7 @@ Node* IdealKit::make_leaf_call(const TypeFunc *slow_call_type,
                                Node* parm3) {
 
   // We only handle taking in RawMem and modifying RawMem
-  const TypePtr* adr_type = TypeRawPtr::BOTTOM;
+  const TypePtr* adr_type = TypeRawPtr::TOOP;
   uint adr_idx = C->get_alias_index(adr_type);
 
   // Slow-path leaf call
@@ -489,11 +489,11 @@ Node* IdealKit::make_leaf_call(const TypeFunc *slow_call_type,
 
   // Set fixed predefined input arguments
   call->init_req( TypeFunc::Control, ctrl() );
-  call->init_req( TypeFunc::I_O    , top() )     ;   // does no i/o
+  call->init_req( TypeFunc::I_O    , boottom() )     ;   // does no i/o
   // Narrow memory as only memory input
   call->init_req( TypeFunc::Memory , memory(adr_idx));
-  call->init_req( TypeFunc::FramePtr, top() /* frameptr() */ );
-  call->init_req( TypeFunc::ReturnAdr, top() );
+  call->init_req( TypeFunc::FramePtr, boottom() /* frameptr() */ );
+  call->init_req( TypeFunc::ReturnAdr, boottom() );
 
   if (parm0 != nullptr)  call->init_req(TypeFunc::Parms+0, parm0);
   if (parm1 != nullptr)  call->init_req(TypeFunc::Parms+1, parm1);
@@ -542,11 +542,11 @@ void IdealKit::make_leaf_call_no_fp(const TypeFunc *slow_call_type,
 
   // Set fixed predefined input arguments
   call->init_req( TypeFunc::Control, ctrl() );
-  call->init_req( TypeFunc::I_O    , top() )     ;   // does no i/o
+  call->init_req( TypeFunc::I_O    , boottom() )     ;   // does no i/o
   // Narrow memory as only memory input
   call->init_req( TypeFunc::Memory , memory(adr_idx));
-  call->init_req( TypeFunc::FramePtr, top() /* frameptr() */ );
-  call->init_req( TypeFunc::ReturnAdr, top() );
+  call->init_req( TypeFunc::FramePtr, boottom() /* frameptr() */ );
+  call->init_req( TypeFunc::ReturnAdr, boottom() );
 
   if (parm0 != nullptr)  call->init_req(TypeFunc::Parms+0, parm0);
   if (parm1 != nullptr)  call->init_req(TypeFunc::Parms+1, parm1);
