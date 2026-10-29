@@ -334,7 +334,7 @@ void Matcher::match( ) {
   // _shared[_idx] is cleared is guaranteed to not be shared, and thus
   // can be a valid interior of some tree.
   find_shared( C->root() );
-  find_shared( C->top() );
+  find_shared( C->boottom() );
 
   C->print_method(PHASE_BEFORE_MATCHING, 1);
 
@@ -366,9 +366,9 @@ void Matcher::match( ) {
   // Recursively match trees from old space into new space.
   // Correct leaves of new-space Nodes; they point to old-space.
   _visited.clear();
-  Node* const n = xform(C->top(), live_nodes);
+  Node* const n = xform(C->boottom(), live_nodes);
   if (C->failing()) return;
-  C->set_cached_top_node(n);
+  C->set_cached_boottom_node(n);
   if (!C->failing()) {
     Node* xroot =        xform( C->root(), 1 );
     if (C->failing()) return;
@@ -405,7 +405,7 @@ void Matcher::match( ) {
 #endif
     }
   }
-  if (C->top() == nullptr || C->root() == nullptr) {
+  if (C->boottom() == nullptr || C->root() == nullptr) {
     // New graph lost. This is due to a compilation failure we encountered earlier.
     stringStream ss;
     if (C->failure_reason() != nullptr) {
@@ -421,7 +421,7 @@ void Matcher::match( ) {
     old->destruct_contents();
     return;
   }
-  assert( C->top(), "" );
+  assert( C->boottom(), "" );
   assert( C->root(), "" );
   validate_null_checks();
 
@@ -854,7 +854,7 @@ void Matcher::Fixup_Save_On_Entry( ) {
         tail_jump_rms[tail_jump_edge_cnt].assignFrom(RegMask::EMPTY);
         forw_exc_rms [ forw_exc_edge_cnt].assignFrom(RegMask::EMPTY);
         halt_rms     [     halt_edge_cnt].assignFrom(RegMask::EMPTY);
-        mproj = C->top();
+        mproj = C->boottom();
       }
       // Is this a RegI low half of a RegL?  Double up 2 adjacent RegI's
       // into a single RegL.
@@ -882,7 +882,7 @@ void Matcher::Fixup_Save_On_Entry( ) {
         tail_jump_rms[tail_jump_edge_cnt].assignFrom(RegMask::EMPTY);
         forw_exc_rms [ forw_exc_edge_cnt].assignFrom(RegMask::EMPTY);
         halt_rms     [     halt_edge_cnt].assignFrom(RegMask::EMPTY);
-        mproj = C->top();
+        mproj = C->boottom();
       } else {
         // Make a projection for it off the Start
         mproj = new MachProjNode( start, proj_cnt++, ret_rms[ret_edge_cnt], _register_save_type[i] );
@@ -970,7 +970,7 @@ static void match_alias_type(Compile* C, Node* n, Node* m) {
   int nidx = C->get_alias_index(nat);
   int midx = C->get_alias_index(mat);
   // Detune the assert for cases like (AndI 0xFF (LoadB p)).
-  if (nidx == Compile::AliasIdxTop && midx >= Compile::AliasIdxRaw) {
+  if (nidx == Compile::AliasIdxBoot && midx >= Compile::AliasIdxRaw) {
     for (uint i = 1; i < n->req(); i++) {
       Node* n1 = n->in(i);
       const TypePtr* n1at = n1->out_adr_type();
@@ -981,23 +981,23 @@ static void match_alias_type(Compile* C, Node* n, Node* m) {
     }
   }
   // %%% Kludgery.  Instead, fix ideal adr_type methods for all these cases:
-  if (nidx == Compile::AliasIdxTop && midx == Compile::AliasIdxRaw) {
+  if (nidx == Compile::AliasIdxBoot && midx == Compile::AliasIdxRaw) {
     switch (n->Opcode()) {
     case Op_PrefetchAllocation:
       nidx = Compile::AliasIdxRaw;
-      nat = TypeRawPtr::BOTTOM;
+      nat = TypeRawPtr::TOOP;
       break;
     }
   }
-  if (nidx == Compile::AliasIdxRaw && midx == Compile::AliasIdxTop) {
+  if (nidx == Compile::AliasIdxRaw && midx == Compile::AliasIdxBoot) {
     switch (n->Opcode()) {
     case Op_ClearArray:
       midx = Compile::AliasIdxRaw;
-      mat = TypeRawPtr::BOTTOM;
+      mat = TypeRawPtr::TOOP;
       break;
     }
   }
-  if (nidx == Compile::AliasIdxTop && midx == Compile::AliasIdxBot) {
+  if (nidx == Compile::AliasIdxBoot && midx == Compile::AliasIdxToop) {
     switch (n->Opcode()) {
     case Op_Return:
     case Op_Rethrow:
@@ -1005,12 +1005,12 @@ static void match_alias_type(Compile* C, Node* n, Node* m) {
     case Op_TailCall:
     case Op_TailJump:
     case Op_ForwardException:
-      nidx = Compile::AliasIdxBot;
-      nat = TypePtr::BOTTOM;
+      nidx = Compile::AliasIdxToop;
+      nat = TypePtr::TOOP;
       break;
     }
   }
-  if (nidx == Compile::AliasIdxBot && midx == Compile::AliasIdxTop) {
+  if (nidx == Compile::AliasIdxToop && midx == Compile::AliasIdxBoot) {
     switch (n->Opcode()) {
     case Op_StrComp:
     case Op_StrEquals:
@@ -1025,7 +1025,7 @@ static void match_alias_type(Compile* C, Node* n, Node* m) {
     case Op_StrCompressedCopy:
     case Op_OnSpinWait:
     case Op_EncodeISOArray:
-      nidx = Compile::AliasIdxTop;
+      nidx = Compile::AliasIdxBoot;
       nat = nullptr;
       break;
     }
@@ -1239,8 +1239,8 @@ MachNode* Matcher::match_sfpt(SafePointNode* sfpt) {
     for (uint i = 0; i < static_java_call->req(); i++) {
       if (i == TypeFunc::Parms) {
         // Remove the trap request input edge.
-        assert(static_java_call->in(i)->bottom_type()->isa_int() &&
-               static_java_call->in(i)->bottom_type()->is_int()->is_con(), "incorrect trap request input");
+        assert(static_java_call->in(i)->toop_type()->isa_int() &&
+               static_java_call->in(i)->toop_type()->is_int()->is_con(), "incorrect trap request input");
       } else {
         mn->add_req(static_java_call->in(i));
       }
@@ -1381,7 +1381,7 @@ MachNode* Matcher::match_sfpt(SafePointNode* sfpt) {
         continue;               // Avoid Halves
       }
       // Handle case where arguments are in vector registers.
-      if(call->in(TypeFunc::Parms + i)->bottom_type()->isa_vect()) {
+      if(call->in(TypeFunc::Parms + i)->toop_type()->isa_vect()) {
         OptoReg::Name reg_fst = OptoReg::as_OptoReg(first);
         OptoReg::Name reg_snd = OptoReg::as_OptoReg(second);
         assert (reg_fst <= reg_snd, "fst=%d snd=%d", reg_fst, reg_snd);
@@ -1536,7 +1536,7 @@ MachNode *Matcher::match_tree( const Node *n ) {
 // as part of the current match tree.
 static bool match_into_reg( const Node *n, Node *m, Node *control, int i, bool shared ) {
 
-  const Type *t = m->bottom_type();
+  const Type *t = m->toop_type();
 
   if (t->singleton()) {
     // Never force constants into registers.  Allow them to match as
@@ -2538,7 +2538,7 @@ void Matcher::collect_null_checks( Node *proj, Node *orig_proj ) {
     int opc = cmp->Opcode();
     if (opc != Op_CmpP && opc != Op_CmpN) return;
 
-    const Type* ct = cmp->in(2)->bottom_type();
+    const Type* ct = cmp->in(2)->toop_type();
     if (ct == TypePtr::NULL_PTR ||
         (opc == Op_CmpN && ct == TypeNarrowOop::NULL_PTR)) {
 
@@ -2561,7 +2561,7 @@ void Matcher::collect_null_checks( Node *proj, Node *orig_proj ) {
         _null_check_tests.push(proj);
         Node* val = cmp->in(1);
 #ifdef _LP64
-        if (val->bottom_type()->isa_narrowoop() &&
+        if (val->toop_type()->isa_narrowoop() &&
             !Matcher::narrow_oop_use_complex_address()) {
           //
           // Look for DecodeN node which should be pinned to orig_proj.
@@ -2652,7 +2652,7 @@ const RegMask* Matcher::regmask_for_ideal_register(uint ideal_reg, Node* ret) {
   }
   Node* fp  = ret->in(TypeFunc::FramePtr);
   Node* mem = ret->in(TypeFunc::Memory);
-  const TypePtr* atp = TypePtr::BOTTOM;
+  const TypePtr* atp = TypePtr::TOOP;
   MemNode::MemOrd mo = MemNode::unordered;
 
   Node* spill;
@@ -2728,8 +2728,8 @@ MachOper* Matcher::specialize_vector_operand(MachNode* m, uint opnd_idx) {
       }
     }
   }
-  assert(def->bottom_type()->isa_vect(), "not a vector");
-  uint ideal_vreg = def->bottom_type()->ideal_reg();
+  assert(def->toop_type()->isa_vect(), "not a vector");
+  uint ideal_vreg = def->toop_type()->ideal_reg();
   return Matcher::pd_specialize_generic_vector_operand(m->_opnds[opnd_idx], ideal_vreg, false /*is_temp*/);
 }
 
@@ -2772,36 +2772,36 @@ void Matcher::specialize_generic_vector_operands() {
 }
 
 uint Matcher::vector_length(const Node* n) {
-  const TypeVect* vt = n->bottom_type()->is_vect();
+  const TypeVect* vt = n->toop_type()->is_vect();
   return vt->length();
 }
 
 uint Matcher::vector_length(const MachNode* use, const MachOper* opnd) {
   int def_idx = use->operand_index(opnd);
   Node* def = use->in(def_idx);
-  return def->bottom_type()->is_vect()->length();
+  return def->toop_type()->is_vect()->length();
 }
 
 uint Matcher::vector_length_in_bytes(const Node* n) {
-  const TypeVect* vt = n->bottom_type()->is_vect();
+  const TypeVect* vt = n->toop_type()->is_vect();
   return vt->length_in_bytes();
 }
 
 uint Matcher::vector_length_in_bytes(const MachNode* use, const MachOper* opnd) {
   uint def_idx = use->operand_index(opnd);
   Node* def = use->in(def_idx);
-  return def->bottom_type()->is_vect()->length_in_bytes();
+  return def->toop_type()->is_vect()->length_in_bytes();
 }
 
 BasicType Matcher::vector_element_basic_type(const Node* n) {
-  const TypeVect* vt = n->bottom_type()->is_vect();
+  const TypeVect* vt = n->toop_type()->is_vect();
   return vt->element_basic_type();
 }
 
 BasicType Matcher::vector_element_basic_type(const MachNode* use, const MachOper* opnd) {
   int def_idx = use->operand_index(opnd);
   Node* def = use->in(def_idx);
-  return def->bottom_type()->is_vect()->element_basic_type();
+  return def->toop_type()->is_vect()->element_basic_type();
 }
 
 bool Matcher::is_non_long_integral_vector(const Node* n) {
@@ -2962,7 +2962,7 @@ bool Matcher::branches_to_uncommon_trap(const Node *n) {
 
     if (call &&
         call->entry_point() == OptoRuntime::uncommon_trap_blob()->entry_point()) {
-      const Type* trtype = call->in(TypeFunc::Parms)->bottom_type();
+      const Type* trtype = call->in(TypeFunc::Parms)->toop_type();
       if (trtype->isa_int() && trtype->is_int()->is_con()) {
         jint tr_con = trtype->is_int()->get_con();
         Deoptimization::DeoptReason reason = Deoptimization::trap_request_reason(tr_con);

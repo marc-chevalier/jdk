@@ -48,9 +48,9 @@ ModFloatingNode::ModFloatingNode(Compile* C, const TypeFunc* tf, address addr, c
 
 ModDNode::ModDNode(Compile* C, Node* a, Node* b) : ModFloatingNode(C, OptoRuntime::Math_DD_D_Type(), CAST_FROM_FN_PTR(address, SharedRuntime::drem), "drem") {
   init_req(TypeFunc::Parms + 0, a);
-  init_req(TypeFunc::Parms + 1, C->top());
+  init_req(TypeFunc::Parms + 1, C->boottom());
   init_req(TypeFunc::Parms + 2, b);
-  init_req(TypeFunc::Parms + 3, C->top());
+  init_req(TypeFunc::Parms + 3, C->boottom());
 }
 
 ModFNode::ModFNode(Compile* C, Node* a, Node* b) : ModFloatingNode(C, OptoRuntime::modf_Type(), CAST_FROM_FN_PTR(address, SharedRuntime::frem), "frem") {
@@ -469,12 +469,12 @@ Node* unsigned_div_ideal(PhaseGVN* phase, bool can_reshape, Node* div) {
     return div;
   }
   // Don't bother trying to transform a dead node
-  if (div->in(0) != nullptr && div->in(0)->is_top()) {
+  if (div->in(0) != nullptr && div->in(0)->is_boottom()) {
     return nullptr;
   }
 
   const Type* t = phase->type(div->in(2));
-  if (t == Type::TOP) {
+  if (t == Type::BOOTTOM) {
     return nullptr;
   }
   const TypeClass* type_divisor = t->cast<TypeClass>();
@@ -611,7 +611,7 @@ Node* DivINode::Identity(PhaseGVN* phase) {
 Node *DivINode::Ideal(PhaseGVN *phase, bool can_reshape) {
   if (in(0) && remove_dead_region(phase, can_reshape))  return this;
   // Don't bother trying to transform a dead node
-  if( in(0) && in(0)->is_top() )  return nullptr;
+  if( in(0) && in(0)->is_boottom() )  return nullptr;
 
   const Type *t = phase->type( in(2) );
   if( t == TypeInt::ONE )      // Identity?
@@ -645,13 +645,13 @@ const Type* DivINode::Value(PhaseGVN* phase) const {
   // Either input is TOP ==> the result is TOP
   const Type* t1 = phase->type(in(1));
   const Type* t2 = phase->type(in(2));
-  if (t1 == Type::TOP || t2 == Type::TOP) {
-    return Type::TOP;
+  if (t1 == Type::BOOTTOM || t2 == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
   if (t2 == TypeInt::ZERO) {
     // this division will always throw an exception
-    return Type::TOP;
+    return Type::BOOTTOM;
   }
 
   // x/x == 1 since we always generate the dynamic divisor check for 0.
@@ -678,7 +678,7 @@ Node* DivLNode::Identity(PhaseGVN* phase) {
 Node *DivLNode::Ideal( PhaseGVN *phase, bool can_reshape) {
   if (in(0) && remove_dead_region(phase, can_reshape))  return this;
   // Don't bother trying to transform a dead node
-  if( in(0) && in(0)->is_top() )  return nullptr;
+  if( in(0) && in(0)->is_boottom() )  return nullptr;
 
   const Type *t = phase->type( in(2) );
   if( t == TypeLong::ONE )      // Identity?
@@ -712,13 +712,13 @@ const Type* DivLNode::Value(PhaseGVN* phase) const {
   // Either input is TOP ==> the result is TOP
   const Type* t1 = phase->type(in(1));
   const Type* t2 = phase->type(in(2));
-  if (t1 == Type::TOP || t2 == Type::TOP) {
-    return Type::TOP;
+  if (t1 == Type::BOOTTOM || t2 == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
   if (t2 == TypeLong::ZERO) {
     // this division will always throw an exception
-    return Type::TOP;
+    return Type::BOOTTOM;
   }
 
   // x/x == 1 since we always generate the dynamic divisor check for 0.
@@ -741,13 +741,13 @@ const Type* DivFNode::Value(PhaseGVN* phase) const {
   // Either input is TOP ==> the result is TOP
   const Type *t1 = phase->type( in(1) );
   const Type *t2 = phase->type( in(2) );
-  if( t1 == Type::TOP ) return Type::TOP;
-  if( t2 == Type::TOP ) return Type::TOP;
+  if( t1 == Type::BOOTTOM ) return Type::BOOTTOM;
+  if( t2 == Type::BOOTTOM ) return Type::BOOTTOM;
 
-  // Either input is BOTTOM ==> the result is the local BOTTOM
-  const Type *bot = bottom_type();
+  // Either input is TOOP ==> the result is the local TOOP
+  const Type *bot = toop_type();
   if( (t1 == bot) || (t2 == bot) ||
-      (t1 == Type::BOTTOM) || (t2 == Type::BOTTOM) )
+      (t1 == Type::TOOP) || (t2 == Type::TOOP) )
     return bot;
 
   // x/x == 1, we ignore 0/0.
@@ -790,7 +790,7 @@ Node* DivFNode::Identity(PhaseGVN* phase) {
 Node *DivFNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   if (in(0) && remove_dead_region(phase, can_reshape))  return this;
   // Don't bother trying to transform a dead node
-  if( in(0) && in(0)->is_top() )  return nullptr;
+  if( in(0) && in(0)->is_boottom() )  return nullptr;
 
   const Type *t2 = phase->type( in(2) );
   if( t2 == TypeF::ONE )         // Identity?
@@ -829,13 +829,13 @@ const Type* DivHFNode::Value(PhaseGVN* phase) const {
   // Either input is TOP ==> the result is TOP
   const Type* t1 = phase->type(in(1));
   const Type* t2 = phase->type(in(2));
-  if(t1 == Type::TOP) { return Type::TOP; }
-  if(t2 == Type::TOP) { return Type::TOP; }
+  if(t1 == Type::BOOTTOM) { return Type::BOOTTOM; }
+  if(t2 == Type::BOOTTOM) { return Type::BOOTTOM; }
 
   // Either input is BOTTOM ==> the result is the local BOTTOM
-  const Type* bot = bottom_type();
+  const Type* bot = toop_type();
   if((t1 == bot) || (t2 == bot) ||
-     (t1 == Type::BOTTOM) || (t2 == Type::BOTTOM)) {
+     (t1 == Type::TOOP) || (t2 == Type::TOOP)) {
     return bot;
   }
 
@@ -883,7 +883,7 @@ Node* DivHFNode::Identity(PhaseGVN* phase) {
 Node* DivHFNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   if (in(0) != nullptr && remove_dead_region(phase, can_reshape))  return this;
   // Don't bother trying to transform a dead node
-  if (in(0) != nullptr && in(0)->is_top())  { return nullptr; }
+  if (in(0) != nullptr && in(0)->is_boottom())  { return nullptr; }
 
   const Type* t2 = phase->type(in(2));
   if (t2 == TypeH::ONE) {      // Identity?
@@ -934,13 +934,13 @@ const Type* DivDNode::Value(PhaseGVN* phase) const {
   // Either input is TOP ==> the result is TOP
   const Type *t1 = phase->type( in(1) );
   const Type *t2 = phase->type( in(2) );
-  if( t1 == Type::TOP ) return Type::TOP;
-  if( t2 == Type::TOP ) return Type::TOP;
+  if( t1 == Type::BOOTTOM ) return Type::BOOTTOM;
+  if( t2 == Type::BOOTTOM ) return Type::BOOTTOM;
 
   // Either input is BOTTOM ==> the result is the local BOTTOM
-  const Type *bot = bottom_type();
+  const Type *bot = toop_type();
   if( (t1 == bot) || (t2 == bot) ||
-      (t1 == Type::BOTTOM) || (t2 == Type::BOTTOM) )
+      (t1 == Type::TOOP) || (t2 == Type::TOOP) )
     return bot;
 
   // x/x == 1, we ignore 0/0.
@@ -982,7 +982,7 @@ Node* DivDNode::Identity(PhaseGVN* phase) {
 Node *DivDNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   if (in(0) && remove_dead_region(phase, can_reshape))  return this;
   // Don't bother trying to transform a dead node
-  if( in(0) && in(0)->is_top() )  return nullptr;
+  if( in(0) && in(0)->is_boottom() )  return nullptr;
 
   const Type *t2 = phase->type( in(2) );
   if( t2 == TypeD::ONE )         // Identity?
@@ -1027,11 +1027,11 @@ const Type* UDivINode::Value(PhaseGVN* phase) const {
   // Either input is TOP ==> the result is TOP
   const Type *t1 = phase->type( in(1) );
   const Type *t2 = phase->type( in(2) );
-  if( t1 == Type::TOP ) return Type::TOP;
-  if( t2 == Type::TOP ) return Type::TOP;
+  if( t1 == Type::BOOTTOM ) return Type::BOOTTOM;
+  if( t2 == Type::BOOTTOM ) return Type::BOOTTOM;
 
   if (t2 == TypeInt::ZERO) {
-    return Type::TOP;
+    return Type::BOOTTOM;
   }
 
   // x/x == 1 since we always generate the dynamic divisor check for 0.
@@ -1040,9 +1040,9 @@ const Type* UDivINode::Value(PhaseGVN* phase) const {
   }
 
   // Either input is BOTTOM ==> the result is the local BOTTOM
-  const Type *bot = bottom_type();
+  const Type *bot = toop_type();
   if( (t1 == bot) || (t2 == bot) ||
-      (t1 == Type::BOTTOM) || (t2 == Type::BOTTOM) )
+      (t1 == Type::TOOP) || (t2 == Type::TOOP) )
     return bot;
 
   // Otherwise we give up all hope
@@ -1067,11 +1067,11 @@ const Type* UDivLNode::Value(PhaseGVN* phase) const {
   // Either input is TOP ==> the result is TOP
   const Type *t1 = phase->type( in(1) );
   const Type *t2 = phase->type( in(2) );
-  if( t1 == Type::TOP ) return Type::TOP;
-  if( t2 == Type::TOP ) return Type::TOP;
+  if( t1 == Type::BOOTTOM ) return Type::BOOTTOM;
+  if( t2 == Type::BOOTTOM ) return Type::BOOTTOM;
 
   if (t2 == TypeLong::ZERO) {
-    return Type::TOP;
+    return Type::BOOTTOM;
   }
 
   // x/x == 1 since we always generate the dynamic divisor check for 0.
@@ -1080,9 +1080,9 @@ const Type* UDivLNode::Value(PhaseGVN* phase) const {
   }
 
   // Either input is BOTTOM ==> the result is the local BOTTOM
-  const Type *bot = bottom_type();
+  const Type *bot = toop_type();
   if( (t1 == bot) || (t2 == bot) ||
-      (t1 == Type::BOTTOM) || (t2 == Type::BOTTOM) )
+      (t1 == Type::TOOP) || (t2 == Type::TOOP) )
     return bot;
 
   // Otherwise we give up all hope
@@ -1100,11 +1100,11 @@ Node *ModINode::Ideal(PhaseGVN *phase, bool can_reshape) {
   // Check for dead control input
   if( in(0) && remove_dead_region(phase, can_reshape) )  return this;
   // Don't bother trying to transform a dead node
-  if( in(0) && in(0)->is_top() )  return nullptr;
+  if( in(0) && in(0)->is_boottom() )  return nullptr;
 
   // Get the modulus
   const Type *t = phase->type( in(2) );
-  if( t == Type::TOP ) return nullptr;
+  if( t == Type::BOOTTOM ) return nullptr;
   const TypeInt *ti = t->is_int();
 
   // Check for useless control input
@@ -1224,12 +1224,12 @@ static const Type* mod_value(const PhaseGVN* phase, const Node* in1, const Node*
   // Either input is TOP ==> the result is TOP
   const Type* t1 = phase->type(in1);
   const Type* t2 = phase->type(in2);
-  if (t1 == Type::TOP) { return Type::TOP; }
-  if (t2 == Type::TOP) { return Type::TOP; }
+  if (t1 == Type::BOOTTOM) { return Type::BOOTTOM; }
+  if (t2 == Type::BOOTTOM) { return Type::BOOTTOM; }
 
   // Mod by zero?  Throw exception at runtime!
   if (t2 == TypeInteger::zero(bt)) {
-    return Type::TOP;
+    return Type::BOOTTOM;
   }
 
   // We always generate the dynamic check for 0.
@@ -1301,13 +1301,13 @@ static Node* unsigned_mod_ideal(PhaseGVN* phase, bool can_reshape, Node* mod) {
     return mod;
   }
   // Don't bother trying to transform a dead node
-  if (mod->in(0) != nullptr && mod->in(0)->is_top()) {
+  if (mod->in(0) != nullptr && mod->in(0)->is_boottom()) {
     return nullptr;
   }
 
   // Get the modulus
   const Type* t = phase->type(mod->in(2));
-  if (t == Type::TOP) {
+  if (t == Type::BOOTTOM) {
     return nullptr;
   }
   const TypeClass* type_divisor = t->cast<TypeClass>();
@@ -1339,11 +1339,11 @@ template <typename TypeClass, typename Unsigned, typename Signed>
 static const Type* unsigned_mod_value(PhaseGVN* phase, const Node* mod) {
   const Type* t1 = phase->type(mod->in(1));
   const Type* t2 = phase->type(mod->in(2));
-  if (t1 == Type::TOP) {
-    return Type::TOP;
+  if (t1 == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
-  if (t2 == Type::TOP) {
-    return Type::TOP;
+  if (t2 == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
   // 0 MOD X is 0
@@ -1356,9 +1356,9 @@ static const Type* unsigned_mod_value(PhaseGVN* phase, const Node* mod) {
   }
 
   // Either input is BOTTOM ==> the result is the local BOTTOM
-  const Type* bot = mod->bottom_type();
+  const Type* bot = mod->toop_type();
   if ((t1 == bot) || (t2 == bot) ||
-      (t1 == Type::BOTTOM) || (t2 == Type::BOTTOM)) {
+      (t1 == Type::TOOP) || (t2 == Type::TOOP)) {
     return bot;
   }
 
@@ -1388,7 +1388,7 @@ Node* UModINode::Ideal(PhaseGVN* phase, bool can_reshape) {
 
 const Type* UModINode::Value(PhaseGVN* phase) const {
   if (phase->type(in(2)) == TypeInt::ZERO) {
-    return Type::TOP;
+    return Type::BOOTTOM;
   }
   return unsigned_mod_value<TypeInt, juint, jint>(phase, this);
 }
@@ -1399,11 +1399,11 @@ Node *ModLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   // Check for dead control input
   if( in(0) && remove_dead_region(phase, can_reshape) )  return this;
   // Don't bother trying to transform a dead node
-  if( in(0) && in(0)->is_top() )  return nullptr;
+  if( in(0) && in(0)->is_boottom() )  return nullptr;
 
   // Get the modulus
   const Type *t = phase->type( in(2) );
-  if( t == Type::TOP ) return nullptr;
+  if( t == Type::BOOTTOM ) return nullptr;
   const TypeLong *tl = t->is_long();
 
   // Check for useless control input
@@ -1531,7 +1531,7 @@ Node *UModLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 
 const Type* UModLNode::Value(PhaseGVN* phase) const {
   if (phase->type(in(2)) == TypeLong::ZERO) {
-    return Type::TOP;
+    return Type::BOOTTOM;
   }
   return unsigned_mod_value<TypeLong, julong, jlong>(phase, this);
 }
@@ -1606,11 +1606,11 @@ const Type* ModDNode::get_result_if_constant(const Type* dividend, const Type* d
 
 const Type* ModFloatingNode::Value(PhaseGVN* phase) const {
   const Type* t = CallLeafPureNode::Value(phase);
-  if (t == Type::TOP) { return Type::TOP; }
+  if (t == Type::BOOTTOM) { return Type::BOOTTOM; }
   const Type* dividend_type = phase->type(dividend());
   const Type* divisor_type = phase->type(divisor());
-  if (dividend_type == Type::TOP || divisor_type == Type::TOP) {
-    return Type::TOP;
+  if (dividend_type == Type::BOOTTOM || divisor_type == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
   const Type* constant_result = get_result_if_constant(dividend_type, divisor_type);
   if (constant_result != nullptr) {

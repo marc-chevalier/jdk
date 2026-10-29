@@ -69,7 +69,7 @@ public:
   }
   virtual int Opcode() const;
   virtual bool pinned() const { return true; };
-  virtual const Type *bottom_type() const;
+  virtual const Type* toop_type() const;
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual void  calling_convention( BasicType* sig_bt, VMRegPair *parm_reg, uint length ) const;
@@ -82,7 +82,7 @@ public:
 #endif
 
 private:
-  const TypePtr* out_adr_type_impl() const final { return TypePtr::BOTTOM; }
+  const TypePtr* out_adr_type_impl() const final { return TypePtr::TOOP; }
   const TypePtr* in_adr_type_impl() const final { return nullptr; }
 };
 
@@ -131,7 +131,7 @@ public:
 
 private:
   const TypePtr* out_adr_type_impl() const final { return nullptr; }
-  const TypePtr* in_adr_type_impl() const final { return TypePtr::BOTTOM; }
+  const TypePtr* in_adr_type_impl() const final { return TypePtr::TOOP; }
 };
 
 
@@ -155,7 +155,7 @@ class RethrowNode : public Node {
 
 private:
   const TypePtr* out_adr_type_impl() const final { return nullptr; }
-  const TypePtr* in_adr_type_impl() const final { return TypePtr::BOTTOM; }
+  const TypePtr* in_adr_type_impl() const final { return TypePtr::TOOP; }
 };
 
 
@@ -189,7 +189,7 @@ public:
 class TailJumpNode : public ReturnNode {
 public:
   TailJumpNode( Node *cntrl, Node *i_o, Node *memory, Node *frameptr, Node *target, Node *ex_oop)
-    : ReturnNode(TypeFunc::Parms+2, cntrl, i_o, memory, frameptr, Compile::current()->top()) {
+    : ReturnNode(TypeFunc::Parms+2, cntrl, i_o, memory, frameptr, Compile::current()->boottom()) {
     init_req(TypeFunc::Parms, target);
     init_req(TypeFunc::Parms+1, ex_oop);
   }
@@ -365,7 +365,7 @@ public:
                 // A plain safepoint advertises no memory effects (null)
                 const TypePtr* out_adr_type = nullptr,
                 // A plain safepoint reads all memory
-                const TypePtr* in_adr_type = TypePtr::BOTTOM)
+                const TypePtr* in_adr_type = TypePtr::TOOP)
     : MultiNode(edges),
       _jvms(jvms),
       _out_adr_type(out_adr_type),
@@ -392,8 +392,8 @@ public:
   void verify_input(const JVMState* jvms, uint idx) const {
     assert(verify_jvms(jvms), "jvms must match");
     Node* n = in(idx);
-    assert((!n->bottom_type()->isa_long() && !n->bottom_type()->isa_double()) ||
-           in(idx + 1)->is_top(), "2nd half of long/double");
+    assert((!n->toop_type()->isa_long() && !n->toop_type()->isa_double()) ||
+           in(idx + 1)->is_boottom(), "2nd half of long/double");
   }
 
  public:
@@ -582,7 +582,7 @@ public:
   virtual int            Opcode() const;
   virtual bool           pinned() const { return true; }
   virtual const Type*    Value(PhaseGVN* phase) const;
-  virtual const Type*    bottom_type() const { return Type::CONTROL; }
+  virtual const Type*    toop_type() const { return Type::CONTROL; }
   void set_out_adr_type(const TypePtr* out_adr_type) { _out_adr_type = out_adr_type; }
   virtual Node          *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual Node*          Identity(PhaseGVN* phase);
@@ -809,7 +809,7 @@ public:
   void set_cnt(float c)                 { _cnt = c; }
   void set_generator(CallGenerator* cg) { _generator = cg; }
 
-  virtual const Type* bottom_type() const;
+  virtual const Type* toop_type() const;
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
   virtual Node* Identity(PhaseGVN* phase) { return this; }
@@ -926,7 +926,7 @@ class CallStaticJavaNode : public CallJavaNode {
 
 public:
   CallStaticJavaNode(Compile* C, const TypeFunc* tf, address addr, ciMethod* method)
-    : CallJavaNode(tf, addr, method, TypePtr::BOTTOM, TypePtr::BOTTOM), _safe_for_fold_compare(true) {
+    : CallJavaNode(tf, addr, method, TypePtr::TOOP, TypePtr::TOOP), _safe_for_fold_compare(true) {
     init_class_id(Class_CallStaticJava);
     if (C->eliminate_boxing() && (method != nullptr) && (method->is_boxing_method() || method->is_unboxing_method())) {
       C->add_macro_node(this);
@@ -991,7 +991,7 @@ class CallDynamicJavaNode : public CallJavaNode {
   virtual uint size_of() const; // Size is bigger
 public:
   CallDynamicJavaNode(const TypeFunc* tf , address addr, ciMethod* method, int vtable_index)
-    : CallJavaNode(tf, addr, method, TypePtr::BOTTOM, TypePtr::BOTTOM), _vtable_index(vtable_index) {
+    : CallJavaNode(tf, addr, method, TypePtr::TOOP, TypePtr::TOOP), _vtable_index(vtable_index) {
     init_class_id(Class_CallDynamicJava);
   }
 
@@ -1057,7 +1057,7 @@ public:
  * They still have control input to allow easy lowering into other kind of calls that require
  * a control, but this is more a technical than a moral constraint.
  *
- * Pure calls must have only control and data input and output: I/O, Memory and so on must be top.
+ * Pure calls must have only control and data input and output: I/O, Memory and so on must be boottom.
  * Nevertheless, pure calls can typically be expensive math operations so care must be taken
  * when letting the node float.
  */
@@ -1065,7 +1065,7 @@ class CallLeafPureNode : public CallLeafNode {
 protected:
   bool is_unused() const;
   bool is_dead() const;
-  TupleNode* make_tuple_of_input_state_and_top_return_values(const Compile* C) const;
+  TupleNode* make_tuple_of_input_state_and_boottom_return_values(const Compile* C) const;
 
 public:
   CallLeafPureNode(const TypeFunc* tf, address addr, const char* name)
@@ -1146,7 +1146,7 @@ public:
     fields[InitialTest] = TypeInt::BOOL;
     fields[ALength]     = t;  // length (can be a bad length)
     fields[ValidLengthTest] = TypeInt::BOOL;
-    fields[ValueType] = Type::BOTTOM;
+    fields[ValueType] = Type::TOOP;
     fields[InitValue] = TypeInstPtr::NOTNULL;
     fields[RawInitValue] = TypeX_X;
 
@@ -1380,7 +1380,7 @@ public:
 
     const Type** fields = TypeTuple::fields(argcnt);
     fields[TypeFunc::Parms+0] = TypeInstPtr::NOTNULL;  // Object to be Locked
-    fields[TypeFunc::Parms+1] = TypeRawPtr::BOTTOM;    // Address of stack location for lock
+    fields[TypeFunc::Parms+1] = TypeRawPtr::TOOP;    // Address of stack location for lock
     const TypeTuple* domain = TypeTuple::make(TypeFunc::Parms + argcnt, fields);
 
     // create result type (range)
@@ -1393,7 +1393,7 @@ public:
 
   virtual int Opcode() const;
   virtual uint size_of() const; // Size is bigger
-  LockNode(Compile* C, const TypeFunc* tf) : AbstractLockNode(tf, TypeRawPtr::BOTTOM, TypePtr::BOTTOM) {
+  LockNode(Compile* C, const TypeFunc* tf) : AbstractLockNode(tf, TypeRawPtr::TOOP, TypePtr::TOOP) {
     init_class_id(Class_Lock);
     C->add_macro_node(this);
   }
@@ -1417,7 +1417,7 @@ private:
 public:
   virtual int Opcode() const;
   virtual uint size_of() const; // Size is bigger
-  UnlockNode(Compile* C, const TypeFunc* tf) : AbstractLockNode(tf, TypeRawPtr::BOTTOM, TypeRawPtr::BOTTOM)
+  UnlockNode(Compile* C, const TypeFunc* tf) : AbstractLockNode(tf, TypeRawPtr::TOOP, TypeRawPtr::TOOP)
 #ifdef ASSERT
     , _dbg_jvms(nullptr)
 #endif

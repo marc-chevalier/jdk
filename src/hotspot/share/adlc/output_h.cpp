@@ -1225,11 +1225,11 @@ void ArchDesc::declareClasses(FILE *fp) {
           // Return the ideal type we already have: <TypePtr *>
           fprintf(fp," return _c0;");
         } else {
-          // Return the appropriate bottom type
+          // Return the appropriate toop type
           fprintf(fp," return %s;", getIdealType(optype));
         }
       } else {
-        fprintf(fp," ShouldNotCallThis(); return Type::BOTTOM;");
+        fprintf(fp," ShouldNotCallThis(); return Type::TOOP;");
       }
       fprintf(fp," }\n");
     } else {
@@ -1239,7 +1239,7 @@ void ArchDesc::declareClasses(FILE *fp) {
         const char *type = nullptr;
         switch( data_type ) {
         case Form::idealI: type = "TypeInt::INT";   break;
-        case Form::idealP: type = "TypePtr::BOTTOM";break;
+        case Form::idealP: type = "TypePtr::TOOP";break;
         case Form::idealF: type = "Type::FLOAT";    break;
         case Form::idealD: type = "Type::DOUBLE";   break;
         case Form::idealL: type = "TypeLong::LONG"; break;
@@ -1297,7 +1297,7 @@ void ArchDesc::declareClasses(FILE *fp) {
         }
         if( oper->stack_slots_only(_globalNames) ) {
           // should not call this:
-          fprintf(fp,"  virtual int       constant_disp() const { return Type::OffsetBot; }");
+          fprintf(fp,"  virtual int       constant_disp() const { return Type::OffsetToop; }");
         } else if ( disp != nullptr ) {
           define_oper_interface(fp, *oper, _globalNames, "constant_disp", disp);
         }
@@ -1839,8 +1839,8 @@ void ArchDesc::declareClasses(FILE *fp) {
     // Use a more precise type for constants, this is useful for nodes that are expanded after
     // matching
     if (data_type != Form::none) {
-      // A constant's bottom_type returns a Type containing its constant value
-      fprintf(fp, "  virtual const class Type *bottom_type() const {\n");
+      // A constant's toop_type returns a Type containing its constant value
+      fprintf(fp, "  virtual const class Type* toop_type() const {\n");
       switch (data_type) {
         case Form::idealI:
           fprintf(fp, "    return  TypeInt::make(opnd_array(1)->constant());\n");

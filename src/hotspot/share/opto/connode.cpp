@@ -51,7 +51,7 @@ ConNode *ConNode::make(const Type *t) {
   case T_LONG:        return new ConLNode( t->is_long() );
   case T_FLOAT:       return new ConFNode( t->is_float_constant() );
   case T_DOUBLE:      return new ConDNode( t->is_double_constant() );
-  case T_VOID:        return new ConNode ( Type::TOP );
+  case T_VOID:        return new ConNode ( Type::BOOTTOM );
   case T_OBJECT:      return new ConPNode( t->is_ptr() );
   case T_ARRAY:       return new ConPNode( t->is_aryptr() );
   case T_ADDRESS:     return new ConPNode( t->is_ptr() );
@@ -59,7 +59,7 @@ ConNode *ConNode::make(const Type *t) {
   case T_NARROWKLASS: return new ConNKlassNode( t->is_narrowklass() );
   case T_METADATA:    return new ConPNode( t->is_ptr() );
     // Expected cases:  TypePtr::NULL_PTR, any is_rawptr()
-    // Also seen: AnyPtr(TopPTR *+top);
+    // Also seen: AnyPtr(BootPTR *+top);
     // %%%% Stop using TypePtr::NULL_PTR to represent nulls:  use either TypeRawPtr::NULL_PTR
     // or else TypeOopPtr::NULL_PTR.  Then set Type::_basic_type[AnyPtr] = T_ILLEGAL
   default:

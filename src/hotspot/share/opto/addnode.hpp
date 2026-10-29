@@ -140,7 +140,7 @@ public:
   virtual int Opcode() const;
   virtual const Type *add_ring( const Type *, const Type * ) const;
   virtual const Type *add_id() const { return TypeInt::ZERO; }
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type *toop_type() const { return TypeInt::INT; }
   int max_opcode() const { return Op_MaxI; }
   int min_opcode() const { return Op_MinI; }
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
@@ -157,7 +157,7 @@ public:
   virtual int Opcode() const;
   virtual const Type *add_ring( const Type *, const Type * ) const;
   virtual const Type *add_id() const { return TypeLong::ZERO; }
-  virtual const Type *bottom_type() const { return TypeLong::LONG; }
+  virtual const Type *toop_type() const { return TypeLong::LONG; }
   int max_opcode() const { return Op_MaxL; }
   int min_opcode() const { return Op_MinL; }
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
@@ -185,7 +185,7 @@ public:
   virtual const Type *add_of_identity( const Type *t1, const Type *t2 ) const;
   virtual const Type *add_ring( const Type *, const Type * ) const;
   virtual const Type *add_id() const { return TypeF::ZERO; }
-  virtual const Type *bottom_type() const { return Type::FLOAT; }
+  virtual const Type *toop_type() const { return Type::FLOAT; }
   int max_opcode() const { return Op_MaxF; }
   int min_opcode() const { return Op_MinF; }
   virtual uint ideal_reg() const { return Op_RegF; }
@@ -200,7 +200,7 @@ public:
   virtual const Type *add_of_identity( const Type *t1, const Type *t2 ) const;
   virtual const Type *add_ring( const Type *, const Type * ) const;
   virtual const Type *add_id() const { return TypeD::ZERO; }
-  virtual const Type *bottom_type() const { return Type::DOUBLE; }
+  virtual const Type *toop_type() const { return Type::DOUBLE; }
   int max_opcode() const { return Op_MaxD; }
   int min_opcode() const { return Op_MinD; }
   virtual uint ideal_reg() const { return Op_RegD; }
@@ -215,7 +215,7 @@ public:
   virtual const Type* add_of_identity(const Type* t1, const Type* t2) const;
   virtual const Type* add_ring(const Type*, const Type*) const;
   virtual const Type* add_id() const { return TypeH::ZERO; }
-  virtual const Type* bottom_type() const { return Type::HALF_FLOAT; }
+  virtual const Type* toop_type() const { return Type::HALF_FLOAT; }
   int max_opcode() const { return Op_MaxHF; }
   int min_opcode() const { return Op_MinHF; }
   virtual uint ideal_reg() const { return Op_RegF; }
@@ -229,8 +229,8 @@ class AddPNode : public Node {
 private:
   AddPNode(Node* base, Node* ptr, Node* off) : Node(nullptr, base, ptr, off) {
     init_class_id(Class_AddP);
-    assert((ptr->bottom_type() == Type::TOP) ||
-           ((base == Compile::current()->top()) == (ptr->bottom_type()->make_ptr()->isa_oopptr() == nullptr)),
+    assert((ptr->toop_type() == Type::BOOTTOM) ||
+           ((base == Compile::current()->boottom()) == (ptr->toop_type()->make_ptr()->isa_oopptr() == nullptr)),
            "base input only needed for heap addresses");
   }
 
@@ -243,7 +243,7 @@ public:
   virtual Node* Identity(PhaseGVN* phase);
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type *bottom_type() const;
+  virtual const Type *toop_type() const;
   virtual uint  ideal_reg() const { return Op_RegP; }
   Node         *base_node() { assert( req() > Base, "Missing base"); return in(Base); }
   static Node* Ideal_base_and_offset(Node* ptr, PhaseValues* phase,
@@ -259,7 +259,7 @@ public:
   }
 
   static AddPNode* make_off_heap(Node* ptr, Node* offset) {
-    return make_with_base(Compile::current()->top(), ptr, offset);
+    return make_with_base(Compile::current()->boottom(), ptr, offset);
   }
 
   // Collect the AddP offset values into the elements array, giving up
@@ -272,7 +272,7 @@ public:
 #ifdef ASSERT
   bool address_input_has_same_base() const {
     Node *addp = in(Address);
-    return !addp->is_AddP() || addp->in(Base)->is_top() || addp->in(Base) == in(Base);
+    return !addp->is_AddP() || addp->in(Base)->is_boottom() || addp->in(Base) == in(Base);
   }
 #endif
 };
@@ -286,7 +286,7 @@ public:
   virtual int Opcode() const;
   virtual const Type *add_ring( const Type *, const Type * ) const;
   virtual const Type *add_id() const { return TypeInt::ZERO; }
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type *toop_type() const { return TypeInt::INT; }
   int max_opcode() const { return Op_MaxI; }
   int min_opcode() const { return Op_MinI; }
   virtual Node* Identity(PhaseGVN* phase);
@@ -303,7 +303,7 @@ public:
   virtual int Opcode() const;
   virtual const Type *add_ring( const Type *, const Type * ) const;
   virtual const Type *add_id() const { return TypeLong::ZERO; }
-  virtual const Type *bottom_type() const { return TypeLong::LONG; }
+  virtual const Type *toop_type() const { return TypeLong::LONG; }
   int max_opcode() const { return Op_MaxL; }
   int min_opcode() const { return Op_MinL; }
   virtual Node* Identity(PhaseGVN* phase);
@@ -320,7 +320,7 @@ public:
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type *add_ring( const Type *, const Type * ) const;
   virtual const Type *add_id() const { return TypeInt::ZERO; }
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type *toop_type() const { return TypeInt::INT; }
   int max_opcode() const { return Op_MaxI; }
   int min_opcode() const { return Op_MinI; }
   virtual const Type *Value(PhaseGVN *phase) const;
@@ -336,7 +336,7 @@ public:
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type *add_ring( const Type *, const Type * ) const;
   virtual const Type *add_id() const { return TypeLong::ZERO; }
-  virtual const Type *bottom_type() const { return TypeLong::LONG; }
+  virtual const Type *toop_type() const { return TypeLong::LONG; }
   int max_opcode() const { return Op_MaxL; }
   int min_opcode() const { return Op_MinL; }
   virtual const Type *Value(PhaseGVN *phase) const;
@@ -403,7 +403,7 @@ public:
   virtual int Opcode() const;
   virtual const Type *add_ring( const Type *, const Type * ) const;
   virtual const Type *add_id() const { return TypeInt::make(min_jint); }
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type *toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
   int max_opcode() const { return Op_MaxI; }
   int min_opcode() const { return Op_MinI; }
@@ -420,7 +420,7 @@ public:
   virtual int Opcode() const;
   virtual const Type *add_ring( const Type *, const Type * ) const;
   virtual const Type *add_id() const { return TypeInt::make(max_jint); }
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type *toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
   int max_opcode() const { return Op_MaxI; }
   int min_opcode() const { return Op_MinI; }
@@ -438,7 +438,7 @@ public:
   virtual int Opcode() const;
   virtual const Type* add_ring(const Type* t0, const Type* t1) const;
   virtual const Type* add_id() const { return TypeLong::make(min_jlong); }
-  virtual const Type* bottom_type() const { return TypeLong::LONG; }
+  virtual const Type* toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
   int max_opcode() const { return Op_MaxL; }
   int min_opcode() const { return Op_MinL; }
@@ -456,7 +456,7 @@ public:
   virtual int Opcode() const;
   virtual const Type* add_ring(const Type* t0, const Type* t1) const;
   virtual const Type* add_id() const { return TypeLong::make(max_jlong); }
-  virtual const Type* bottom_type() const { return TypeLong::LONG; }
+  virtual const Type* toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
   int max_opcode() const { return Op_MaxL; }
   int min_opcode() const { return Op_MinL; }
@@ -472,7 +472,7 @@ public:
   virtual int Opcode() const;
   virtual const Type *add_ring(const Type*, const Type*) const;
   virtual const Type *add_id() const { return TypeF::NEG_INF; }
-  virtual const Type *bottom_type() const { return Type::FLOAT; }
+  virtual const Type *toop_type() const { return Type::FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
   int max_opcode() const { return Op_MaxF; }
   int min_opcode() const { return Op_MinF; }
@@ -486,7 +486,7 @@ public:
   virtual int Opcode() const;
   virtual const Type *add_ring(const Type*, const Type*) const;
   virtual const Type *add_id() const { return TypeF::POS_INF; }
-  virtual const Type *bottom_type() const { return Type::FLOAT; }
+  virtual const Type *toop_type() const { return Type::FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
   int max_opcode() const { return Op_MaxF; }
   int min_opcode() const { return Op_MinF; }
@@ -500,7 +500,7 @@ public:
   virtual int Opcode() const;
   virtual const Type* add_ring(const Type*, const Type*) const;
   virtual const Type* add_id() const { return TypeH::NEG_INF; }
-  virtual const Type* bottom_type() const { return Type::HALF_FLOAT; }
+  virtual const Type* toop_type() const { return Type::HALF_FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
   int max_opcode() const { return Op_MaxHF; }
   int min_opcode() const { return Op_MinHF; }
@@ -514,7 +514,7 @@ public:
   virtual int Opcode() const;
   virtual const Type* add_ring(const Type*, const Type*) const;
   virtual const Type* add_id() const { return TypeH::POS_INF; }
-  virtual const Type* bottom_type() const { return Type::HALF_FLOAT; }
+  virtual const Type* toop_type() const { return Type::HALF_FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
   int max_opcode() const { return Op_MaxHF; }
   int min_opcode() const { return Op_MinHF; }
@@ -528,7 +528,7 @@ public:
   virtual int Opcode() const;
   virtual const Type *add_ring(const Type*, const Type*) const;
   virtual const Type *add_id() const { return TypeD::NEG_INF; }
-  virtual const Type *bottom_type() const { return Type::DOUBLE; }
+  virtual const Type *toop_type() const { return Type::DOUBLE; }
   virtual uint ideal_reg() const { return Op_RegD; }
   int max_opcode() const { return Op_MaxD; }
   int min_opcode() const { return Op_MinD; }
@@ -542,7 +542,7 @@ public:
   virtual int Opcode() const;
   virtual const Type *add_ring(const Type*, const Type*) const;
   virtual const Type *add_id() const { return TypeD::POS_INF; }
-  virtual const Type *bottom_type() const { return Type::DOUBLE; }
+  virtual const Type *toop_type() const { return Type::DOUBLE; }
   virtual uint ideal_reg() const { return Op_RegD; }
   int max_opcode() const { return Op_MaxD; }
   int min_opcode() const { return Op_MinD; }

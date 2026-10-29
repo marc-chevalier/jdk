@@ -43,7 +43,7 @@ public:
   Node* lo2() const { return in(3); }
   Node* hi2() const { return in(4); }
 
-  const Type* bottom_type() const final { return TypeTuple::LONG_PAIR; }
+  const Type* toop_type()   const final { return TypeTuple::LONG_PAIR; }
   bool        is_CFG()      const final { return false; }
   uint        ideal_reg()   const final { return NotAMachineReg; }
 

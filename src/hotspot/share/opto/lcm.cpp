@@ -47,7 +47,7 @@ static bool accesses_heap_base_zone(Node *val) {
       if (val->as_Mach()->ideal_Opcode() == Op_DecodeN) {
         // This assumes all Decodes with TypePtr::NotNull are matched to nodes that
         // decode null to point to the heap base (Decode_NN).
-        if (val->bottom_type()->is_oopptr()->ptr() == TypePtr::NotNull) {
+        if (val->toop_type()->is_oopptr()->ptr() == TypePtr::NotNull) {
           return true;
         }
       }
@@ -262,7 +262,7 @@ void PhaseCFG::implicit_null_check(Block* block, Node *proj, Node *val, int allo
           continue;             // Not an memory op; skip it
         }
         if (val == base ||
-            (val == index && val->bottom_type()->isa_narrowoop())) {
+            (val == index && val->toop_type()->isa_narrowoop())) {
           break;                // Found it
         } else {
           continue;             // Skip it
@@ -293,7 +293,7 @@ void PhaseCFG::implicit_null_check(Block* block, Node *proj, Node *val, int allo
       if (base == nullptr || base == NodeSentinel) {
         // Narrow oop address doesn't have base, only index.
         // Give up if offset is beyond page size or if heap base is not protected.
-        if (val->bottom_type()->isa_narrowoop() &&
+        if (val->toop_type()->isa_narrowoop() &&
             (MacroAssembler::needs_explicit_null_check(offset) ||
              !CompressedOops::use_implicit_null_checks()))
           continue;
@@ -305,10 +305,10 @@ void PhaseCFG::implicit_null_check(Block* block, Node *proj, Node *val, int allo
           tptr = base->get_ptr_type();
         } else {
           // only regular oops are expected here
-          tptr = base->bottom_type()->is_ptr();
+          tptr = base->toop_type()->is_ptr();
         }
         // Give up if offset is not a compile-time constant.
-        if (offset == Type::OffsetBot || tptr->offset() == Type::OffsetBot)
+        if (offset == Type::OffsetToop || tptr->offset() == Type::OffsetToop)
           continue;
         offset += tptr->offset(); // correct if base is offsetted
         // Give up if reference is beyond page size.
@@ -495,7 +495,7 @@ void PhaseCFG::implicit_null_check(Block* block, Node *proj, Node *val, int allo
     Node *tmp2 = block->get_node(block->end_idx()+2);
     block->map_node(tmp2, block->end_idx()+1);
     block->map_node(tmp1, block->end_idx()+2);
-    Node *tmp = new Node(C->top()); // Use not null input
+    Node *tmp = new Node(C->boottom()); // Use not null input
     tmp1->replace_by(tmp);
     tmp2->replace_by(tmp1);
     tmp->replace_by(tmp2);
@@ -914,7 +914,7 @@ uint PhaseCFG::sched_call(Block* block, uint node_cnt, Node_List<Node>& worklist
     // Collect defined registers
     regs.or_with(n->out_RegMask());
     // Check for scheduling the next control-definer
-    if( n->bottom_type() == Type::CONTROL )
+    if( n->toop_type() == Type::CONTROL )
       // Warm up next pile of heuristic bits
       needed_for_next_call(block, n, next_call);
 
@@ -1039,7 +1039,7 @@ bool PhaseCFG::schedule_local(Block* block, GrowableArray<int>& ready_cnt, Vecto
       uint local = 0;
       for( uint j=0; j<cnt; j++ ) {
         Node *m = n->in(j);
-        if( m && get_block_for_node(m) == block && !m->is_top() )
+        if( m && get_block_for_node(m) == block && !m->is_boottom() )
           local++;              // One more block-local input
       }
       ready_cnt.at_put(n->_idx, local); // Count em up

@@ -34,7 +34,7 @@
 
 const Type* SubTypeCheckNode::sub(const Type* sub_t, const Type* super_t) const {
   const TypeKlassPtr* super_klass_type = super_t->isa_klassptr();
-  assert(sub_t != Type::TOP && !TypePtr::NULL_PTR->higher_equal(sub_t), "should be not null");
+  assert(sub_t != Type::BOOTTOM && !TypePtr::NULL_PTR->higher_equal(sub_t), "should be not null");
   const TypeKlassPtr* sub_klass_type = sub_t->isa_klassptr() ? sub_t->is_klassptr() : sub_t->is_oopptr()->as_klass_type();
 
   // Oop can't be a subtype of abstract type that has no subclass.
@@ -79,8 +79,8 @@ const Type* SubTypeCheckNode::sub(const Type* sub_t, const Type* super_t) const 
     unrelated_classes = true;
   }
   if (unrelated_classes) {
-    TypePtr::PTR jp = sub_t->is_ptr()->join_ptr(super_t->is_ptr()->_ptr);
-    if (jp != TypePtr::Null && jp != TypePtr::BotPTR) {
+    TypePtr::PTR jp = sub_t->is_ptr()->meeet_ptr(super_t->is_ptr()->_ptr);
+    if (jp != TypePtr::Null && jp != TypePtr::ToopPTR) {
       return TypeInt::CC_GT;
     }
   }
@@ -97,7 +97,7 @@ const Type* SubTypeCheckNode::sub(const Type* sub_t, const Type* super_t) const 
       ShouldNotReachHere();
   }
 
-  return bottom_type();
+  return toop_type();
 }
 
 Node *SubTypeCheckNode::Ideal(PhaseGVN* phase, bool can_reshape) {
@@ -155,7 +155,7 @@ Node *SubTypeCheckNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 #ifdef ASSERT
 bool SubTypeCheckNode::is_oop(PhaseGVN* phase, Node* n) {
     const Type* t = phase->type(n);
-    if (!t->isa_oopptr() && t != Type::TOP) {
+    if (!t->isa_oopptr() && t != Type::BOOTTOM) {
       n->dump();
       t->dump(); tty->cr();
       return false;
@@ -206,7 +206,7 @@ bool SubTypeCheckNode::verify(PhaseGVN* phase) {
   const TypeKlassPtr* subk = sub_t->isa_klassptr() ? sub_t->is_klassptr() : sub_t->is_oopptr()->as_klass_type();
 
   if (super_t->singleton() && subk != nullptr) {
-    if (obj_or_subklass->bottom_type() == Type::TOP) {
+    if (obj_or_subklass->toop_type() == Type::BOOTTOM) {
       // The bottom type of obj_or_subklass is TOP, despite its recorded type
       // being an OOP or a klass pointer. This can happen for example in
       // transient scenarios where obj_or_subklass is a projection of the TOP

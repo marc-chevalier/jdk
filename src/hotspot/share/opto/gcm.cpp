@@ -154,9 +154,9 @@ bool PhaseCFG::is_CFG(Node* n) {
 bool PhaseCFG::is_control_proj_or_safepoint(Node* n) const {
   bool result = n->is_ReachabilityFence() ||
                 (n->is_Mach() && n->as_Mach()->ideal_Opcode() == Op_SafePoint) ||
-                (n->is_Proj() && n->as_Proj()->bottom_type() == Type::CONTROL);
+                (n->is_Proj() && n->as_Proj()->toop_type() == Type::CONTROL);
   assert(!n->is_Proj() ||
-         n->as_Proj()->bottom_type() != Type::CONTROL ||
+         n->as_Proj()->toop_type() != Type::CONTROL ||
          n->as_Proj()->_con == 0, "If control projection, it must be projection 0");
   return result;
 }
@@ -308,9 +308,9 @@ static Block* find_deepest_input(Node* n, const PhaseCFG* cfg) {
 bool PhaseCFG::schedule_early(VectorSet& visited, Node_Stack<Node>& roots) {
   // Allocate stack with enough space to avoid frequent realloc
   Node_Stack<Node> nstack(roots.size() + 8);
-  // _root will be processed among C->top() inputs
-  roots.push(C->top(), 0);
-  visited.set(C->top()->_idx);
+  // _root will be processed among C->boottom() inputs
+  roots.push(C->boottom(), 0);
+  visited.set(C->boottom()->_idx);
 
   while (roots.size() != 0) {
     // Use local variables nstack_top_n & nstack_top_i to cache values
@@ -738,8 +738,8 @@ Block* PhaseCFG::raise_above_anti_dependences(Block* LCA, Node* load, const bool
   // do not need anti-dependence edges.
   int load_alias_idx = C->get_alias_index(load->in_adr_type());
 #ifdef ASSERT
-  assert(Compile::AliasIdxTop <= load_alias_idx && load_alias_idx < C->num_alias_types(), "Invalid alias index");
-  if (load_alias_idx == Compile::AliasIdxBot && C->do_aliasing() &&
+  assert(Compile::AliasIdxBoot <= load_alias_idx && load_alias_idx < C->num_alias_types(), "Invalid alias index");
+  if (load_alias_idx == Compile::AliasIdxToop && C->do_aliasing() &&
       (PrintOpto || VerifyAliases ||
        (PrintMiscellaneous && (WizardMode || Verbose)))) {
     // Load nodes should not consume all of memory.
@@ -748,7 +748,7 @@ Block* PhaseCFG::raise_above_anti_dependences(Block* LCA, Node* load, const bool
     // sharpen the preceding "if" to exclude it, so we can catch bugs here.
     tty->print_cr("*** Possible Anti-Dependence Bug:  Load consumes all of memory.");
     load->dump(2);
-    if (VerifyAliases)  assert(load_alias_idx != Compile::AliasIdxBot, "");
+    if (VerifyAliases)  assert(load_alias_idx != Compile::AliasIdxToop, "");
   }
 #endif
 
@@ -1560,7 +1560,7 @@ void PhaseCFG::schedule_late(VectorSet& visited, Node_Stack<Node>& stack) {
   while ((self = iter.next())) {
     Block* early = get_block_for_node(self); // Earliest legal placement
 
-    if (self->is_top()) {
+    if (self->is_boottom()) {
       // Top node goes in bb #2 with other constants.
       // It must be special-cased, because it has no out edges.
       early->add_inst(self);
@@ -1603,7 +1603,7 @@ void PhaseCFG::schedule_late(VectorSet& visited, Node_Stack<Node>& stack) {
         // Don't move CheckCastPP nodes away from their input, if the input
         // is a rawptr (5071820).
         Node *def = self->in(1);
-        if (def != nullptr && def->bottom_type()->base() == Type::RawPtr) {
+        if (def != nullptr && def->toop_type()->base() == Type::RawPtr) {
           early->add_inst(self);
 #ifdef ASSERT
           _raw_oops.push(def);

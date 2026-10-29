@@ -147,12 +147,12 @@ Node *AddNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   Node *add2 = in(2);
   int add1_op = add1->Opcode();
   int this_op = Opcode();
-  if (con_right && t2 != Type::TOP && // Right input is a constant?
+  if (con_right && t2 != Type::BOOTTOM && // Right input is a constant?
       add1_op == this_op) { // Left input is an Add?
 
     // Type of left _in right input
     const Type *t12 = phase->type(add1->in(2));
-    if (t12->singleton() && t12 != Type::TOP) { // Left input is an add of a constant?
+    if (t12->singleton() && t12 != Type::BOOTTOM) { // Left input is an add of a constant?
       // Check for rare case of closed data cycle which can happen inside
       // unreachable loops. In these cases the computation is undefined.
 #ifdef ASSERT
@@ -178,7 +178,7 @@ Node *AddNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   if (add1_op == this_op && !con_right) {
     Node *a12 = add1->in(2);
     const Type *t12 = phase->type( a12 );
-    if (t12->singleton() && t12 != Type::TOP && (add1 != add1->in(1)) &&
+    if (t12->singleton() && t12 != Type::BOOTTOM && (add1 != add1->in(1)) &&
         !(add1->in(1)->is_Phi() && (add1->in(1)->as_Phi()->is_tripcount(T_INT) || add1->in(1)->as_Phi()->is_tripcount(T_LONG)))) {
       assert(add1->in(1) != this, "dead loop in AddNode::Ideal");
       add2 = add1->clone();
@@ -196,7 +196,7 @@ Node *AddNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   if (add2_op == this_op && !con_left) {
     Node *a22 = add2->in(2);
     const Type *t22 = phase->type( a22 );
-    if (t22->singleton() && t22 != Type::TOP && (add2 != add2->in(1)) &&
+    if (t22->singleton() && t22 != Type::BOOTTOM && (add2 != add2->in(1)) &&
         !(add2->in(1)->is_Phi() && (add2->in(1)->as_Phi()->is_tripcount(T_INT) || add2->in(1)->as_Phi()->is_tripcount(T_LONG)))) {
       assert(add2->in(1) != this, "dead loop in AddNode::Ideal");
       Node *addx = add2->clone();
@@ -216,11 +216,11 @@ Node *AddNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 // An add node sums it's two _in.  If one input is an RSD, we must mixin
 // the other input's symbols.
 const Type* AddNode::Value(PhaseGVN* phase) const {
-  // Either input is TOP ==> the result is TOP
+  // Either input is BOOTTOM ==> the result is BOOTTOM
   const Type* t1 = phase->type(in(1));
   const Type* t2 = phase->type(in(2));
-  if (t1 == Type::TOP || t2 == Type::TOP) {
-    return Type::TOP;
+  if (t1 == Type::BOOTTOM || t2 == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
   // Check for an addition involving the additive identity
@@ -288,7 +288,7 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
   if (op1 == Op_Sub(bt)) {
     const Type* t_sub1 = phase->type(in1->in(1));
     const Type* t_2    = phase->type(in2       );
-    if (t_sub1->singleton() && t_2->singleton() && t_sub1 != Type::TOP && t_2 != Type::TOP) {
+    if (t_sub1->singleton() && t_2->singleton() && t_sub1 != Type::BOOTTOM && t_2 != Type::BOOTTOM) {
       return SubNode::make(phase->makecon(add_ring(t_sub1, t_2)), in1->in(2), bt);
     }
     // Convert "(a-b)+(c-d)" into "(a+c)-(b+d)"
@@ -391,7 +391,7 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
       if (lshift_t != nullptr && lshift_t->is_con() &&
           rshift_t != nullptr && rshift_t->is_con() &&
           ((lshift_t->get_con() & mask) == (bits - (rshift_t->get_con() & mask)))) {
-        return new RotateRightNode(in1->in(1), phase->intcon(rshift_t->get_con() & mask), TypeInteger::bottom(bt));
+        return new RotateRightNode(in1->in(1), phase->intcon(rshift_t->get_con() & mask), TypeInteger::toop(bt));
       }
     }
   }
@@ -509,7 +509,7 @@ AddNode::Multiplication AddNode::Multiplication::find_simple_lshift_pattern(cons
   // Note that power-of-2 multiplication optimization could potentially convert a MulNode to this pattern
   if (n->Opcode() == Op_LShift(bt) && n->in(2)->is_Con()) {
     Node* con = n->in(2);
-    if (!con->is_top()) {
+    if (!con->is_boottom()) {
       return Multiplication(n->in(1), java_shift_left(1, con->get_int(), bt));
     }
   }
@@ -527,7 +527,7 @@ AddNode::Multiplication AddNode::Multiplication::find_simple_multiplication_patt
     Node* con = n->in(2);
     Node* base = n->in(1);
 
-    if (!con->is_top()) {
+    if (!con->is_boottom()) {
       return Multiplication(base, con->get_integer_as_long(bt));
     }
   }
@@ -597,7 +597,7 @@ Node* AddINode::Ideal(PhaseGVN* phase, bool can_reshape) {
 
     if (z < 5 && -5 < y && y < 0) {
       const Type* t_in11 = phase->type(in1->in(1));
-      if( t_in11 != Type::TOP && (t_in11->is_int()->_lo >= -(y << z))) {
+      if( t_in11 != Type::BOOTTOM && (t_in11->is_int()->_lo >= -(y << z))) {
         Node* a = phase->transform(new AddINode( in1->in(1), phase->intcon(y<<z)));
         return new URShiftINode(a, in1->in(2));
       }
@@ -622,7 +622,7 @@ Node* AddINode::Identity(PhaseGVN* phase) {
 
 //------------------------------add_ring---------------------------------------
 // Supplied function returns the sum of the inputs.  Guaranteed never
-// to be passed a TOP or BOTTOM type, these are filtered out by
+// to be passed a BOOTTOM or TOOP type, these are filtered out by
 // pre-check.
 const Type* AddINode::add_ring(const Type* t0, const Type* t1) const {
   const TypeInt* range0 = t0->is_int();
@@ -674,7 +674,7 @@ Node* AddLNode::Identity(PhaseGVN* phase) {
 
 //------------------------------add_ring---------------------------------------
 // Supplied function returns the sum of the inputs.  Guaranteed never
-// to be passed a TOP or BOTTOM type, these are filtered out by
+// to be passed a BOOTTOM or TOOP type, these are filtered out by
 // pre-check.
 const Type *AddLNode::add_ring( const Type *t0, const Type *t1 ) const {
   const TypeLong *r0 = t0->is_long(); // Handy access
@@ -727,10 +727,10 @@ const Type *AddFNode::add_of_identity( const Type *t1, const Type *t2 ) const {
 //------------------------------add_ring---------------------------------------
 // Supplied function returns the sum of the inputs.
 // This also type-checks the inputs for sanity.  Guaranteed never to
-// be passed a TOP or BOTTOM type, these are filtered out by pre-check.
+// be passed a BOOTTOM or TOOP type, these are filtered out by pre-check.
 const Type *AddFNode::add_ring( const Type *t0, const Type *t1 ) const {
   if (!t0->isa_float_constant() || !t1->isa_float_constant()) {
-    return bottom_type();
+    return toop_type();
   }
   return TypeF::make( t0->getf() + t1->getf() );
 }
@@ -744,10 +744,10 @@ const Type* AddHFNode::add_of_identity(const Type* t1, const Type* t2) const {
 
 // Supplied function returns the sum of the inputs.
 // This also type-checks the inputs for sanity.  Guaranteed never to
-// be passed a TOP or BOTTOM type, these are filtered out by pre-check.
+// be passed a BOOTTOM or TOOP type, these are filtered out by pre-check.
 const Type* AddHFNode::add_ring(const Type* t0, const Type* t1) const {
   if (!t0->isa_half_float_constant() || !t1->isa_half_float_constant()) {
-    return bottom_type();
+    return toop_type();
   }
   return TypeH::make(t0->getf() + t1->getf());
 }
@@ -770,10 +770,10 @@ const Type *AddDNode::add_of_identity( const Type *t1, const Type *t2 ) const {
 //------------------------------add_ring---------------------------------------
 // Supplied function returns the sum of the inputs.
 // This also type-checks the inputs for sanity.  Guaranteed never to
-// be passed a TOP or BOTTOM type, these are filtered out by pre-check.
+// be passed a BOOTTOM or TOOP type, these are filtered out by pre-check.
 const Type *AddDNode::add_ring( const Type *t0, const Type *t1 ) const {
   if (!t0->isa_double_constant() || !t1->isa_double_constant()) {
-    return bottom_type();
+    return toop_type();
   }
   return TypeD::make( t0->getd() + t1->getd() );
 }
@@ -789,7 +789,7 @@ Node* AddPNode::Identity(PhaseGVN* phase) {
 //------------------------------Idealize---------------------------------------
 Node *AddPNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   // Bail out if dead inputs
-  if( phase->type( in(Address) ) == Type::TOP ) return nullptr;
+  if( phase->type( in(Address) ) == Type::BOOTTOM ) return nullptr;
 
   // If the left input is an add of a constant, flatten the expression tree.
   const Node *n = in(Address);
@@ -800,12 +800,12 @@ Node *AddPNode::Ideal(PhaseGVN *phase, bool can_reshape) {
             "dead loop in AddPNode::Ideal" );
     // Type of left input's right input
     const Type *t = phase->type( addp->in(Offset) );
-    if( t == Type::TOP ) return nullptr;
+    if( t == Type::BOOTTOM ) return nullptr;
     const TypeX *t12 = t->is_intptr_t();
     if( t12->is_con() ) {       // Left input is an add of a constant?
       // If the right input is a constant, combine constants
       const Type *temp_t2 = phase->type( in(Offset) );
-      if( temp_t2 == Type::TOP ) return nullptr;
+      if( temp_t2 == Type::BOOTTOM ) return nullptr;
       const TypeX *t2 = temp_t2->is_intptr_t();
       Node* address;
       Node* offset;
@@ -825,7 +825,7 @@ Node *AddPNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   }
 
   // Raw pointers?
-  if( in(Base)->bottom_type() == Type::TOP ) {
+  if( in(Base)->toop_type() == Type::BOOTTOM ) {
     // If this is a null+long form (from unsafe accesses), switch to a rawptr.
     if (phase->type(in(Address)) == TypePtr::NULL_PTR) {
       Node* offset = in(Offset);
@@ -840,7 +840,7 @@ Node *AddPNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   const Node* add = in(Offset);
   if (add->Opcode() == Op_AddX && add->in(1) != add) {
     const Type* t22 = phase->type(add->in(2));
-    if (t22->singleton() && (t22 != Type::TOP)) {  // Right input is an add of a constant?
+    if (t22->singleton() && (t22 != Type::BOOTTOM)) {  // Right input is an add of a constant?
       set_req(Address, phase->transform(AddPNode::make_with_base(in(Base), in(Address), add->in(1))));
       set_req_X(Offset, add->in(2), phase); // puts add on igvn worklist if needed
       return this;              // Made progress
@@ -850,21 +850,21 @@ Node *AddPNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   return nullptr;                  // No progress
 }
 
-//------------------------------bottom_type------------------------------------
-// Bottom-type is the pointer-type with unknown offset.
-const Type *AddPNode::bottom_type() const {
-  if (in(Address) == nullptr)  return TypePtr::BOTTOM;
-  const TypePtr *tp = in(Address)->bottom_type()->isa_ptr();
-  if( !tp ) return Type::TOP;   // TOP input means TOP output
+//------------------------------toop_type------------------------------------
+// Toop-type is the pointer-type with unknown offset.
+const Type *AddPNode::toop_type() const {
+  if (in(Address) == nullptr)  return TypePtr::TOOP;
+  const TypePtr *tp = in(Address)->toop_type()->isa_ptr();
+  if( !tp ) return Type::BOOTTOM;   // BOOTTOM input means BOOTTOM output
 
   assert(in(Offset)->Opcode() != Op_ConP, "");
-  const Type* t = in(Offset)->bottom_type();
-  if (t == Type::TOP) {
-    return Type::TOP;
+  const Type* t = in(Offset)->toop_type();
+  if (t == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
   const TypeX* tx = t->is_intptr_t();
-  intptr_t txoffset = Type::OffsetBot;
+  intptr_t txoffset = Type::OffsetToop;
   if (tx->is_con()) {   // Left input is an add of a constant?
     txoffset = tx->get_con();
   }
@@ -879,18 +879,18 @@ const Type *AddPNode::bottom_type() const {
 
 //------------------------------Value------------------------------------------
 const Type* AddPNode::Value(PhaseGVN* phase) const {
-  // Either input is TOP ==> the result is TOP
+  // Either input is BOOTTOM ==> the result is BOOTTOM
   const Type *t1 = phase->type( in(Address) );
   const Type *t2 = phase->type( in(Offset) );
-  if( t1 == Type::TOP ) return Type::TOP;
-  if( t2 == Type::TOP ) return Type::TOP;
+  if( t1 == Type::BOOTTOM ) return Type::BOOTTOM;
+  if( t2 == Type::BOOTTOM ) return Type::BOOTTOM;
 
   // Left input is a pointer
   const TypePtr *p1 = t1->isa_ptr();
   // Right input is an int
   const TypeX *p2 = t2->is_intptr_t();
   // Add 'em
-  intptr_t p2offset = Type::OffsetBot;
+  intptr_t p2offset = Type::OffsetToop;
   if (p2->is_con()) {   // Left input is an add of a constant?
     p2offset = p2->get_con();
   }
@@ -905,7 +905,7 @@ const Type* AddPNode::Value(PhaseGVN* phase) const {
 
 //------------------------Ideal_base_and_offset--------------------------------
 // Split an oop pointer into a base and offset.
-// (The offset might be Type::OffsetBot in the case of an array.)
+// (The offset might be Type::OffsetToop in the case of an array.)
 // Return the base, or null if failure.
 Node* AddPNode::Ideal_base_and_offset(Node* ptr, PhaseValues* phase,
                                       // second return value:
@@ -914,14 +914,14 @@ Node* AddPNode::Ideal_base_and_offset(Node* ptr, PhaseValues* phase,
     Node* base = ptr->in(AddPNode::Base);
     Node* addr = ptr->in(AddPNode::Address);
     Node* offs = ptr->in(AddPNode::Offset);
-    if (base == addr || base->is_top()) {
-      offset = phase->find_intptr_t_con(offs, Type::OffsetBot);
-      if (offset != Type::OffsetBot) {
+    if (base == addr || base->is_boottom()) {
+      offset = phase->find_intptr_t_con(offs, Type::OffsetToop);
+      if (offset != Type::OffsetToop) {
         return addr;
       }
     }
   }
-  offset = Type::OffsetBot;
+  offset = Type::OffsetToop;
   return nullptr;
 }
 
@@ -1035,7 +1035,7 @@ Node* OrINode::Ideal(PhaseGVN* phase, bool can_reshape) {
 // Supplied function returns the sum of the inputs IN THE CURRENT RING.  For
 // the logical operations the ring's ADD is really a logical OR function.
 // This also type-checks the inputs for sanity.  Guaranteed never to
-// be passed a TOP or BOTTOM type, these are filtered out by pre-check.
+// be passed a BOOTTOM or TOOP type, these are filtered out by pre-check.
 const Type* OrINode::add_ring(const Type* t1, const Type* t2) const {
   return RangeInference::infer_or(t1->is_int(), t2->is_int());
 }
@@ -1169,8 +1169,8 @@ const Type* XorINode::Value(PhaseGVN* phase) const {
   Node* in2 = in(2);
   const Type* t1 = phase->type(in1);
   const Type* t2 = phase->type(in2);
-  if (t1 == Type::TOP || t2 == Type::TOP) {
-    return Type::TOP;
+  if (t1 == Type::BOOTTOM || t2 == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
   // x ^ x ==> 0
   if (in1->eqv_uncast(in2)) {
@@ -1183,7 +1183,7 @@ const Type* XorINode::Value(PhaseGVN* phase) const {
 // Supplied function returns the sum of the inputs IN THE CURRENT RING.  For
 // the logical operations the ring's ADD is really a logical OR function.
 // This also type-checks the inputs for sanity.  Guaranteed never to
-// be passed a TOP or BOTTOM type, these are filtered out by pre-check.
+// be passed a BOOTTOM or TOOP type, these are filtered out by pre-check.
 const Type* XorINode::add_ring(const Type* t1, const Type* t2) const {
   return RangeInference::infer_xor(t1->is_int(), t2->is_int());
 }
@@ -1220,8 +1220,8 @@ const Type* XorLNode::Value(PhaseGVN* phase) const {
   Node* in2 = in(2);
   const Type* t1 = phase->type(in1);
   const Type* t2 = phase->type(in2);
-  if (t1 == Type::TOP || t2 == Type::TOP) {
-    return Type::TOP;
+  if (t1 == Type::BOOTTOM || t2 == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
   // x ^ x ==> 0
   if (in1->eqv_uncast(in2)) {
@@ -1344,8 +1344,8 @@ Node* MinMaxNode::extract_add(PhaseGVN* phase, ConstAddOperands x_operands, Cons
 }
 
 // Try to cast n as an integer addition with a constant. Return:
-//   <x, C>,       if n == add(x, C), where 'C' is a non-TOP constant;
-//   <nullptr, 0>, if n == add(x, C), where 'C' is a TOP constant; or
+//   <x, C>,       if n == add(x, C), where 'C' is a non-BOOTTOM constant;
+//   <nullptr, 0>, if n == add(x, C), where 'C' is a BOOTTOM constant; or
 //   <n, 0>,       otherwise.
 static ConstAddOperands as_add_with_constant(Node* n) {
   if (n->Opcode() != Op_AddI) {
@@ -1356,8 +1356,8 @@ static ConstAddOperands as_add_with_constant(Node* n) {
   if (!c->is_Con()) {
     return ConstAddOperands(n, 0);
   }
-  const Type* c_type = c->bottom_type();
-  if (c_type == Type::TOP) {
+  const Type* c_type = c->toop_type();
+  if (c_type == Type::BOOTTOM) {
     return ConstAddOperands(nullptr, 0);
   }
   return ConstAddOperands(x, c_type->is_int()->get_con());
@@ -1386,7 +1386,7 @@ Node* MinMaxNode::IdealI(PhaseGVN* phase, bool can_reshape) {
     Node* outer_add = in(inner_op_index == 1 ? 2 : 1);
     ConstAddOperands outer_add_operands = as_add_with_constant(outer_add);
     if (outer_add_operands.first == nullptr) {
-      return nullptr; // outer_add has a TOP input, no need to continue.
+      return nullptr; // outer_add has a BOOTTOM input, no need to continue.
     }
     // One operand is a MinI/MaxI and the other is an integer addition with
     // constant. Test the operands of the inner MinI/MaxI.
@@ -1395,7 +1395,7 @@ Node* MinMaxNode::IdealI(PhaseGVN* phase, bool can_reshape) {
       Node* inner_add = inner_op->in(inner_add_index);
       ConstAddOperands inner_add_operands = as_add_with_constant(inner_add);
       if (inner_add_operands.first == nullptr) {
-        return nullptr; // inner_add has a TOP input, no need to continue.
+        return nullptr; // inner_add has a BOOTTOM input, no need to continue.
       }
       // Try to extract the inner add.
       Node* add_extracted = extract_add(phase, inner_add_operands, outer_add_operands);
@@ -1565,7 +1565,7 @@ static Node* fold_subI_no_underflow_pattern(Node* n, PhaseGVN* phase) {
         Node* x    = add2->in(1);
         Node* con2 = add2->in(2);
         if (is_sub_con(con2)) {
-          // The graph could be dying (i.e. x is top) in which case type(x) is not a long.
+          // The graph could be dying (i.e. x is BOOTTOM) in which case type(x) is not a long.
           const TypeLong* x_long = phase->type(x)->isa_long();
           // Collapsed graph not equivalent if potential over/underflow -> bailing out (*)
           if (x_long == nullptr || can_overflow(x_long, con1->get_long() + con2->get_long())) {
@@ -1675,7 +1675,7 @@ Node* MinMaxNode::find_identity_operation(Node* operation, Node* operand) {
 
       // If the operations are different return the operand 'A', as Max(A, Min(A, B)) == A if the value isn't floating point.
       // With floating point values, the identity doesn't hold if B == NaN.
-      const Type* type = bottom_type();
+      const Type* type = toop_type();
       if (type->isa_int() || type->isa_long()) {
         return operand;
       }
@@ -1708,7 +1708,7 @@ const Type* MinHFNode::add_ring(const Type* t0, const Type* t1) const {
   const TypeH* r0 = t0->isa_half_float_constant();
   const TypeH* r1 = t1->isa_half_float_constant();
   if (r0 == nullptr || r1 == nullptr) {
-    return bottom_type();
+    return toop_type();
   }
 
   if (r0->is_nan()) {
@@ -1735,7 +1735,7 @@ const Type* MinFNode::add_ring(const Type* t0, const Type* t1 ) const {
   const TypeF* r0 = t0->isa_float_constant();
   const TypeF* r1 = t1->isa_float_constant();
   if (r0 == nullptr || r1 == nullptr) {
-    return bottom_type();
+    return toop_type();
   }
 
   if (r0->is_nan()) {
@@ -1760,7 +1760,7 @@ const Type* MinDNode::add_ring(const Type* t0, const Type* t1) const {
   const TypeD* r0 = t0->isa_double_constant();
   const TypeD* r1 = t1->isa_double_constant();
   if (r0 == nullptr || r1 == nullptr) {
-    return bottom_type();
+    return toop_type();
   }
 
   if (r0->is_nan()) {
@@ -1785,7 +1785,7 @@ const Type* MaxHFNode::add_ring(const Type* t0, const Type* t1) const {
   const TypeH* r0 = t0->isa_half_float_constant();
   const TypeH* r1 = t1->isa_half_float_constant();
   if (r0 == nullptr || r1 == nullptr) {
-    return bottom_type();
+    return toop_type();
   }
 
   if (r0->is_nan()) {
@@ -1813,7 +1813,7 @@ const Type* MaxFNode::add_ring(const Type* t0, const Type* t1) const {
   const TypeF* r0 = t0->isa_float_constant();
   const TypeF* r1 = t1->isa_float_constant();
   if (r0 == nullptr || r1 == nullptr) {
-    return bottom_type();
+    return toop_type();
   }
 
   if (r0->is_nan()) {
@@ -1838,7 +1838,7 @@ const Type* MaxDNode::add_ring(const Type* t0, const Type* t1) const {
   const TypeD* r0 = t0->isa_double_constant();
   const TypeD* r1 = t1->isa_double_constant();
   if (r0 == nullptr || r1 == nullptr) {
-    return bottom_type();
+    return toop_type();
   }
 
   if (r0->is_nan()) {
