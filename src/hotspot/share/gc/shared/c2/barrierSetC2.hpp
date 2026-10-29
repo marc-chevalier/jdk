@@ -128,7 +128,7 @@ public:
   Node* base() const              { return _base; }
   C2AccessValuePtr& addr() const  { return _addr; }
   BasicType type() const          { return _type; }
-  virtual bool is_oop() const     { return is_reference_type(_type); }
+  bool is_oop() const             { return is_reference_type(_type) || (_decorators & C2_STORE_SPECIAL) != 0; }
   bool is_raw() const             { return (_decorators & AS_RAW) != 0; }
   Node* raw_access() const        { return _raw_access; }
 
@@ -172,7 +172,6 @@ public:
 
   PhaseGVN& gvn() const override;
   bool is_parse_access() const override { return true; }
-  bool is_oop() const final { return is_reference_type(_type) || (_decorators & C2_STORE_SPECIAL) != 0; }
 };
 
 // This class wraps a bunch of context parameters that are passed around in the

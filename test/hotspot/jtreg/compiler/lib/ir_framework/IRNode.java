@@ -442,6 +442,11 @@ public class IRNode {
         macroNodes(irNodePlaceholder, regex);
     }
 
+    public static final String CLEAR_ARRAY = PREFIX + "CLEAR_ARRAY" + POSTFIX;
+    static {
+        beforeMatching(CLEAR_ARRAY, "ClearArray");
+    }
+
     public static final String OR = PREFIX + "OR" + POSTFIX;
     static {
         beforeMatchingNameRegex(OR, "Or(I|L)");
@@ -1023,6 +1028,15 @@ public class IRNode {
         machOnly(G1_STORE_L_SPECIAL_ONE_OOP_0, regex_one_oop0);
         machOnly(G1_STORE_L_SPECIAL_ONE_OOP_4, regex_one_oop4);
         machOnly(G1_STORE_L_SPECIAL_TWO_OOPS, regex_two_oops);
+    }
+
+    public static final String G1_STORE_L_SPECIAL_BOTTOM_MEMORY = PREFIX + "G1_STORE_L_SPECIAL_BOTTOM_MEMORY" + POSTFIX;
+    public static final String G1_STORE_L_SPECIAL_RAW_MEMORY = PREFIX + "G1_STORE_L_SPECIAL_RAW_MEMORY" + POSTFIX;
+    static {
+        String store_l_special_bottom_memory_regex = START + "g1StoreLSpecial\\S*" + MID + Pattern.quote("@ptr:BotPTR+bot,") + ".*" + END;
+        String store_l_special_raw_memory_regex = START + "g1StoreLSpecial\\S*" + MID + Pattern.quote("@rawptr:BotPTR,") + ".*" + END;
+        machOnly(G1_STORE_L_SPECIAL_BOTTOM_MEMORY, store_l_special_bottom_memory_regex);
+        machOnly(G1_STORE_L_SPECIAL_RAW_MEMORY, store_l_special_raw_memory_regex);
     }
 
     public static final String IF = PREFIX + "IF" + POSTFIX;

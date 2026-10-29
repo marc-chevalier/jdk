@@ -24,20 +24,21 @@
 /*
  * @test
  * @bug 8389700
- * @summary Test StoreLSpecial are captured
+ * @summary Test StoreLSpecial nodes are captured
  * @enablePreview
  * @modules java.base/jdk.internal.value
  *          java.base/jdk.internal.vm.annotation
  * @library /test/lib /
+ * @requires vm.gc.G1 & vm.bits == 64
  * @run driver ${test.main.class}
  */
 
 package compiler.valhalla.valuetypes;
 
 import compiler.lib.ir_framework.*;
-import jdk.internal.vm.annotation.NullRestricted;
-
 import static compiler.lib.ir_framework.IRNode.*;
+import jdk.internal.vm.annotation.NullRestricted;
+import jdk.test.lib.Asserts;
 
 public class TestStoreLSpecialCapture {
     public static void main(String[] args) {
@@ -57,6 +58,8 @@ public class TestStoreLSpecialCapture {
         }
         framework.addScenarios(scenarios)
                 .addFlags(
+                        "-XX:+UseG1GC",
+                        "-XX:-IdealizeClearArrayNode",
                         "--add-exports", "java.base/jdk.internal.misc=ALL-UNNAMED",
                         "--add-exports", "java.base/jdk.internal.value=ALL-UNNAMED",
                         "--add-exports", "java.base/jdk.internal.vm.annotation=ALL-UNNAMED"
@@ -94,10 +97,12 @@ public class TestStoreLSpecialCapture {
     @Run(test={"test1"})
     public void test1_verifier() {
         MyValue v = new MyValue(new Object());
-        test1(42, v);
+        Holder h = test1(42, v);
+        Asserts.assertEQ(h.i, 42);
+        Asserts.assertEQ(h.v, v);
     }
 
-        static value class MyValueWithTwoOops {
+    static value class MyValueWithTwoOops {
         Object v1;
         Object v2;
 
@@ -136,6 +141,72 @@ public class TestStoreLSpecialCapture {
     public void test2_verifier() {
         MyValueWithTwoOops v = new MyValueWithTwoOops(new Object(), new Object());
         HolderWithTwoOops h = new HolderWithTwoOops();
-        test2(h, v);
+        HolderWithTwoOops h2 = test2(h, v);
+        Asserts.assertEQ(h2, h);
+        Asserts.assertEQ(h2.v, v);
+    }
+
+    @Test
+    @IR(applyIf = {"UseCompressedOops", "false"},
+        failOn = {STORE_L_SPECIAL})
+    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "false"},
+        counts = {STORE_L_SPECIAL_BOTTOM_MEMORY, "1"},
+        failOn = {STORE_L_SPECIAL_RAW_MEMORY})
+    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "true"},
+        counts = {STORE_L_SPECIAL_RAW_MEMORY, "1"},
+        failOn = {STORE_L_SPECIAL_BOTTOM_MEMORY})
+    static HolderWithTwoOops test3(MyValueWithTwoOops v) {
+        var _ = v.v1;  // Force v != null
+        HolderWithTwoOops h = new HolderWithTwoOops(v);
+        return h;
+    }
+
+    @Run(test={"test3"})
+    public void test3_verifier() {
+        MyValueWithTwoOops v = new MyValueWithTwoOops(new Object(), new Object());
+        HolderWithTwoOops h = test3(v);
+        Asserts.assertEQ(h.v, v);
+    }
+
+    @Test
+    @IR(applyIf = {"UseCompressedOops", "false"},
+        failOn = {STORE_L_SPECIAL})
+    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "false"},
+        counts = {STORE_L_SPECIAL_BOTTOM_MEMORY, "1"})
+    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "true"},
+        counts = {STORE_L_SPECIAL_RAW_MEMORY, "1"})
+    static HolderWithTwoOops test4(Object first, Object second) {
+        return new HolderWithTwoOops(new MyValueWithTwoOops(first, second));
+    }
+
+    @Run(test = "test4")
+    public void test4_verifier() {
+        Object first = new Object();
+        Object second = new Object();
+        HolderWithTwoOops holder = test4(first, second);
+        Asserts.assertEQ(first, holder.v.v1);
+        Asserts.assertEQ(second, holder.v.v2);
+    }
+
+    @Test
+    @IR(applyIf = {"UseCompressedOops", "false"},
+        failOn = {STORE_L_SPECIAL})
+    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "false"},
+        counts = {STORE_L_SPECIAL_BOTTOM_MEMORY, "1", CLEAR_ARRAY, "1"},
+        failOn = {STORE_L_SPECIAL_RAW_MEMORY})
+    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "true"},
+        counts = {STORE_L_SPECIAL_RAW_MEMORY, "1"},
+        failOn = {STORE_L_SPECIAL_BOTTOM_MEMORY, CLEAR_ARRAY})
+    static MyValue[] test5(MyValue value) {
+        MyValue[] array = new MyValue[1];
+        array[0] = value;
+        return array;
+    }
+
+    @Run(test = "test5")
+    public void test5_verifier() {
+        MyValue v = new MyValue(new Object());
+        MyValue[] a = test5(v);
+        Asserts.assertEQ(a[0], v);
     }
 }

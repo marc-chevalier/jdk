@@ -29,16 +29,16 @@
  * @modules java.base/jdk.internal.value
  *          java.base/jdk.internal.vm.annotation
  * @library /test/lib /
- * @requires vm.gc.G1
+ * @requires vm.gc.G1 & vm.bits == 64
  * @run driver ${test.main.class}
  */
 
 package compiler.gcbarriers;
 
 import compiler.lib.ir_framework.*;
-import jdk.internal.vm.annotation.NullRestricted;
-
 import static compiler.lib.ir_framework.IRNode.*;
+import jdk.internal.vm.annotation.NullRestricted;
+import jdk.test.lib.Asserts;
 
 public class TestG1BarrierCapturedStoreLSpecial {
     static final String PRE_ONLY = "pre";
@@ -63,6 +63,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         }
         framework.addScenarios(scenarios)
                 .addFlags(
+                        "-XX:+UseG1GC",
                         "--add-exports", "java.base/jdk.internal.value=ALL-UNNAMED",
                         "--add-exports", "java.base/jdk.internal.vm.annotation=ALL-UNNAMED"
                 )
@@ -166,12 +167,10 @@ public class TestG1BarrierCapturedStoreLSpecial {
 
     @Test
     @IR(applyIf = {"UseCompressedOops", "false"},
-        failOn = {G1_STORE_L_SPECIAL})
-    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "true"},
-        counts = {G1_STORE_L_SPECIAL, "1"},
-        failOn = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, ANY})
-    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "false"},
-        counts = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, PRE_AND_POST, "1"})
+            failOn = {G1_STORE_L_SPECIAL})
+    @IR(applyIf = {"UseCompressedOops", "true"},
+            counts = {G1_STORE_L_SPECIAL, "1"},
+            failOn = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, ANY})
     static Holder test1(Integer i, MyValue v) {
         Holder t = new Holder();
         t.i = i;
@@ -182,17 +181,38 @@ public class TestG1BarrierCapturedStoreLSpecial {
     @Run(test={"test1"})
     public void test1_verifier() {
         MyValue v = new MyValue(new Object());
-        test1(42, v);
+        Holder h = test1(42, v);
+        Asserts.assertEQ(h.i, 42);
+        Asserts.assertEQ(h.v, v);
     }
 
     @Test
     @IR(applyIf = {"UseCompressedOops", "false"},
         failOn = {G1_STORE_L_SPECIAL})
-    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "true"},
+    @IR(applyIf = {"UseCompressedOops", "true"},
+        counts = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, PRE_AND_POST, "1"})
+    static Holder test1_no_capture(Holder t, Integer i, MyValue v) {
+        t.i = i;
+        t.v = v;
+        return t;
+    }
+
+    @Run(test={"test1_no_capture"})
+    public void test1_no_capture_verifier() {
+        MyValue v = new MyValue(new Object());
+        Holder t = new Holder();
+        Holder h = test1_no_capture(t, 42, v);
+        Asserts.assertEQ(t.i, 42);
+        Asserts.assertEQ(t.v, v);
+        Asserts.assertEQ(t, h);
+    }
+
+    @Test
+    @IR(applyIf = {"UseCompressedOops", "false"},
+        failOn = {G1_STORE_L_SPECIAL})
+    @IR(applyIf = {"UseCompressedOops", "true"},
         counts = {G1_STORE_L_SPECIAL, "1"},
         failOn = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, ANY})
-    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "false"},
-        counts = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, PRE_AND_POST_NOT_NULL, "1"})
     static Holder test2(Integer i) {
         MyValue v = new MyValue(new Object());
         Holder t = new Holder();
@@ -203,17 +223,17 @@ public class TestG1BarrierCapturedStoreLSpecial {
 
     @Run(test={"test2"})
     public void test2_verifier() {
-        test2(42);
+        Holder h = test2(42);
+        Asserts.assertEQ(h.i, 42);
+        Asserts.assertNE(h.v, null);
     }
 
     @Test
     @IR(applyIf = {"UseCompressedOops", "false"},
         failOn = {G1_STORE_L_SPECIAL})
-    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "true"},
+    @IR(applyIf = {"UseCompressedOops", "true"},
         counts = {G1_STORE_L_SPECIAL, "1"},
         failOn = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, ANY})
-    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "false"},
-        counts = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, PRE_ONLY, "1"})
     static Holder test3(Integer i) {
         Holder t = new Holder();
         t.i = i;
@@ -223,7 +243,9 @@ public class TestG1BarrierCapturedStoreLSpecial {
 
     @Run(test={"test3"})
     public void test3_verifier() {
-        test3(42);
+        Holder h = test3(42);
+        Asserts.assertEQ(h.i, 42);
+        Asserts.assertEQ(h.v, null);
     }
 
     @Test
@@ -241,7 +263,9 @@ public class TestG1BarrierCapturedStoreLSpecial {
     public void test4_verifier() {
         MyValueWithTwoOops v = new MyValueWithTwoOops(new Object(), new Object());
         HolderWithTwoOops h = new HolderWithTwoOops();
-        test4(h, v);
+        HolderWithTwoOops h2 = test4(h, v);
+        Asserts.assertEQ(h2, h);
+        Asserts.assertEQ(h.v, v);
     }
 
     @Test
@@ -256,9 +280,12 @@ public class TestG1BarrierCapturedStoreLSpecial {
     }
 
     @Run(test={"test5"})
-    public void test5_verifier() throws NoSuchFieldException {
+    public void test5_verifier() {
         HolderWithTwoOops h = new HolderWithTwoOops();
-        test5(h);
+        HolderWithTwoOops h2 = test5(h);
+        Asserts.assertEQ(h2, h);
+        Asserts.assertNE(h2.v.v1, null);
+        Asserts.assertNE(h2.v.v2, null);
     }
 
     @Test
@@ -273,9 +300,12 @@ public class TestG1BarrierCapturedStoreLSpecial {
     }
 
     @Run(test={"test6"})
-    public void test6_verifier() throws NoSuchFieldException {
+    public void test6_verifier() {
         HolderWithTwoOops h = new HolderWithTwoOops();
-        test6(h);
+        HolderWithTwoOops h2 = test6(h);
+        Asserts.assertEQ(h2, h);
+        Asserts.assertNE(h2.v.v1, null);
+        Asserts.assertEQ(h2.v.v2, null);
     }
 
     @Test
@@ -290,9 +320,12 @@ public class TestG1BarrierCapturedStoreLSpecial {
     }
 
     @Run(test={"test7"})
-    public void test7_verifier() throws NoSuchFieldException {
+    public void test7_verifier() {
         HolderWithTwoOops h = new HolderWithTwoOops();
-        test7(h);
+        HolderWithTwoOops h2 = test7(h);
+        Asserts.assertEQ(h2, h);
+        Asserts.assertEQ(h2.v.v1, null);
+        Asserts.assertNE(h2.v.v2, null);
     }
 
     @Test
@@ -307,42 +340,151 @@ public class TestG1BarrierCapturedStoreLSpecial {
     }
 
     @Run(test={"test8"})
-    public void test8_verifier() throws NoSuchFieldException {
+    public void test8_verifier() {
         HolderWithTwoOops h = new HolderWithTwoOops();
-        test8(h);
+        HolderWithTwoOops h2 = test8(h);
+        Asserts.assertEQ(h2, h);
+        Asserts.assertEQ(h2.v.v1, null);
+        Asserts.assertEQ(h2.v.v2, null);
     }
 
     @Test
     @IR(applyIf = {"UseCompressedOops", "false"},
-        failOn = {G1_STORE_L_SPECIAL})
+            failOn = {G1_STORE_L_SPECIAL})
     @IR(applyIf = {"UseCompressedOops", "true"},
-        counts = {G1_STORE_L_SPECIAL_ONE_OOP_0_WITH_BARRIER_FLAG, PRE_AND_POST_NOT_NULL, "1"})
-    static HolderWithOopsFirst test9(HolderWithOopsFirst h) {
+            counts = {G1_STORE_L_SPECIAL_ONE_OOP_0_WITH_BARRIER_FLAG, PRE_AND_POST_NOT_NULL, "1"})
+    static HolderWithOopsFirst test9_non_null(HolderWithOopsFirst h) {
         MyValueOopFirst v = new MyValueOopFirst(42, new Object());
         h.v = v;
         return h;
     }
 
-    @Run(test={"test9"})
-    public void test9_verifier() throws NoSuchFieldException {
+    @Run(test={"test9_non_null"})
+    public void test9_non_null_verifier() {
         HolderWithOopsFirst h = new HolderWithOopsFirst();
-        test9(h);
+        HolderWithOopsFirst h2 = test9_non_null(h);
+        Asserts.assertEQ(h2, h);
+        Asserts.assertEQ(h2.v.i, 42);
+        Asserts.assertNE(h2.v.v, null);
     }
 
     @Test
     @IR(applyIf = {"UseCompressedOops", "false"},
         failOn = {G1_STORE_L_SPECIAL})
     @IR(applyIf = {"UseCompressedOops", "true"},
-        counts = {G1_STORE_L_SPECIAL_ONE_OOP_4_WITH_BARRIER_FLAG, PRE_AND_POST_NOT_NULL, "1"})
-    static HolderWithOopsSecond test10(HolderWithOopsSecond h) {
+        counts = {G1_STORE_L_SPECIAL_ONE_OOP_0_WITH_BARRIER_FLAG, PRE_AND_POST, "1"})
+    static HolderWithOopsFirst test9_maybe_null(HolderWithOopsFirst h, Object o) {
+        MyValueOopFirst v = new MyValueOopFirst(42, o);
+        h.v = v;
+        return h;
+    }
+
+    @Run(test={"test9_maybe_null"})
+    public void test9_maybe_null_verifier() {
+        HolderWithOopsFirst h = new HolderWithOopsFirst();
+        {
+            HolderWithOopsFirst h2 = test9_maybe_null(h, null);
+            Asserts.assertEQ(h2, h);
+            Asserts.assertEQ(h2.v.i, 42);
+            Asserts.assertEQ(h2.v.v, null);
+        }
+        {
+            HolderWithOopsFirst h2 = test9_maybe_null(h, new Object());
+            Asserts.assertEQ(h2, h);
+            Asserts.assertEQ(h2.v.i, 42);
+            Asserts.assertNE(h2.v.v, null);
+        }
+    }
+
+    @Test
+    @IR(applyIf = {"UseCompressedOops", "false"},
+            failOn = {G1_STORE_L_SPECIAL})
+    @IR(applyIf = {"UseCompressedOops", "true"},
+            counts = {G1_STORE_L_SPECIAL_ONE_OOP_4_WITH_BARRIER_FLAG, PRE_AND_POST_NOT_NULL, "1"})
+    static HolderWithOopsSecond test10_non_null(HolderWithOopsSecond h) {
         MyValueOopSecond v = new MyValueOopSecond(42, new Object());
         h.v = v;
         return h;
     }
 
-    @Run(test={"test10"})
-    public void test10_verifier() throws NoSuchFieldException {
+    @Run(test={"test10_non_null"})
+    public void test10_non_null_verifier() {
         HolderWithOopsSecond h = new HolderWithOopsSecond();
-        test10(h);
+        HolderWithOopsSecond h2 = test10_non_null(h);
+        Asserts.assertEQ(h2, h);
+        Asserts.assertEQ(h2.v.i, 42);
+        Asserts.assertNE(h2.v.v, null);
+    }
+
+    @Test
+    @IR(applyIf = {"UseCompressedOops", "false"},
+        failOn = {G1_STORE_L_SPECIAL})
+    @IR(applyIf = {"UseCompressedOops", "true"},
+        counts = {G1_STORE_L_SPECIAL_ONE_OOP_4_WITH_BARRIER_FLAG, PRE_AND_POST, "1"})
+    static HolderWithOopsSecond test10_maybe_null(HolderWithOopsSecond h, Object o) {
+        MyValueOopSecond v = new MyValueOopSecond(42, o);
+        h.v = v;
+        return h;
+    }
+
+    @Run(test={"test10_maybe_null"})
+    public void test10_maybe_null_verifier() {
+        HolderWithOopsSecond h = new HolderWithOopsSecond();
+        {
+            HolderWithOopsSecond h2 = test10_maybe_null(h, null);
+            Asserts.assertEQ(h2, h);
+            Asserts.assertEQ(h2.v.i, 42);
+            Asserts.assertEQ(h2.v.v, null);
+        }
+        {
+            HolderWithOopsSecond h2 = test10_maybe_null(h, new Object());
+            Asserts.assertEQ(h2, h);
+            Asserts.assertEQ(h2.v.i, 42);
+            Asserts.assertNE(h2.v.v, null);
+        }
+    }
+
+    @Test
+    @IR(applyIf = {"UseCompressedOops", "false"},
+        failOn = {G1_STORE_L_SPECIAL})
+    @IR(applyIf = {"UseCompressedOops", "true"},
+        counts = {G1_STORE_L_SPECIAL, "1"},
+        failOn = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, ANY})
+    static HolderWithTwoOops test11(MyValueWithTwoOops v) {
+        var _ = v.v1;  // Force v != null
+        HolderWithTwoOops h = new HolderWithTwoOops(v);
+        return h;
+    }
+
+    @Run(test={"test11"})
+    public void test11_verifier() {
+        MyValueWithTwoOops v = new MyValueWithTwoOops(new Object(), new Object());
+        HolderWithTwoOops h = test11(v);
+        Asserts.assertEQ(h.v, v);
+    }
+
+    @Test
+    @IR(applyIf = {"UseCompressedOops", "false"},
+        failOn = {G1_STORE_L_SPECIAL})
+    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "false"},
+        counts = {G1_STORE_L_SPECIAL, "1",
+                  G1_STORE_L_SPECIAL_BOTTOM_MEMORY, "1"},
+        failOn = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, ANY})
+    @IR(applyIfAnd = {"UseCompressedOops", "true", "ReduceFieldZeroing", "true"},
+        counts = {G1_STORE_L_SPECIAL, "1",
+                  G1_STORE_L_SPECIAL_RAW_MEMORY, "1"},
+        failOn = {G1_STORE_L_SPECIAL_WITH_BARRIER_FLAG, ANY})
+    static HolderWithTwoOops test12(Object first, Object second) {
+        HolderWithTwoOops h = new HolderWithTwoOops(new MyValueWithTwoOops(first, second));
+        return h;
+    }
+
+    @Run(test = "test12")
+    public void test12_verifier() {
+        Object first = new Object();
+        Object second = new Object();
+        HolderWithTwoOops holder = test12(first, second);
+        Asserts.assertEQ(first, holder.v.v1);
+        Asserts.assertEQ(second, holder.v.v2);
     }
 }

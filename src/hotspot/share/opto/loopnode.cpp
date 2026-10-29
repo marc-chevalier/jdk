@@ -7777,7 +7777,10 @@ Node* PhaseIdealLoop::get_late_ctrl_with_anti_dep(LoadNode* n, Node* early, Node
               adr_type = dest_type;
             }
           }
-          if (C->can_alias(adr_type, load_alias_idx)) {
+          if (const StoreNode* store = s->isa_Store();
+              (store != nullptr && store->is_unsound_address_access()) ||
+              C->can_alias(adr_type, load_alias_idx)
+          ) {
             LCA = dom_lca_for_get_late_ctrl(LCA, sctrl, n);
           } else if (s->is_CFG() && s->is_Multi()) {
             // Look for the memory use of s (that is the use of its memory projection)

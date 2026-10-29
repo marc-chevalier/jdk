@@ -87,16 +87,6 @@ protected:
     _adr_type=at;
     validate_in_adr_type();
   }
-  MemNode( Node *c0, Node *c1, Node *c2, const TypePtr* at, Node *c3, Node *c4) :
-      Node(c0,c1,c2,c3,c4),
-      _unaligned_access(false),
-      _mismatched_access(false),
-      _unsafe_access(false),
-      _barrier_data(0) {
-    init_class_id(Class_Mem);
-    _adr_type=at;
-    validate_in_adr_type();
-  }
 
   virtual Node* find_previous_arraycopy(PhaseValues* phase, Node* ld_alloc, Node*& mem, bool can_see_stored_value) const { return nullptr; }
   ArrayCopyNode* find_array_copy_clone(Node* ld_alloc, Node* mem) const;
@@ -120,16 +110,10 @@ public:
   void validate_in_adr_type() const NOT_DEBUG_RETURN;
 
   // Shared code for Ideal methods:
-  Node *Ideal_common(PhaseGVN *phase, bool can_reshape);  // Return -1 for short-circuit null.
+  Node* Ideal_common(PhaseGVN* phase, bool can_reshape);  // Return NodeSentinel for short-circuit null.
 
   // Helper function for adr_type() implementations.
   static const TypePtr* calculate_adr_type(const Type* t, const TypePtr* cross_check = nullptr);
-
-  // Raw access function, to allow copying of adr_type efficiently in
-  // product builds and retain the debug info for debug builds.
-  const TypePtr *raw_adr_type() const {
-    return DEBUG_ONLY(_adr_type) NOT_DEBUG(nullptr);
-  }
 
 #ifdef ASSERT
   void set_adr_type(const TypePtr* adr_type) { _adr_type = adr_type; }
@@ -174,7 +158,7 @@ public:
   bool is_mismatched_access() const { return _mismatched_access; }
   void set_unsafe_access() { _unsafe_access = true; }
   bool is_unsafe_access() const { return _unsafe_access; }
-  void set_unsound_address_access() { _unsound_address_access = true; }
+  void set_unsound_address_access() { _unsound_address_access = true; validate_in_adr_type(); }
   bool is_unsound_address_access() const { return _unsound_address_access; }
 
 #ifndef PRODUCT
@@ -184,9 +168,7 @@ public:
 
   MemNode* clone_with_adr_type(const TypePtr* adr_type) const {
     MemNode* new_node = clone()->as_Mem();
-#ifdef ASSERT
     new_node->_adr_type = adr_type;
-#endif
     return new_node;
   }
 
@@ -665,10 +647,6 @@ public:
   // point to a new object and may become externally visible.
   StoreNode(Node *c, Node *mem, Node *adr, const TypePtr* at, Node *val, MemOrd mo)
     : MemNode(c, mem, adr, at, val), _mo(mo) {
-    init_class_id(Class_Store);
-  }
-  StoreNode(Node *c, Node *mem, Node *adr, const TypePtr* at, Node *val, Node *oop_store, MemOrd mo)
-    : MemNode(c, mem, adr, at, val, oop_store), _mo(mo) {
     init_class_id(Class_Store);
   }
 

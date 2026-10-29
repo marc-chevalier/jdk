@@ -95,8 +95,8 @@ instruct g1StoreLSpecialOneOopOff0(indirect mem, iRegLNoSp src, immI_0 off, iReg
     __ sd($src$$Register, Address($mem$$Register));
 
     // Extract the narrow oop field value
-    __ zext($tmp1$$Register, $src$$Register, 32);
     if ((barrier_data() & G1C2BarrierPost) != 0) {
+      __ zext($tmp1$$Register, $src$$Register, 32);
       if ((barrier_data() & G1C2BarrierPostNotNull) == 0) {
         __ decode_heap_oop($tmp1$$Register, $tmp1$$Register);
       } else {
@@ -135,8 +135,8 @@ instruct g1StoreLSpecialOneOopOff4(indirect mem, iRegLNoSp src, immI_4 off, iReg
     __ sd($src$$Register, Address($mem$$Register));
 
     // Shift long value to extract the narrow oop field value and zero-extend it
-    __ srli($tmp1$$Register, $src$$Register, 32);
     if ((barrier_data() & G1C2BarrierPost) != 0) {
+      __ srli($tmp1$$Register, $src$$Register, 32);
       if ((barrier_data() & G1C2BarrierPostNotNull) == 0) {
         __ decode_heap_oop($tmp1$$Register, $tmp1$$Register);
       } else {
@@ -181,8 +181,8 @@ instruct g1StoreLSpecialTwoOops(indirect mem, iRegLNoSp src, iRegPNoSp tmp1, iRe
     __ sd($src$$Register, Address($mem$$Register));
 
     // Zero-extend first narrow oop to long
-    __ zext($tmp1$$Register, $src$$Register, 32);
     if ((barrier_data() & G1C2BarrierPost) != 0) {
+      __ zext($tmp1$$Register, $src$$Register, 32);
       if ((barrier_data() & G1C2BarrierPostNotNull) == 0) {
         __ decode_heap_oop($tmp1$$Register, $tmp1$$Register);
       } else {
@@ -196,8 +196,8 @@ instruct g1StoreLSpecialTwoOops(indirect mem, iRegLNoSp src, iRegPNoSp tmp1, iRe
                        $tmp3$$Register /* tmp2 */);
 
     // Shift long value to extract the second narrow oop field value
-    __ srli($tmp1$$Register, $src$$Register, 32);
     if ((barrier_data() & G1C2BarrierPost) != 0) {
+      __ srli($tmp1$$Register, $src$$Register, 32);
       if ((barrier_data() & G1C2BarrierPostNotNull) == 0) {
         __ decode_heap_oop($tmp1$$Register, $tmp1$$Register);
       } else {
