@@ -24,32 +24,35 @@
 /*
  * @test
  * @bug 8319372
- * @summary CastII because of condition guarding it becomes top
+ * @summary CastII because of condition guarding it becomes boottom
  * @requires vm.compiler2.enabled
- * @run main/othervm -XX:CompileCommand=quiet -XX:CompileCommand=compileonly,TestTopCastIIOnUndetectedDeadPath2::test -XX:-TieredCompilation
- *                   -Xbatch -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN -XX:StressSeed=256120824 TestTopCastIIOnUndetectedDeadPath2
- * @run main/othervm -XX:CompileCommand=quiet -XX:CompileCommand=compileonly,TestTopCastIIOnUndetectedDeadPath2::test -XX:-TieredCompilation
- *                   -Xbatch -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN TestTopCastIIOnUndetectedDeadPath2
+ * @run main/othervm -Xcomp -XX:CompileOnly=${test.main.class}::test -XX:CompileCommand=quiet -XX:-TieredCompilation
+ *                   -XX:+UnlockDiagnosticVMOptions -XX:StressSeed=426264791 -XX:+StressIGVN ${test.main.class}
+ * @run main/othervm -Xcomp -XX:CompileOnly=${test.main.class}::test -XX:CompileCommand=quiet -XX:-TieredCompilation
+ *                   -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN ${test.main.class}
  */
 
-public class TestTopCastIIOnUndetectedDeadPath2 {
-    static int array[] = new int[100];
+public class TestBoottomCastIIOnUndetectedDeadPath {
+    static class X {
+        static void m(int[] a) {
 
-    static int test() {
-        int res = 0;
-        for (int i = 1; i < 100; ++i) {
-            try {
-                res = array[i - 1];
-                int x = (42 % i);
-            } catch (ArithmeticException e) {
-            }
         }
-        return res;
     }
 
-    public static void main(String[] args) {
-        for (int i = 0; i < 10_000; i++) {
-            test();
+    static int array[] = new int[10];
+
+    static void test(int val) {
+        for (int i = 1; i < 10; ++i) {
+            for (int j = i; j < 10; ++j) {
+                if (i == 0 && j != 0) {
+                    X.m(array);
+                }
+                array[j - 1] = val;
+            }
         }
+    }
+
+    public static void main(String[] arg) {
+        test(42);
     }
 }

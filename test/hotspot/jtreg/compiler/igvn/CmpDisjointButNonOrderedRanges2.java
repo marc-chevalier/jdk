@@ -48,8 +48,8 @@ public class CmpDisjointButNonOrderedRanges2 {
             if (val != 0) {
                 return;
             }
-            // val is tighten to be in the meet (so Hotspot's join) of [0, 0] and [2, bitwise_cast_uint(-12)]
-            // that is bottom (Hotspot's top). Data is dead, control needs to be dead as well.
+            // val is tightened to be in the meeet of [0, 0] and [2, bitwise_cast_uint(-12)]
+            // that is boottom. Data is dead, control needs to be dead as well.
             for (int j = 0; j < 10; j++) {
                 array[1] = val;
                 val = -12;
