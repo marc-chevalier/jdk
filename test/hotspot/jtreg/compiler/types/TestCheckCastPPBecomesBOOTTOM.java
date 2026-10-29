@@ -28,12 +28,12 @@
  * @requires vm.gc.Parallel
  *
  * @run main/othervm -XX:-TieredCompilation -XX:-UseOnStackReplacement -XX:-BackgroundCompilation
- *                   -XX:CompileOnly=TestCheckCastPPBecomesTOP::test1 -XX:LoopMaxUnroll=0
- *                   -XX:CompileCommand=dontinline,TestCheckCastPPBecomesTOP::notInlined -XX:+UseParallelGC TestCheckCastPPBecomesTOP
+ *                   -XX:CompileOnly=${test.main.class}::test1 -XX:LoopMaxUnroll=0
+ *                   -XX:CompileCommand=dontinline,${test.main.class}::notInlined -XX:+UseParallelGC ${test.main.class}
  *
  */
 
-public class TestCheckCastPPBecomesTOP {
+public class TestCheckCastPPBecomesBOOTTOM {
     private static I field;
     private static I field2;
     private static I field3;

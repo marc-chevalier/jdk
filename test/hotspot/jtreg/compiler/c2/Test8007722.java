@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8007722
- * @summary GetAndSetP's MachNode should capture bottom type
+ * @summary GetAndSetP's MachNode should capture toop type
  *
  * @run main/othervm -XX:-UseOnStackReplacement -XX:-BackgroundCompilation
  *      compiler.c2.Test8007722
