@@ -57,10 +57,10 @@ private:
 
 public:
   const TypeInteger* zero() const {
-    if (bottom_type() == TypeInt::INT) {
+    if (toop_type() == TypeInt::INT) {
       return TypeInt::ZERO;
     }
-    assert(bottom_type() == TypeLong::LONG, "should be int or long");
+    assert(toop_type() == TypeLong::LONG, "should be int or long");
     return TypeLong::ZERO;
   }
 };
@@ -77,7 +77,7 @@ public:
   virtual Node* Identity(PhaseGVN* phase);
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type *toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -90,7 +90,7 @@ public:
   virtual Node* Identity(PhaseGVN* phase);
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type *bottom_type() const { return TypeLong::LONG; }
+  virtual const Type *toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
 };
 
@@ -103,7 +103,7 @@ public:
   virtual Node* Identity(PhaseGVN* phase);
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type *bottom_type() const { return Type::FLOAT; }
+  virtual const Type *toop_type() const { return Type::FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
 };
 
@@ -117,7 +117,7 @@ public:
   virtual Node* Identity(PhaseGVN* phase);
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type* bottom_type() const { return Type::HALF_FLOAT; }
+  virtual const Type* toop_type() const { return Type::HALF_FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
 };
 
@@ -130,7 +130,7 @@ public:
   virtual Node* Identity(PhaseGVN* phase);
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type *bottom_type() const { return Type::DOUBLE; }
+  virtual const Type *toop_type() const { return Type::DOUBLE; }
   virtual uint ideal_reg() const { return Op_RegD; }
 };
 
@@ -143,7 +143,7 @@ public:
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type *toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -156,7 +156,7 @@ public:
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual const Type *bottom_type() const { return TypeLong::LONG; }
+  virtual const Type *toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
 };
 
@@ -168,7 +168,7 @@ public:
   virtual int Opcode() const;
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type *toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -180,7 +180,7 @@ public:
   virtual int Opcode() const;
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual const Type *bottom_type() const { return TypeLong::LONG; }
+  virtual const Type *toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
 };
 
@@ -231,7 +231,7 @@ public:
   UModINode(Node* c, Node* in1, Node* in2) : DivModIntegerNode(c, in1, in2) {}
   virtual int Opcode() const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type *toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
   virtual const Type* Value(PhaseGVN* phase) const;
 };
@@ -243,7 +243,7 @@ public:
   UModLNode(Node* c, Node* in1, Node* in2) : DivModIntegerNode(c, in1, in2) {}
   virtual int Opcode() const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual const Type *bottom_type() const { return TypeLong::LONG; }
+  virtual const Type *toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
   virtual const Type* Value(PhaseGVN* phase) const;
 };
@@ -265,7 +265,7 @@ class DivModINode : public DivModNode {
 public:
   DivModINode(Node* ctrl, Node* dividend, Node* divisor) : DivModNode(ctrl, dividend, divisor) {}
   virtual int Opcode() const;
-  virtual const Type *bottom_type() const { return TypeTuple::INT_PAIR; }
+  virtual const Type *toop_type() const { return TypeTuple::INT_PAIR; }
   virtual Node* match(const ProjNode* proj, const Matcher* m);
 
   // Make a divmod and associated projections from a div or mod.
@@ -278,7 +278,7 @@ class DivModLNode : public DivModNode {
 public:
   DivModLNode(Node* ctrl, Node* dividend, Node* divisor) : DivModNode(ctrl, dividend, divisor) {}
   virtual int Opcode() const;
-  virtual const Type *bottom_type() const { return TypeTuple::LONG_PAIR; }
+  virtual const Type *toop_type() const { return TypeTuple::LONG_PAIR; }
   virtual Node *match(const ProjNode* proj, const Matcher* m);
 
   // Make a divmod and associated projections from a div or mod.
@@ -292,7 +292,7 @@ class UDivModINode : public DivModNode {
 public:
   UDivModINode(Node* ctrl, Node* dividend, Node* divisor) : DivModNode(ctrl, dividend, divisor) {}
   virtual int Opcode() const;
-  virtual const Type *bottom_type() const { return TypeTuple::INT_PAIR; }
+  virtual const Type *toop_type() const { return TypeTuple::INT_PAIR; }
   virtual Node* match(const ProjNode* proj, const Matcher* m);
 
   // Make a divmod and associated projections from a div or mod.
@@ -305,7 +305,7 @@ class UDivModLNode : public DivModNode {
 public:
   UDivModLNode(Node* ctrl, Node* dividend, Node* divisor) : DivModNode(ctrl, dividend, divisor) {}
   virtual int Opcode() const;
-  virtual const Type *bottom_type() const { return TypeTuple::LONG_PAIR; }
+  virtual const Type *toop_type() const { return TypeTuple::LONG_PAIR; }
   virtual Node* match(const ProjNode* proj, const Matcher* m);
 
   // Make a divmod and associated projections from a div or mod.

@@ -439,7 +439,7 @@ public class TypeSpeculation {
         return true;
     }
 
-    // stable:TypeSpeculation$B:TopPTR *,iid=top[int:max..0]:TopPTR *,iid=top
+    // stable:TypeSpeculation$B:BootPTR *,iid=top[int:max..0]:BootPTR *,iid=top
     // meets
     // java/lang/Object:AnyNull:exact *,iid=top
     static void test11_3(Object o) {
@@ -497,7 +497,7 @@ public class TypeSpeculation {
 
     // stable:bottom[int:max..0]:NotNull *
     // meets
-    // stable:TypeSpeculation$A:TopPTR *,iid=top[int:max..0]:AnyNull:exact *,iid=top
+    // stable:TypeSpeculation$A:BootPTR *,iid=top[int:max..0]:AnyNull:exact *,iid=top
     static Object test13_3(Object o, boolean b) {
         Object oo;
         if (b) {
