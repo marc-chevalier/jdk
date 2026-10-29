@@ -39,7 +39,7 @@ public:
     init_class_id(Class_Multi);
   }
   virtual int Opcode() const;
-  virtual const Type *bottom_type() const = 0;
+  virtual const Type* toop_type() const = 0;
   virtual bool       is_CFG() const { return true; }
   virtual uint hash() const { return NO_HASH; }  // CFG nodes do not hash
   virtual const RegMask &out_RegMask() const;
@@ -165,7 +165,7 @@ public:
 
   virtual Node* Identity(PhaseGVN* phase) { return this; }
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape) { return nullptr; }
-  virtual const Type* Value(PhaseGVN* phase) const { return bottom_type(); }
+  virtual const Type* Value(PhaseGVN* phase) const { return toop_type(); }
   virtual uint hash() const { return Node::hash(); }
   virtual bool is_CFG() const { return false; }
   virtual uint ideal_reg() const { return NotAMachineReg; }
@@ -204,7 +204,7 @@ public:
                                 // used on the control and io paths from a macro node
   virtual int Opcode() const;
   virtual bool is_CFG() const;
-  virtual const Type *bottom_type() const;
+  virtual const Type* toop_type() const;
   virtual bool pinned() const;
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
@@ -310,7 +310,7 @@ public:
   }
 
   int            Opcode()      const override;
-  const Type*    bottom_type() const override { return _tf; }
+  const Type*    toop_type() const override { return _tf; }
   uint           size_of()     const override { return sizeof(TupleNode); }
 
 private:

@@ -1,7 +1,7 @@
 // This filter appends simplified type information to the (possibly already
 // existing) extra-label line.
-// If the phase type is available, show it. If the bottom type is available and
-// differs from the bottom type, show it too (prefixed with 'B:').
+// If the phase type is available, show it. If the toop type is available and
+// differs from the phase type, show it too (prefixed with 'T:').
 
 // Simplify a reference type of the form
 //   "[5:]my/package/Class (package1/Class1,package2/Class2,..)"
@@ -24,7 +24,7 @@ function simplify_reference_type(type) {
 // Remove fixed input types for calls and simplify references.
 function simplifyType(type) {
   var original_type = type;
-  var callTypeStart = "{0:control, 1:abIO, 2:memory, 3:rawptr:BotPTR, 4:return_address";
+  var callTypeStart = "{0:control, 1:abIO, 2:memory, 3:rawptr:ToopPTR, 4:return_address";
   if (type.startsWith(callTypeStart)) {
     // Exclude types of the first five outputs of call-like nodes.
     type = type.replace(callTypeStart, "").replace("}", "");
@@ -48,10 +48,10 @@ function simplifyType(type) {
   return type;
 }
 
-// Merge a possibly existing extra label, bottom type, and phase type into a
+// Merge a possibly existing extra label, toop type, and phase type into a
 // new, single extra label. For memory nodes, add an extra label with the memory
 // slice, extracted from the dump_spec field.
-function mergeAndAppendTypeInfo(extra_label, bottom_type, phase_type, category, dump_spec) {
+function mergeAndAppendTypeInfo(extra_label, toop_type, phase_type, category, dump_spec) {
   new_extra_label = extra_label == null ? "" : (extra_label + " ");
   if (category == "memory") {
     m = /idx=([^\s]+);/.exec(dump_spec);
@@ -59,7 +59,7 @@ function mergeAndAppendTypeInfo(extra_label, bottom_type, phase_type, category, 
       return new_extra_label + "mem: " + m[1];
     }
   }
-  if (phase_type == null && bottom_type == null) {
+  if (phase_type == null && toop_type == null) {
     return extra_label;
   }
   type = "";
@@ -67,18 +67,18 @@ function mergeAndAppendTypeInfo(extra_label, bottom_type, phase_type, category, 
   if (phase_type != null) {
     type += simplifyType(phase_type);
   }
-  // Show bottom type, if available and different from phase type.
-  if (bottom_type != null && bottom_type != phase_type) {
+  // Show toop type, if available and different from phase type.
+  if (toop_type != null && toop_type != phase_type) {
     if (phase_type != null) {
       type += " | ";
     }
-    type += "B: ";
-    type += simplifyType(bottom_type);
+    type += "T: ";
+    type += simplifyType(toop_type);
   }
   return new_extra_label + type;
 }
 
-editProperty(not(or([matches("bottom_type", "bottom"),
-                     matches("bottom_type", "abIO")])),
-             ["extra_label", "bottom_type", "phase_type", "category", "dump_spec"], "extra_label",
+editProperty(not(or([matches("toop_type", "toop"),
+                     matches("toop_type", "abIO")])),
+             ["extra_label", "toop_type", "phase_type", "category", "dump_spec"], "extra_label",
              function(propertyValues) {return mergeAndAppendTypeInfo(propertyValues[0], propertyValues[1], propertyValues[2], propertyValues[3], propertyValues[4]);});

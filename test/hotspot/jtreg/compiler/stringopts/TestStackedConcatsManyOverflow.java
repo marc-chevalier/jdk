@@ -93,12 +93,12 @@ public class TestStackedConcatsManyOverflow {
 
     // SIGSEGV (0xb) in PhaseStringOpts::get_constant_coder(GraphKit&, Node*)
     static String f() {
-        // Creating an overflow top()-producing StringConcat
-        // and a few more doublings to get a target concat receiving top() as an input argument.
+        // Creating an overflow boottom()-producing StringConcat
+        // and a few more doublings to get a target concat receiving boottom() as an input argument.
         String s = double30();
         s = new StringBuilder().append(s).append(s).toString();
         s = new StringBuilder().append(s).append(s).toString();
-        // stringopts sets the toString result to top(). Next, it's used in append(s) but stringopts expected live input.
+        // stringopts sets the toString result to boottom(). Next, it's used in append(s) but stringopts expected live input.
         s = new StringBuilder().append('a').append(s).toString();
         return s;
     }
@@ -107,7 +107,7 @@ public class TestStackedConcatsManyOverflow {
     static String g() {
         String s = double30();
         s = new StringBuilder().append(s).append(s).toString();
-        // if valueOf is not inlined, append will stay as a live late inlining candidate but with a top() input.
+        // if valueOf is not inlined, append will stay as a live late inlining candidate but with a boottom() input.
         s = new StringBuilder().append(s).append(String.valueOf(s)).toString();
         return s;
     }
@@ -116,8 +116,8 @@ public class TestStackedConcatsManyOverflow {
     static String h() {
         String s = double30();
         s = new StringBuilder().append(s).append(s).toString();
-        // Overflowed and have a StringConcat returning top()
-        // Non-fluent chain that has an append late inline candidate that consumes top
+        // Overflowed and have a StringConcat returning boottom()
+        // Non-fluent chain that has an append late inline candidate that consumes boottom
         StringBuilder sb = new StringBuilder();
         sb.append(s);
         return sb.toString();

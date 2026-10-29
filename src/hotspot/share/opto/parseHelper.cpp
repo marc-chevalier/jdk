@@ -55,7 +55,7 @@ void GraphKit::make_dtrace_method_entry_exit(ciMethod* method, bool is_entry) {
   kill_dead_locals();
 
   // For some reason, this call reads only raw memory.
-  const TypePtr* raw_adr_type = TypeRawPtr::BOTTOM;
+  const TypePtr* raw_adr_type = TypeRawPtr::TOOP;
   make_runtime_call(RC_LEAF | RC_NARROW_MEM,
                     call_type, call_address,
                     call_name, raw_adr_type,
@@ -88,7 +88,7 @@ void Parse::do_checkcast() {
       }
     }
     null_assert(obj);
-    assert( stopped() || _gvn.type(peek())->higher_equal(TypePtr::NULL_PTR), "what's left behind is null" );
+    assert( stopped() || _gvn.type(peek())->is_subseteq_of(TypePtr::NULL_PTR), "what's left behind is null" );
     return;
   }
 
@@ -120,7 +120,7 @@ void Parse::do_instanceof() {
                      C->log()->identify(klass));
     }
     null_assert(peek());
-    assert( stopped() || _gvn.type(peek())->higher_equal(TypePtr::NULL_PTR), "what's left behind is null" );
+    assert( stopped() || _gvn.type(peek())->is_subseteq_of(TypePtr::NULL_PTR), "what's left behind is null" );
     if (!stopped()) {
       // The object is now known to be null.
       // Shortcut the effect of gen_instanceof and return "false" directly.
