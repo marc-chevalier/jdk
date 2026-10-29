@@ -2076,10 +2076,10 @@ public class TestMergeStores {
     }
 
     @Test
-    @IR(counts = {IRNode.STORE_B_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
-                  IRNode.STORE_C_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
-                  IRNode.STORE_I_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
-                  IRNode.STORE_L_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "1"}, // all merged
+    @IR(counts = {IRNode.STORE_B_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
+                  IRNode.STORE_C_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
+                  IRNode.STORE_I_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
+                  IRNode.STORE_L_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "1"}, // all merged
         applyIf = {"UseUnalignedAccesses", "true"})
     static Object[] test600a(byte[] aB, int[] aI, int i) {
         Object a = null;
@@ -2091,7 +2091,7 @@ public class TestMergeStores {
             a = aI;
             base = UNSAFE.ARRAY_INT_BASE_OFFSET;
         }
-        // Array type is unknown, i.e. bottom[]. But all AddI can be safely converted to AddL -> safe to merge.
+        // Array type is unknown, i.e. toop[]. But all AddI can be safely converted to AddL -> safe to merge.
         UNSAFE.putByte(a, base + 0, (byte)0xbe);
         UNSAFE.putByte(a, base + 1, (byte)0xba);
         UNSAFE.putByte(a, base + 2, (byte)0xad);
@@ -2126,15 +2126,15 @@ public class TestMergeStores {
     }
 
     @Test
-    @IR(counts = {IRNode.STORE_B_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "8",  // nothing merged
-                  IRNode.STORE_C_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
-                  IRNode.STORE_I_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
-                  IRNode.STORE_L_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0"},
+    @IR(counts = {IRNode.STORE_B_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "8",  // nothing merged
+                  IRNode.STORE_C_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
+                  IRNode.STORE_I_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
+                  IRNode.STORE_L_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0"},
         applyIfPlatform = {"64-bit", "true"})
-    @IR(counts = {IRNode.STORE_B_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
-                  IRNode.STORE_C_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
-                  IRNode.STORE_I_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
-                  IRNode.STORE_L_OF_CLASS, "bottom\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "1"}, // all merged
+    @IR(counts = {IRNode.STORE_B_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
+                  IRNode.STORE_C_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
+                  IRNode.STORE_I_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "0",
+                  IRNode.STORE_L_OF_CLASS, "toop\\[int:>=0] \\(java/lang/Cloneable,java/io/Serializable\\)", "1"}, // all merged
         applyIf = {"UseUnalignedAccesses", "true"},
         applyIfPlatform = {"32-bit", "true"})
     static Object[] test601a(byte[] aB, int[] aI, int i, int offset1) {
@@ -2147,7 +2147,7 @@ public class TestMergeStores {
             a = aI;
             base = UNSAFE.ARRAY_INT_BASE_OFFSET;
         }
-        // Array type is unknown, i.e. bottom[]. Hence we do not know the element size of the array.
+        // Array type is unknown, i.e. toop[]. Hence we do not know the element size of the array.
         // Thus, on 64-bits systems merging is not safe, there could be overflows.
         UNSAFE.putByte(a, base + (offset1 + 0), (byte)0xbe);
         UNSAFE.putByte(a, base + (offset1 + 1), (byte)0xba);

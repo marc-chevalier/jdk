@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8349032
- * @summary Test that UCT for a Parse Predicate with a Phi does not incorrectly have a top input after Loop Unswitching.
+ * @summary Test that UCT for a Parse Predicate with a Phi does not incorrectly have a boottom input after Loop Unswitching.
  * @run main/othervm -Xcomp -XX:CompileCommand=compileonly,*TestParsePredicateUCTWithPhi*::test
  *                   compiler.predicates.TestParsePredicateUCTWithPhi
  */

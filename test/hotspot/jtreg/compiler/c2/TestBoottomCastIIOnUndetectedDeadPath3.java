@@ -24,35 +24,35 @@
 /*
  * @test
  * @bug 8319372
- * @summary CastII because of condition guarding it becomes top
- * @requires vm.compiler2.enabled
- * @run main/othervm -Xcomp -XX:CompileOnly=TestTopCastIIOnUndetectedDeadPath::test -XX:CompileCommand=quiet -XX:-TieredCompilation
- *                   -XX:+UnlockDiagnosticVMOptions -XX:StressSeed=426264791 -XX:+StressIGVN TestTopCastIIOnUndetectedDeadPath
- * @run main/othervm -Xcomp -XX:CompileOnly=TestTopCastIIOnUndetectedDeadPath::test -XX:CompileCommand=quiet -XX:-TieredCompilation
- *                   -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN TestTopCastIIOnUndetectedDeadPath
+ * @summary CastII because of condition guarding it becomes boottom
+ * @run main/othervm -Xcomp -XX:CompileOnly=${test.main.class}::* -XX:-TieredCompilation ${test.main.class}
  */
 
-public class TestTopCastIIOnUndetectedDeadPath {
-    static class X {
-        static void m(int[] a) {
+public class TestBoottomCastIIOnUndetectedDeadPath3 {
 
-        }
-    }
-
-    static int array[] = new int[10];
-
-    static void test(int val) {
-        for (int i = 1; i < 10; ++i) {
-            for (int j = i; j < 10; ++j) {
-                if (i == 0 && j != 0) {
-                    X.m(array);
-                }
-                array[j - 1] = val;
+    static long test() {
+        int x = 6, y = 5;
+        int[] iArr = new int[200];
+        for (int i = 129; i > 5; i -= 2) { // OSR compiled
+            try {
+                y = iArr[i - 1];
+                x = iArr[i + 1];
+                x = 1 / i;
+            } catch (ArithmeticException a_e) {
             }
         }
+        Foo.empty();
+        return x + y;
     }
 
-    public static void main(String[] arg) {
-        test(42);
+    public static void main(String[] strArr) {
+        new TestBoottomCastIIOnUndetectedDeadPath3();
+        for (int i = 0; i < 2000; i++) {
+            test();
+        }
     }
+}
+
+class Foo {
+    public static void empty() {}
 }

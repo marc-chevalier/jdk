@@ -44,7 +44,7 @@ public class TestOverunrolling {
         // The p[3] and p[4] stores are always out of bounds and removed. However,
         // C2 is unable to remove the "over-unrolled", dead main loop. As a result,
         // there is a control path from the main loop to the post loop without a
-        // memory path (because the last store was replaced by TOP). We crash
+        // memory path (because the last store was replaced by BOOTTOM). We crash
         // because we use a memory edge from a non-dominating region.
         for (int i = 0; i < lim; ++i) {
             arr[i] = new Object();
@@ -61,7 +61,7 @@ public class TestOverunrolling {
         // The inner for-loop is overunrolled because we fail to determine
         // the constant lower and upper bound (6,8]. After unrolling multiple times,
         // the range check dependent CastII/ConvI2L emitted for the iArr access become
-        // TOP because index 'j' is out of bounds. As a result, the memory graph is
+        // BOOTTOM because index 'j' is out of bounds. As a result, the memory graph is
         // corrupted with memory consuming nodes still being reachable because the dead
         // loop is not (yet) removed (Opaque1 nodes are still guarding the bounds).
         for (int i = 6; i < 10; i++) {
@@ -128,7 +128,7 @@ public class TestOverunrolling {
     }
 
     // The inner for-loop is over-unrolled and vectorized resulting in
-    // a crash in the matcher because the memory input to a vector is top.
+    // a crash in the matcher because the memory input to a vector is boottom.
     public static int test5(int[] array) {
         int result = 0;
         int[] iArr = new int[8];

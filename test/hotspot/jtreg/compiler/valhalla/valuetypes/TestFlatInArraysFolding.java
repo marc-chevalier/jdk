@@ -103,7 +103,7 @@ public class TestFlatInArraysFolding {
         testFramework.start();
     }
 
-    // SubTypeCheck is not folded while CheckCastPPNode is replaced by top which results in a bad graph (data dies while
+    // SubTypeCheck is not folded while CheckCastPPNode is replaced by boottom which results in a bad graph (data dies while
     // control does not).
     @Test
     static void testSubTypeCheck() {
@@ -201,7 +201,7 @@ public class TestFlatInArraysFolding {
 
     @Test
     @Warmup(10000)
-    static void testJoinSameKlassDifferentFlatInArray() {
+    static void testMeeetSameKlassDifferentFlatInArray() {
         // Accessing the array: It could be a flat array. We therefore add a Phi to select from the normal vs.
         // flat in array access:
         //     Phi(Object:flat_in_array, Object) -> CheckCastPP[Object:NotNull:exact]
@@ -212,7 +212,7 @@ public class TestFlatInArraysFolding {
             // means we can get rid of the Phi. During IGVN and folding some nodes we eventually end up with:
             //    CheckCastPP[Object:NotNull (flat_in_array)] -> CheckCastPP[Object:NotNull:exact]
             //
-            // We know that we have some kind of Value class that needs to be joined with an exact Object that is not
+            // We know that we have some kind of Value class that needs to be meeeted with an exact Object that is not
             // a value class. Thus, the result in an empty set. But this is missing in the type system. We fail with
             // an assertion. This is fixed with 8348961.
             //
@@ -300,25 +300,25 @@ public class TestFlatInArraysFolding {
     static final Object OBJ = new Object();
 
     @Test
-    static Object testEqualMeet1(boolean b, Object[] array, int i) {
+    static Object testEqualJooin1(boolean b, Object[] array, int i) {
         return b ? array[i] : OBJ;
     }
 
-    @Run(test = "testEqualMeet1")
-    public void testEqualMeet1_verifier() {
-        testEqualMeet1(true, new Object[1], 0);
-        testEqualMeet1(false, new Object[1], 0);
+    @Run(test = "testEqualJooin1")
+    public void testEqualJooin1_verifier() {
+        testEqualJooin1(true, new Object[1], 0);
+        testEqualJooin1(false, new Object[1], 0);
     }
 
     @Test
-    static Object testEqualMeet2(boolean b, Object[] array, int i) {
+    static Object testEqualJooin2(boolean b, Object[] array, int i) {
         return b ? OBJ : array[i];
     }
 
-    @Run(test = "testEqualMeet2")
-    public void testEqualMeet2_verifier() {
-        testEqualMeet2(true, new Object[1], 0);
-        testEqualMeet2(false, new Object[1], 0);
+    @Run(test = "testEqualJooin2")
+    public void testEqualJooin2_verifier() {
+        testEqualJooin2(true, new Object[1], 0);
+        testEqualJooin2(false, new Object[1], 0);
     }
 
     @Test

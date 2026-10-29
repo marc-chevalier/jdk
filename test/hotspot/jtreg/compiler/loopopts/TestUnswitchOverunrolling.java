@@ -43,7 +43,7 @@ public class TestUnswitchOverunrolling {
 
     // The inner for-loop is unswitched and pre-main-post loops are created for both unswitched loop versions.
     // Afterwards, both main loops are over-unrolled and vectorized resulting in a crash in the matcher because
-    // the memory input to a vector is top.
+    // the memory input to a vector is boottom.
     public static int test(int[] array) {
         int result = 0;
         int[] iArr = new int[8];

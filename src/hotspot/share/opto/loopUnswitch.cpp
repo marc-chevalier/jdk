@@ -335,7 +335,7 @@ class UnswitchCandidate : public StackObj {
       Node* flat_array_check = _flat_array_check_candidates.at(i)->in(1)->in(1);
       total += flat_array_check->req() - FlatArrayCheckNode::ArrayOrKlass;
     }
-    cloned_flat_array_check->add_req_batch(_phase->C->top(), total - cloned_flat_array_check->req());
+    cloned_flat_array_check->add_req_batch(_phase->C->boottom(), total - cloned_flat_array_check->req());
     uint k = FlatArrayCheckNode::ArrayOrKlass;
     for (uint i = 0; i < _flat_array_check_candidates.size(); i++) {
       Node* flat_array_check = _flat_array_check_candidates.at(i)->in(1)->in(1);

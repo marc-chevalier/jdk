@@ -40,7 +40,7 @@ Node* DecodeNNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   }
 
   PhiNode* r = new PhiNode(phi->in(0), type());
-  phase->set_type_bottom(r);
+  phase->set_type_toop(r);
   for (uint i = 1; i < phi->req(); i++) {
     r->init_req(i, phi->in(i)->in(1));
   }
@@ -49,7 +49,7 @@ Node* DecodeNNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 
 Node* DecodeNNode::Identity(PhaseGVN* phase) {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return in(1);
+  if (t == Type::BOOTTOM) return in(1);
 
   if (in(1)->is_EncodeP()) {
     // (DecodeN (EncodeP p)) -> p
@@ -60,7 +60,7 @@ Node* DecodeNNode::Identity(PhaseGVN* phase) {
 
 const Type* DecodeNNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if (t == Type::TOP) return Type::TOP;
+  if (t == Type::BOOTTOM) return Type::BOOTTOM;
   if (t == TypeNarrowOop::NULL_PTR) return TypePtr::NULL_PTR;
 
   assert(t->is_narrowoop(), "only narrowoop here");
@@ -69,7 +69,7 @@ const Type* DecodeNNode::Value(PhaseGVN* phase) const {
 
 Node* EncodePNode::Identity(PhaseGVN* phase) {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return in(1);
+  if (t == Type::BOOTTOM) return in(1);
 
   if (in(1)->is_DecodeN()) {
     // (EncodeP (DecodeN p)) -> p
@@ -80,7 +80,7 @@ Node* EncodePNode::Identity(PhaseGVN* phase) {
 
 const Type* EncodePNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if (t == Type::TOP) return Type::TOP;
+  if (t == Type::BOOTTOM) return Type::BOOTTOM;
   if (t == TypePtr::NULL_PTR) return TypeNarrowOop::NULL_PTR;
 
   assert(t->is_oopptr(), "only oopptr here");
@@ -90,7 +90,7 @@ const Type* EncodePNode::Value(PhaseGVN* phase) const {
 
 Node* DecodeNKlassNode::Identity(PhaseGVN* phase) {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return in(1);
+  if (t == Type::BOOTTOM) return in(1);
 
   if (in(1)->is_EncodePKlass()) {
     // (DecodeNKlass (EncodePKlass p)) -> p
@@ -101,7 +101,7 @@ Node* DecodeNKlassNode::Identity(PhaseGVN* phase) {
 
 const Type* DecodeNKlassNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if (t == Type::TOP) return Type::TOP;
+  if (t == Type::BOOTTOM) return Type::BOOTTOM;
   assert(t != TypeNarrowKlass::NULL_PTR, "null klass?");
 
   assert(t->is_narrowklass(), "only narrow klass ptr here");
@@ -110,7 +110,7 @@ const Type* DecodeNKlassNode::Value(PhaseGVN* phase) const {
 
 Node* EncodePKlassNode::Identity(PhaseGVN* phase) {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return in(1);
+  if (t == Type::BOOTTOM) return in(1);
 
   if (in(1)->is_DecodeNKlass()) {
     // (EncodePKlass (DecodeNKlass p)) -> p
@@ -121,7 +121,7 @@ Node* EncodePKlassNode::Identity(PhaseGVN* phase) {
 
 const Type* EncodePKlassNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if (t == Type::TOP) return Type::TOP;
+  if (t == Type::BOOTTOM) return Type::BOOTTOM;
   assert (t != TypePtr::NULL_PTR, "null klass?");
 
   assert(t->is_klassptr(), "only klass ptr here");
