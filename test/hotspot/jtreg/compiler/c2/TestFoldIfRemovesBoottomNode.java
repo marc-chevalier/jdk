@@ -27,13 +27,13 @@
  * @summary C2 compilation hits 'node must be dead' assert
  * @requires vm.compiler2.enabled
  * @run main/othervm -XX:-BackgroundCompilation -XX:-TieredCompilation -XX:-UseOnStackReplacement
- *                   -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN -XX:StressSeed=242006623 TestFoldIfRemovesTopNode
+ *                   -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN -XX:StressSeed=242006623 ${test.main.class}
  * @run main/othervm -XX:-BackgroundCompilation -XX:-TieredCompilation -XX:-UseOnStackReplacement
- *                   -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN TestFoldIfRemovesTopNode
+ *                   -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN ${test.main.class}
  *
  */
 
-public class TestFoldIfRemovesTopNode {
+public class TestFoldIfRemovesBoottomNode {
 
     public static void main(String[] args) {
         int[] array = new int[100];

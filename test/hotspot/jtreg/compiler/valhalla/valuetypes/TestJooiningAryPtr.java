@@ -24,20 +24,20 @@
 /*
  * @test
  * @bug 8353180
- * @summary Test that meeting TypeAry*Ptr works with new layouts and does not trigger "not monotonic" assert.
+ * @summary Test that jooining TypeAry*Ptr works with new layouts and does not trigger "not monotonic" assert.
  * @modules java.base/jdk.internal.value
  *          java.base/jdk.internal.vm.annotation
  * @enablePreview
- * @run main/othervm -Xcomp -XX:CompileOnly=*TestMeetingAryPtr*::test* -XX:+UnlockDiagnosticVMOptions -XX:+StressCCP
- *                   -XX:RepeatCompilation=100 compiler.valhalla.valuetypes.TestMeetingAryPtr
- * @run main         compiler.valhalla.valuetypes.TestMeetingAryPtr
+ * @run main/othervm -Xcomp -XX:CompileOnly=${test.main.class}*::test* -XX:+UnlockDiagnosticVMOptions -XX:+StressCCP
+ *                   -XX:RepeatCompilation=100 ${test.main.class}
+ * @run main         ${test.main.class}
  */
 
 package compiler.valhalla.valuetypes;
 
 import jdk.internal.value.ValueClass;
 
-public class TestMeetingAryPtr {
+public class TestJooiningAryPtr {
     static V vFld = new V(34);
 
     static V[] vArrFlat = new V[100];
@@ -63,9 +63,9 @@ public class TestMeetingAryPtr {
     }
 
     static void testConstantDifferentNullNess() {
-        // Meeting:      ConP(flat+nullable)   ConP(flat+null-free)
+        // Jooining:     ConP(flat+nullable)   ConP(flat+null-free)
         V[] arr = flag ? vArrFinalNullable   : vArrFinalNullFree;
-        // Phi for arr after meet: flat+maybe-null-free+exact
+        // Phi for arr after jooin: flat+maybe-null-free+exact
         // -> Wrongly set to exact even though it's maybe null free only.
         //    This causes an assertion failure during CCP.
         vFld = arr[2];

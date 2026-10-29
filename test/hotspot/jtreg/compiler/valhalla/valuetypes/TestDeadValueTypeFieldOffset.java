@@ -28,7 +28,7 @@ import jdk.internal.vm.annotation.NullRestricted;
 
 /*
  * @test
- * @summary Test loads from a dead ValueTypeNode with top field values.
+ * @summary Test loads from a dead ValueTypeNode with boottom field values.
  * @bug 8384202
  * @requires vm.compiler2.enabled
  * @requires (vm.opt.PreloadClasses == null | vm.opt.PreloadClasses == "true")
