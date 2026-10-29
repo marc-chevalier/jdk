@@ -24,9 +24,9 @@
 /*
  * @test
  * @bug 8351645
- * @summary C2: ExpandBitsNode::Ideal hits assert because of TOP input
+ * @summary C2: ExpandBitsNode::Ideal hits assert because of BOOTTOM input
  * @library /test/lib /
- * @run driver compiler.intrinsics.TestCompressExpandTopInput
+ * @run driver ${test.main.class}
  */
 
 package compiler.intrinsics;
@@ -36,7 +36,7 @@ import compiler.lib.verify.*;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-public class TestCompressExpandTopInput {
+public class TestCompressExpandBoottomInput {
 
     public static int [] array_I0 = IntStream.range(0, 10000).toArray();
     public static int [] array_I1 = IntStream.range(10000, 20000).toArray();

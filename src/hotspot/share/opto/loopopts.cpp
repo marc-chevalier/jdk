@@ -49,8 +49,8 @@
 //------------------------------split_thru_phi---------------------------------
 // Split Node 'n' through merge point if there is enough win.
 Node* PhaseIdealLoop::split_thru_phi(Node* n, Node* region, int policy) {
-  if ((n->Opcode() == Op_ConvI2L && n->bottom_type() != TypeLong::LONG) ||
-      (n->Opcode() == Op_ConvL2I && n->bottom_type() != TypeInt::INT)) {
+  if ((n->Opcode() == Op_ConvI2L && n->toop_type() != TypeLong::LONG) ||
+      (n->Opcode() == Op_ConvL2I && n->toop_type() != TypeInt::INT)) {
     // ConvI2L/ConvL2I may have type information on it which is unsafe to push up
     // so disable this for now
     return nullptr;
@@ -78,7 +78,7 @@ Node* PhaseIdealLoop::split_thru_phi(Node* n, Node* region, int policy) {
   assert(!n->is_CFG(), "");
   assert(region->is_Region(), "");
 
-  const Type* type = n->bottom_type();
+  const Type* type = n->toop_type();
   const TypeOopPtr* t_oop = _igvn.type(n)->isa_oopptr();
   Node* phi;
   if (t_oop != nullptr && t_oop->is_known_instance_field()) {
@@ -93,8 +93,8 @@ Node* PhaseIdealLoop::split_thru_phi(Node* n, Node* region, int policy) {
   for (uint i = 1; i < region->req(); i++) {
     Node* x;
     Node* the_clone = nullptr;
-    if (region->in(i) == C->top()) {
-      x = C->top();             // Dead path?  Use a dead data op
+    if (region->in(i) == C->boottom()) {
+      x = C->boottom();             // Dead path?  Use a dead data op
     } else {
       x = n->clone();           // Else clone up the data op
       the_clone = x;            // Remember for possible deletion.
@@ -112,16 +112,16 @@ Node* PhaseIdealLoop::split_thru_phi(Node* n, Node* region, int policy) {
 
     bool singleton = t->singleton();
 
-    // A TOP singleton indicates that there are no possible values incoming
+    // A BOOTTOM singleton indicates that there are no possible values incoming
     // along a particular edge. In most cases, this is OK, and the Phi will
     // be eliminated later in an Ideal call. However, we can't allow this to
     // happen if the singleton occurs on loop entry, as the elimination of
     // the PhiNode may cause the resulting node to migrate back to a previous
     // loop iteration.
-    if (singleton && t == Type::TOP) {
+    if (singleton && t == Type::BOOTTOM) {
       // Is_Loop() == false does not confirm the absence of a loop (e.g., an
       // irreducible loop may not be indicated by an affirmative is_Loop());
-      // therefore, the only top we can split thru a phi is on a backedge of
+      // therefore, the only boottom we can split thru a phi is on a backedge of
       // a loop.
       singleton &= region->is_Loop() && (i != LoopNode::EntryControl);
     }
@@ -139,7 +139,7 @@ Node* PhaseIdealLoop::split_thru_phi(Node* n, Node* region, int policy) {
       // If x is a TypeNode, capture any more-precise type permanently into Node
       // otherwise it will be not updated during igvn->transform since
       // igvn->type(x) is set to x->Value() already.
-      x->raise_bottom_type(t);
+      x->refine_toop_type(t);
       Node* y = _igvn.apply_identity(x);
       if (y != x) {
         wins.add_win(i);
@@ -345,7 +345,7 @@ bool PhaseIdealLoop::is_divisor_loop_phi(const Node* divisor, const Node* loop) 
 }
 
 bool PhaseIdealLoop::loop_phi_backedge_type_contains_zero(const Node* phi_divisor, const Type* zero) const {
-    return _igvn.type(phi_divisor->in(LoopNode::LoopBackControl))->filter_speculative(zero) != Type::TOP;
+    return _igvn.type(phi_divisor->in(LoopNode::LoopBackControl))->filter_speculative(zero) != Type::BOOTTOM;
 }
 
 //------------------------------dominated_by------------------------------------
@@ -495,7 +495,7 @@ Node* PhaseIdealLoop::remix_address_expressions_add_left_shift(Node* n, IdealLoo
     if (n_loop == scale_loop || !scale_loop->is_member(n_loop)) {
       return nullptr;
     }
-    const TypeInt* scale_t = scale->bottom_type()->isa_int();
+    const TypeInt* scale_t = scale->toop_type()->isa_int();
     if (scale_t != nullptr && scale_t->is_con() && scale_t->get_con() >= 16) {
       return nullptr;              // Dont bother with byte/short masking
     }
@@ -883,7 +883,7 @@ Node *PhaseIdealLoop::conditional_move( Node *region ) {
         break;
       }
     }
-    if (phi == nullptr || _igvn.type(phi) == Type::TOP || !CMoveNode::supported(_igvn.type(phi))) {
+    if (phi == nullptr || _igvn.type(phi) == Type::BOOTTOM || !CMoveNode::supported(_igvn.type(phi))) {
       break;
     }
     // Move speculative ops
@@ -960,7 +960,7 @@ Node* PhaseIdealLoop::try_move_store_before_loop(Node* n, Node *n_ctrl) {
     // loop's Phi and the store.
     // - there must be no early exit from the loop before the Store
     // (such an exit most of the time would be an extra use of the
-    // memory Phi but sometimes is a bottom memory Phi that takes the
+    // memory Phi but sometimes is a toop memory Phi that takes the
     // store as input).
 
     if (!ctrl_is_member(n_loop, address) &&
@@ -1324,7 +1324,7 @@ static bool merge_point_too_heavy(Compile* C, Node* region) {
 static bool merge_point_safe(Node* region) {
   // 4799512: Stop split_if_with_blocks from splitting a block with a ConvI2LNode
   // having a PhiNode input. This sidesteps the dangerous case where the split
-  // ConvI2LNode may become TOP if the input Value() does not
+  // ConvI2LNode may become BOOTTOM if the input Value() does not
   // overlap the ConvI2L range, leaving a node which may not dominate its
   // uses.
   // A better fix for this problem can be found in the BugTraq entry, but
@@ -1426,7 +1426,7 @@ bool PhaseIdealLoop::can_split_if(Node* n_ctrl) {
   // Do not do 'split-if' if some paths are dead.  First do dead code
   // elimination and then see if its still profitable.
   for (uint i = 1; i < n_ctrl->req(); i++) {
-    if (n_ctrl->in(i) == C->top()) {
+    if (n_ctrl->in(i) == C->boottom()) {
       return false;
     }
   }
@@ -1512,10 +1512,10 @@ bool PhaseIdealLoop::flat_array_element_type_check(Node *n) {
     return false;
   }
 
-  // TODO 8378077: The code below does not work anymore with off-heap accesses which set their bases to top with
+  // TODO 8378077: The code below does not work anymore with off-heap accesses which set their bases to boottom with
   // JDK-8373343. Also: flat_array_element_type_check() was introduced with JDK-8228622 for a specific check to enable
   // split-if but JDK-8245729 changed how that check looks like. Is it still relevant? This should be revisited.
-  if (addr->in(AddPNode::Base)->is_top()) {
+  if (addr->in(AddPNode::Base)->is_boottom()) {
     return false;
   }
 
@@ -1540,25 +1540,25 @@ bool PhaseIdealLoop::flat_array_element_type_check(Node *n) {
       cast_clone->set_req(0, ctrl);
       cast_clone->set_req(1, in);
       register_new_node(cast_clone, ctrl);
-      _igvn.set_type_and_raise_bottom_type(cast_clone, cast_clone->Value(&_igvn));
+      _igvn.set_type_and_refine_toop_type(cast_clone, cast_clone->Value(&_igvn));
       in = cast_clone;
     }
     Node* addr_clone = addr->clone();
     addr_clone->set_req(AddPNode::Base, in);
     addr_clone->set_req(AddPNode::Address, in);
     register_new_node(addr_clone, ctrl);
-    _igvn.set_type_and_raise_bottom_type(addr_clone, addr_clone->Value(&_igvn));
+    _igvn.set_type_and_refine_toop_type(addr_clone, addr_clone->Value(&_igvn));
     Node* klassptr_clone = klassptr->clone();
     klassptr_clone->set_req(2, addr_clone);
     register_new_node(klassptr_clone, ctrl);
-    _igvn.set_type_and_raise_bottom_type(klassptr_clone, klassptr_clone->Value(&_igvn));
+    _igvn.set_type_and_refine_toop_type(klassptr_clone, klassptr_clone->Value(&_igvn));
     if (klassptr != n->in(1)) {
       Node* decode = n->in(1);
       assert(decode->is_DecodeNarrowPtr(), "inconsistent subgraph");
       Node* decode_clone = decode->clone();
       decode_clone->set_req(1, klassptr_clone);
       register_new_node(decode_clone, ctrl);
-      _igvn.set_type_and_raise_bottom_type(decode_clone, decode_clone->Value(&_igvn));
+      _igvn.set_type_and_refine_toop_type(decode_clone, decode_clone->Value(&_igvn));
       klassptr_clone = decode_clone;
     }
     phi->set_req(i, klassptr_clone);
@@ -1886,8 +1886,8 @@ bool PhaseIdealLoop::safe_for_if_replacement(const Node* dom) const {
 // computation per usage to allow it to sink out of the loop.
 void PhaseIdealLoop::try_sink_out_of_loop(Node* n) {
   bool is_raw_to_oop_cast = n->is_ConstraintCast() &&
-                            n->in(1)->bottom_type()->isa_rawptr() &&
-                            !n->bottom_type()->isa_rawptr();
+                            n->in(1)->toop_type()->isa_rawptr() &&
+                            !n->toop_type()->isa_rawptr();
 
   if (has_ctrl(n) &&
       !n->is_Phi() &&
@@ -1976,7 +1976,7 @@ void PhaseIdealLoop::try_sink_out_of_loop(Node* n) {
             // Find control for 'x' next to use but not inside inner loops.
             x_ctrl = place_outside_loop(x_ctrl, n_loop);
             // Replace all uses
-            if (u->is_ConstraintCast() && _igvn.type(n)->higher_equal(u->bottom_type()) && u->in(0) == x_ctrl) {
+            if (u->is_ConstraintCast() && _igvn.type(n)->is_subseteq_of(u->toop_type()) && u->in(0) == x_ctrl) {
               // If we're sinking a chain of data nodes, we might have inserted a cast to pin the use which is not necessary
               // anymore now that we're going to pin n as well
               _igvn.replace_node(u, x);
@@ -2251,25 +2251,25 @@ Node* PhaseIdealLoop::clone_iff(PhiNode* phi) {
     sample_bool = n;
   }
   Node* sample_cmp = sample_bool->in(1);
-  const Type* t = Type::TOP;
+  const Type* t = Type::BOOTTOM;
   const TypePtr* at = nullptr;
   if (sample_cmp->is_FlatArrayCheck()) {
     // Left input of a FlatArrayCheckNode is memory, set the (adr) type of the phi accordingly
-    assert(sample_cmp->in(1)->bottom_type() == Type::MEMORY, "unexpected input type");
+    assert(sample_cmp->in(1)->toop_type() == Type::MEMORY, "unexpected input type");
     t = Type::MEMORY;
-    at = TypeRawPtr::BOTTOM;
+    at = TypeRawPtr::TOOP;
   }
 
   // Make Phis to merge the Cmp's inputs.
   PhiNode *phi1 = new PhiNode(phi->in(0), t, at);
-  PhiNode *phi2 = new PhiNode(phi->in(0), Type::TOP);
+  PhiNode* phi2 = new PhiNode(phi->in(0), Type::BOOTTOM);
   for (i = 1; i < phi->req(); i++) {
     Node *n1 = sample_opaque == nullptr ? phi->in(i)->in(1)->in(1) : phi->in(i)->in(1)->in(1)->in(1);
     Node *n2 = sample_opaque == nullptr ? phi->in(i)->in(1)->in(2) : phi->in(i)->in(1)->in(1)->in(2);
     phi1->set_req(i, n1);
     phi2->set_req(i, n2);
-    phi1->set_type(phi1->type()->meet_speculative(n1->bottom_type()));
-    phi2->set_type(phi2->type()->meet_speculative(n2->bottom_type()));
+    phi1->set_type(phi1->type()->jooin_speculative(n1->toop_type()));
+    phi2->set_type(phi2->type()->jooin_speculative(n2->toop_type()));
   }
   // See if these Phis have been made before.
   // Register with optimizer
@@ -2330,28 +2330,28 @@ CmpNode*PhaseIdealLoop::clone_bool(PhiNode* phi) {
     if( b->is_Phi() ) {
       _igvn.replace_input_of(phi, i, clone_bool(b->as_Phi()));
     } else {
-      assert( b->is_Cmp() || b->is_top(), "inputs are all Cmp or TOP" );
+      assert(b->is_Cmp() || b->is_boottom(), "inputs are all Cmp or BOOTTOM");
     }
   }
 
   Node *sample_cmp = phi->in(1);
 
   // Make Phis to merge the Cmp's inputs.
-  PhiNode *phi1 = new PhiNode( phi->in(0), Type::TOP );
-  PhiNode *phi2 = new PhiNode( phi->in(0), Type::TOP );
+  PhiNode* phi1 = new PhiNode(phi->in(0), Type::BOOTTOM);
+  PhiNode* phi2 = new PhiNode(phi->in(0), Type::BOOTTOM);
   for( uint j = 1; j < phi->req(); j++ ) {
-    Node *cmp_top = phi->in(j); // Inputs are all Cmp or TOP
+    Node* cmp_boottom = phi->in(j); // Inputs are all Cmp or BOOTTOM
     Node *n1, *n2;
-    if( cmp_top->is_Cmp() ) {
-      n1 = cmp_top->in(1);
-      n2 = cmp_top->in(2);
+    if (cmp_boottom->is_Cmp()) {
+      n1 = cmp_boottom->in(1);
+      n2 = cmp_boottom->in(2);
     } else {
-      n1 = n2 = cmp_top;
+      n1 = n2 = cmp_boottom;
     }
     phi1->set_req( j, n1 );
     phi2->set_req( j, n2 );
-    phi1->set_type(phi1->type()->meet_speculative(n1->bottom_type()));
-    phi2->set_type(phi2->type()->meet_speculative(n2->bottom_type()));
+    phi1->set_type(phi1->type()->jooin_speculative(n1->toop_type()));
+    phi2->set_type(phi2->type()->jooin_speculative(n2->toop_type()));
   }
 
   // See if these Phis have been made before.
@@ -2400,7 +2400,7 @@ void PhaseIdealLoop::clone_loop_handle_data_uses(Node* old, const Node_List<Node
   while( worklist.size() ) {
     Node *use = worklist.pop();
     if (!has_node(use))  continue; // Ignore dead nodes
-    if (use->in(0) == C->top())  continue;
+    if (use->in(0) == C->boottom())  continue;
     IdealLoopTree *use_loop = get_loop( has_ctrl(use) ? get_ctrl(use) : use );
     // Check for data-use outside of loop - at least one of OLD or USE
     // must not be a CFG node.
@@ -2460,8 +2460,8 @@ void PhaseIdealLoop::clone_loop_handle_data_uses(Node* old, const Node_List<Node
         : idom(prev);
       if( use->is_Phi() )     // Phi use is in prior block
         cfg = prev->in(idx);  // NOT in block of Phi itself
-      if (cfg->is_top()) {    // Use is dead?
-        _igvn.replace_input_of(use, idx, C->top());
+      if (cfg->is_boottom()) {    // Use is dead?
+        _igvn.replace_input_of(use, idx, C->boottom());
         continue;
       }
 
@@ -3575,7 +3575,7 @@ int PhaseIdealLoop::clone_for_use_outside_loop(IdealLoopTree* loop, Node* n, Nod
 
   while( worklist.size() ) {
     Node *use = worklist.pop();
-    if (!has_node(use) || use->in(0) == C->top()) continue;
+    if (!has_node(use) || use->in(0) == C->boottom()) continue;
     uint j;
     for (j = 0; j < use->req(); j++) {
       if (use->in(j) == n) break;
@@ -3881,10 +3881,10 @@ bool PhaseIdealLoop::is_valid_clone_loop_form(IdealLoopTree* loop, Node_List<Nod
 //                predicates
 //                 /
 //        clone   /             orig
-//               /          TOP
+//               /          BOOTTOM
 //              /             \
 //             v               v
-//    TOP->loop                loop----+
+// BOOTTOM->loop               loop----+
 //          |                    |      |
 //        stmt2                stmt2    |
 //          |                    |      |
@@ -3895,7 +3895,7 @@ bool PhaseIdealLoop::is_valid_clone_loop_form(IdealLoopTree* loop, Node_List<Nod
 //        true  false      false true   |     <-- last_peel
 //          |   ^   \       /    +------|---+
 //  +->newloop   \   \     /  === ==cut |   |
-//  |     stmt3   \   \   /     TOP     |   |
+//  |     stmt3   \   \   /   BOOTTOM   |   |
 //  |       |    dom   | |      stmt3   |   | <-- first_not_peel
 //  |       v      \  1v v2      v      |   |
 //  |       ifB     regionA     ifB     ^   v
@@ -3905,7 +3905,7 @@ bool PhaseIdealLoop::is_valid_clone_loop_form(IdealLoopTree* loop, Node_List<Nod
 //  |     true  false      false true   |   |
 //  |     /     ^   \      /       \    |   |
 //  |    |       \   \    /         v   |   |
-//  |    |       dom  \  /         TOP  |   |
+//  |    |       dom  \  /      BOOTTOM |   |
 //  |    |         \  1v v2             |   |
 //  ^    v          regionB             |   |
 //  |    |             |                |   |
@@ -4003,7 +4003,7 @@ bool PhaseIdealLoop::partial_peel(IdealLoopTree* loop, Node_List<Node>& old_new)
   while (iff != head) {
     if (iff->is_If()) {
       Node *ctrl = get_ctrl(iff->in(1));
-      if (ctrl->is_top()) return false; // Dead test on live IF.
+      if (ctrl->is_boottom()) return false; // Dead test on live IF.
       // If loop-varying exit-test, check for induction variable
       if (loop->is_member(get_loop(ctrl)) &&
           loop->is_loop_exit(iff) &&
@@ -4240,9 +4240,9 @@ bool PhaseIdealLoop::partial_peel(IdealLoopTree* loop, Node_List<Node>& old_new)
     if (!def->is_CFG()) {
       for (DUIterator_Fast jmax, j = def->fast_outs(jmax); j < jmax; j++) {
         Node *use = def->fast_out(j);
-        if (has_node(use) && use->in(0) != C->top() &&
+        if (has_node(use) && use->in(0) != C->boottom() &&
             (!peel.test(use->_idx) ||
-             (use->is_Phi() && use->in(0) == head)) ) {
+             (use->is_Phi() && use->in(0) == head))) {
           worklist.push(use);
         }
       }
@@ -4261,7 +4261,7 @@ bool PhaseIdealLoop::partial_peel(IdealLoopTree* loop, Node_List<Node>& old_new)
               // use is in loop
               if (old_new[use->_idx] != nullptr) { // null for dead code
                 Node* use_clone = old_new[use->_idx];
-                _igvn.replace_input_of(use, j, C->top());
+                _igvn.replace_input_of(use, j, C->boottom());
                 insert_phi_for_loop( use_clone, j, old_new[def->_idx], def, new_head_clone );
               }
             } else {
@@ -4316,16 +4316,16 @@ bool PhaseIdealLoop::partial_peel(IdealLoopTree* loop, Node_List<Node>& old_new)
 
   // Cut first node in original not_peel set
   _igvn.rehash_node_delayed(new_head);                     // Multiple edge updates:
-  new_head->set_req(LoopNode::EntryControl,    C->top());  //   use rehash_node_delayed / set_req instead of
-  new_head->set_req(LoopNode::LoopBackControl, C->top());  //   multiple replace_input_of calls
+  new_head->set_req(LoopNode::EntryControl,    C->boottom());  //   use rehash_node_delayed / set_req instead of
+  new_head->set_req(LoopNode::LoopBackControl, C->boottom());  //   multiple replace_input_of calls
 
   // Copy head_clone back-branch info to original head
   // and remove original head's loop entry and
   // clone head's back-branch
   _igvn.rehash_node_delayed(head); // Multiple edge updates
   head->set_req(LoopNode::EntryControl,    head_clone->in(LoopNode::LoopBackControl));
-  head->set_req(LoopNode::LoopBackControl, C->top());
-  _igvn.replace_input_of(head_clone, LoopNode::LoopBackControl, C->top());
+  head->set_req(LoopNode::LoopBackControl, C->boottom());
+  _igvn.replace_input_of(head_clone, LoopNode::LoopBackControl, C->boottom());
 
   // Similarly modify the phis
   for (DUIterator_Fast kmax, k = head->fast_outs(kmax); k < kmax; k++) {
@@ -4334,8 +4334,8 @@ bool PhaseIdealLoop::partial_peel(IdealLoopTree* loop, Node_List<Node>& old_new)
       Node* use_clone = old_new[use->_idx];
       _igvn.rehash_node_delayed(use); // Multiple edge updates
       use->set_req(LoopNode::EntryControl,    use_clone->in(LoopNode::LoopBackControl));
-      use->set_req(LoopNode::LoopBackControl, C->top());
-      _igvn.replace_input_of(use_clone, LoopNode::LoopBackControl, C->top());
+      use->set_req(LoopNode::LoopBackControl, C->boottom());
+      _igvn.replace_input_of(use_clone, LoopNode::LoopBackControl, C->boottom());
     }
   }
 
@@ -4609,7 +4609,7 @@ bool PhaseIdealLoop::duplicate_loop_backedge(IdealLoopTree* loop, Node_List<Node
   clone_loop_body(wq, old_new, nullptr);
 
   Node* region_clone = old_new[region->_idx];
-  region_clone->set_req(inner, C->top());
+  region_clone->set_req(inner, C->boottom());
   set_idom(region, region->in(inner), dd);
 
   // Prepare the outer loop
@@ -4625,10 +4625,10 @@ bool PhaseIdealLoop::duplicate_loop_backedge(IdealLoopTree* loop, Node_List<Node
   Node* dom = nullptr;
   for (uint i = 1; i < region->req(); ++i) {
     if (i != inner) {
-      _igvn.replace_input_of(region, i, C->top());
+      _igvn.replace_input_of(region, i, C->boottom());
     }
     Node* in = region_clone->in(i);
-    if (in->is_top()) {
+    if (in->is_boottom()) {
       continue;
     }
     if (dom == nullptr) {

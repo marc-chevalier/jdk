@@ -24,35 +24,32 @@
 /*
  * @test
  * @bug 8319372
- * @summary CastII because of condition guarding it becomes top
- * @run main/othervm -Xcomp -XX:CompileOnly=TestTopCastIIOnUndetectedDeadPath3::* -XX:-TieredCompilation TestTopCastIIOnUndetectedDeadPath3
+ * @summary CastII because of condition guarding it becomes boottom
+ * @requires vm.compiler2.enabled
+ * @run main/othervm -XX:CompileCommand=quiet -XX:CompileCommand=compileonly,${test.main.class}::test -XX:-TieredCompilation
+ *                   -Xbatch -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN -XX:StressSeed=256120824 ${test.main.class}
+ * @run main/othervm -XX:CompileCommand=quiet -XX:CompileCommand=compileonly,${test.main.class}::test -XX:-TieredCompilation
+ *                   -Xbatch -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN ${test.main.class}
  */
 
-public class TestTopCastIIOnUndetectedDeadPath3 {
+public class TestBoottomCastIIOnUndetectedDeadPath2 {
+    static int array[] = new int[100];
 
-    static long test() {
-        int x = 6, y = 5;
-        int[] iArr = new int[200];
-        for (int i = 129; i > 5; i -= 2) { // OSR compiled
+    static int test() {
+        int res = 0;
+        for (int i = 1; i < 100; ++i) {
             try {
-                y = iArr[i - 1];
-                x = iArr[i + 1];
-                x = 1 / i;
-            } catch (ArithmeticException a_e) {
+                res = array[i - 1];
+                int x = (42 % i);
+            } catch (ArithmeticException e) {
             }
         }
-        Foo.empty();
-        return x + y;
+        return res;
     }
 
-    public static void main(String[] strArr) {
-        new TestTopCastIIOnUndetectedDeadPath3();
-        for (int i = 0; i < 2000; i++) {
+    public static void main(String[] args) {
+        for (int i = 0; i < 10_000; i++) {
             test();
         }
     }
-}
-
-class Foo {
-    public static void empty() {}
 }

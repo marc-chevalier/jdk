@@ -952,7 +952,7 @@
           "Preload code should avoid traps as much as possible.")           \
                                                                             \
   develop(bool, KillPathsReachableByDeadDataNode, true,                     \
-          "When a data node becomes top, make paths where the node is "     \
+          "When a data node becomes boottom, make paths where the node is " \
           "used dead by replacing them with a Halt node. Turning this off " \
           "could corrupt the graph in rare cases and should be used with "  \
           "care.")                                                          \

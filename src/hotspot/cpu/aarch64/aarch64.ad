@@ -1969,7 +1969,7 @@ uint MachSpillCopyNode::implementation(C2_MacroAssembler *masm, PhaseRegAlloc *r
 
   assert(src_lo != OptoReg::Bad && dst_lo != OptoReg::Bad, "must move at least 1 register");
 
-  if (src_hi != OptoReg::Bad && !bottom_type()->isa_pvectmask()) {
+  if (src_hi != OptoReg::Bad && !toop_type()->isa_pvectmask()) {
     assert((src_lo&1)==0 && src_lo+1==src_hi &&
            (dst_lo&1)==0 && dst_lo+1==dst_hi,
            "expected aligned-adjacent pairs");
@@ -1984,7 +1984,7 @@ uint MachSpillCopyNode::implementation(C2_MacroAssembler *masm, PhaseRegAlloc *r
   int src_offset = ra_->reg2offset(src_lo);
   int dst_offset = ra_->reg2offset(dst_lo);
 
-  if (bottom_type()->isa_vect() && !bottom_type()->isa_pvectmask()) {
+  if (toop_type()->isa_vect() && !toop_type()->isa_pvectmask()) {
     uint ireg = ideal_reg();
     DEBUG_ONLY(int algm = MIN2(RegMask::num_registers(ireg), (int)Matcher::stack_alignment_in_slots()) * VMRegImpl::stack_slot_size);
     assert((src_lo_rc != rc_stack) || is_aligned(src_offset, algm), "unaligned vector spill sp offset %d (src)", src_offset);
@@ -2132,7 +2132,7 @@ uint MachSpillCopyNode::implementation(C2_MacroAssembler *masm, PhaseRegAlloc *r
     } else {
       st->print("%s", Matcher::regName[dst_lo]);
     }
-    if (bottom_type()->isa_vect() && !bottom_type()->isa_pvectmask()) {
+    if (toop_type()->isa_vect() && !toop_type()->isa_pvectmask()) {
       int vsize = 0;
       switch (ideal_reg()) {
       case Op_VecD:
@@ -2639,7 +2639,7 @@ static bool is_valid_sve_arith_imm_pattern(Node* n, Node* m) {
     return false;
   }
 
-  const Type* t = imm_node->bottom_type();
+  const Type* t = imm_node->toop_type();
   if (!(t->isa_int() || t->isa_long())) {
     return false;
   }
@@ -8262,7 +8262,7 @@ instruct convN2I(iRegINoSp dst, iRegN src)
 
 // Convert oop pointer into compressed form
 instruct encodeHeapOop(iRegNNoSp dst, iRegP src, rFlagsReg cr) %{
-  predicate(n->bottom_type()->make_ptr()->ptr() != TypePtr::NotNull);
+  predicate(n->toop_type()->make_ptr()->ptr() != TypePtr::NotNull);
   match(Set dst (EncodeP src));
   effect(KILL cr);
   ins_cost(INSN_COST * 3);
@@ -8276,7 +8276,7 @@ instruct encodeHeapOop(iRegNNoSp dst, iRegP src, rFlagsReg cr) %{
 %}
 
 instruct encodeHeapOop_not_null(iRegNNoSp dst, iRegP src, rFlagsReg cr) %{
-  predicate(n->bottom_type()->make_ptr()->ptr() == TypePtr::NotNull);
+  predicate(n->toop_type()->make_ptr()->ptr() == TypePtr::NotNull);
   match(Set dst (EncodeP src));
   ins_cost(INSN_COST * 3);
   format %{ "encode_heap_oop_not_null $dst, $src" %}
@@ -8287,8 +8287,8 @@ instruct encodeHeapOop_not_null(iRegNNoSp dst, iRegP src, rFlagsReg cr) %{
 %}
 
 instruct decodeHeapOop(iRegPNoSp dst, iRegN src, rFlagsReg cr) %{
-  predicate(n->bottom_type()->is_ptr()->ptr() != TypePtr::NotNull &&
-            n->bottom_type()->is_ptr()->ptr() != TypePtr::Constant);
+  predicate(n->toop_type()->is_ptr()->ptr() != TypePtr::NotNull &&
+            n->toop_type()->is_ptr()->ptr() != TypePtr::Constant);
   match(Set dst (DecodeN src));
   ins_cost(INSN_COST * 3);
   format %{ "decode_heap_oop $dst, $src" %}
@@ -8301,8 +8301,8 @@ instruct decodeHeapOop(iRegPNoSp dst, iRegN src, rFlagsReg cr) %{
 %}
 
 instruct decodeHeapOop_not_null(iRegPNoSp dst, iRegN src, rFlagsReg cr) %{
-  predicate(n->bottom_type()->is_ptr()->ptr() == TypePtr::NotNull ||
-            n->bottom_type()->is_ptr()->ptr() == TypePtr::Constant);
+  predicate(n->toop_type()->is_ptr()->ptr() == TypePtr::NotNull ||
+            n->toop_type()->is_ptr()->ptr() == TypePtr::Constant);
   match(Set dst (DecodeN src));
   ins_cost(INSN_COST * 3);
   format %{ "decode_heap_oop_not_null $dst, $src" %}
@@ -8388,7 +8388,7 @@ instruct castII_checked(iRegI dst, rFlagsReg cr)
 
   format %{ "# castII_checked of $dst" %}
   ins_encode %{
-    __ verify_int_in_range(_idx, bottom_type()->is_int(), $dst$$Register, rscratch1);
+    __ verify_int_in_range(_idx, toop_type()->is_int(), $dst$$Register, rscratch1);
   %}
   ins_pipe(pipe_slow);
 %}
@@ -8416,7 +8416,7 @@ instruct castII_checked_nosp(iRegINoSp dst, rFlagsReg cr)
 
   format %{ "# castII_checked of $dst" %}
   ins_encode %{
-    __ verify_int_in_range(_idx, bottom_type()->is_int(), $dst$$Register, rscratch1);
+    __ verify_int_in_range(_idx, toop_type()->is_int(), $dst$$Register, rscratch1);
   %}
   ins_pipe(pipe_slow);
 %}
@@ -8441,7 +8441,7 @@ instruct castLL_checked(iRegL dst, rFlagsReg cr)
 
   format %{ "# castLL_checked of $dst" %}
   ins_encode %{
-    __ verify_long_in_range(_idx, bottom_type()->is_long(), $dst$$Register, rscratch1);
+    __ verify_long_in_range(_idx, toop_type()->is_long(), $dst$$Register, rscratch1);
   %}
   ins_pipe(pipe_slow);
 %}
@@ -16601,7 +16601,7 @@ instruct convHF2SAndHF2F(vRegF dst, vRegF src)
 
 // ============================================================================
 // This name is KNOWN by the ADLC and cannot be changed.
-// The ADLC forces a 'TypeRawPtr::BOTTOM' output type
+// The ADLC forces a 'TypeRawPtr::TOOP' output type
 // for this guy.
 instruct tlsLoadP(thread_RegP dst)
 %{

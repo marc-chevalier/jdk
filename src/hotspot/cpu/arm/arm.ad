@@ -434,7 +434,7 @@ uint MachSpillCopyNode::implementation( C2_MacroAssembler *masm,
     return size;            // Self copy, no move
 
 #ifdef TODO
-  if (bottom_type()->isa_vect() != nullptr) {
+  if (toop_type()->isa_vect() != nullptr) {
   }
 #endif
 
@@ -5048,7 +5048,7 @@ instruct cmovLIu_reg(cmpOpU cmp, flagsRegU icc, iRegL dst, iRegL src) %{
 //----------OS and Locking Instructions----------------------------------------
 
 // This name is KNOWN by the ADLC and cannot be changed.
-// The ADLC forces a 'TypeRawPtr::BOTTOM' output type
+// The ADLC forces a 'TypeRawPtr::TOOP' output type
 // for this guy.
 instruct tlsLoadP(RthreadRegP dst) %{
   match(Set dst (ThreadLocal));
