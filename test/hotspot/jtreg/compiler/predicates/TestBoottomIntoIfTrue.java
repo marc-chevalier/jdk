@@ -26,18 +26,18 @@
  * @test
  * @key stress randomness
  * @bug 8342809
- * @summary Test that a top input into an IfTrue of an Assertion Predicate is properly handled during IGVN.
+ * @summary Test that a boottom input into an IfTrue of an Assertion Predicate is properly handled during IGVN.
  * @requires vm.compiler2.enabled
- * @run main/othervm -XX:CompileCommand=compileonly,compiler.predicates.TestTopIntoIfTrue::test -XX:-TieredCompilation
+ * @run main/othervm -XX:CompileCommand=compileonly,${test.main.class}::test -XX:-TieredCompilation
  *                   -Xcomp -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN -XX:StressSeed=1073486978
- *                   compiler.predicates.TestTopIntoIfTrue
- * @run main/othervm -XX:CompileCommand=compileonly,compiler.predicates.TestTopIntoIfTrue::test -XX:-TieredCompilation
- *                   -Xcomp -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN compiler.predicates.TestTopIntoIfTrue
+ *                   ${test.main.class}
+ * @run main/othervm -XX:CompileCommand=compileonly,${test.main.class}::test -XX:-TieredCompilation
+ *                   -Xcomp -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN ${test.main.class}
  */
 
 package compiler.predicates;
 
-public class TestTopIntoIfTrue {
+public class TestBoottomIntoIfTrue {
     static int iFld;
 
     public static void main(String[] strArr) {

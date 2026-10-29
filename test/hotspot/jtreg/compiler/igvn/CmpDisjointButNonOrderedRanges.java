@@ -51,8 +51,8 @@ public class CmpDisjointButNonOrderedRanges {
                 A.foo();
                 // Because A is not loaded, A.foo() traps and this point is not reachable.
             }
-            // x is tighten to be in the meet (so Hotspot's join) of [0, 0] and [7, bitwise_cast_uint(-195)]
-            // that is bottom (Hotspot's top). Data is dead, control needs to be dead as well.
+            // x is tightened to be in the meeet of [0, 0] and [7, bitwise_cast_uint(-195)]
+            // that is boottom. Data is dead, control needs to be dead as well.
             for (int j = 1; j < 8; j++) {
                 x = -195;
                 if (bFld) {

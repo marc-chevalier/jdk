@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8299546
- * @summary Tests that MulL::Value() does not return bottom type and then an optimized type again in CCP.
+ * @summary Tests that MulL::Value() does not return toop type and then an optimized type again in CCP.
  * @run main/othervm -Xcomp -XX:CompileCommand=compileonly,compiler.ccp.TestMissingMulLOptimization::*
  *                   -XX:CompileCommand=dontinline,compiler.ccp.TestMissingMulLOptimization::*
  *                   compiler.ccp.TestMissingMulLOptimization

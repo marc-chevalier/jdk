@@ -1911,7 +1911,7 @@ public class TestValueConstruction {
                     //   Local 1: Phi(A, B)
                     //   Local 2: A
                     //   Local 3: B
-                    // ciTypeFlow meets the stale values in local 1 and keeps only one early larval
+                    // ciTypeFlow jooins the stale values in local 1 and keeps only one early larval
                     // wrapper because both unwrap to the same type. If canonicalization visits
                     // the dead local, Phi(A, B) can replace the corresponding live value in
                     // local 2 or 3. The different values passed to the constructors below make this

@@ -24,7 +24,7 @@
 /**
  * @test
  * @bug 8057758
- * @summary MultiplyToLen sets its return type to have a bottom offset which confuses code generation
+ * @summary MultiplyToLen sets its return type to have a toop offset which confuses code generation
  *
  * @run main/othervm -XX:-TieredCompilation -XX:-BackgroundCompilation -XX:-UseOnStackReplacement
  *      -XX:TypeProfileLevel=222

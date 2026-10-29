@@ -24,13 +24,13 @@
 /**
  * @test
  * @bug 8240676
- * @summary Meet not symmetric failure when running lucene on jdk8
+ * @summary Jooin not symmetric failure when running lucene on jdk8
  *
- * @run main/othervm -XX:-BackgroundCompilation TestArrayMeetNotSymmetrical
+ * @run main/othervm -XX:-BackgroundCompilation ${test.main.class}
  *
  */
 
-public class TestArrayMeetNotSymmetrical {
+public class TestArrayJooinNotSymmetrical {
     private static final Object field = new Object[0];
     private static final Object field2 = new A[0];
 

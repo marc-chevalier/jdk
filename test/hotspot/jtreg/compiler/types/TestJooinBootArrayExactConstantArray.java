@@ -24,17 +24,17 @@
 /*
  * @test
  * @bug 8027571
- * @summary meet of TopPTR exact array with constant array is not symmetric
+ * @summary jooin of BootPTR exact array with constant array is not symmetric
  *
  * @run main/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:-UseOnStackReplacement
  *                   -XX:TypeProfileLevel=222 -XX:+UseTypeSpeculation
  *                   -XX:-BackgroundCompilation
- *                   compiler.types.TestMeetTopArrayExactConstantArray
+ *                   ${test.main.class}
  */
 
 package compiler.types;
 
-public class TestMeetTopArrayExactConstantArray {
+public class TestJooinBootArrayExactConstantArray {
 
     static class A {
     }
@@ -102,7 +102,7 @@ public class TestMeetTopArrayExactConstantArray {
         // on entry to m3, argument o is of type C[], profiled C[]
         // on entry to m1, argument o is of type C[], speculative C[] exact, profiled A[]. Speculative becomes AnyNull
         // after the if in m1, speculative type of o becomes constant from final field b
-        // the true if branch in m0 does a join between the type of o of speculative type constant from final field b and exact klass Object[]
+        // the true if branch in m0 does a meeet between the type of o of speculative type constant from final field b and exact klass Object[]
         for (int i = 0; i < 20000; i++) {
             m3(c, true, false, (i%2) == 0);
         }

@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8262017
- * @summary Dominator failure because ConvL2I node becomes TOP due to missing overflow/underflow handling in range check elimination
+ * @summary Dominator failure because ConvL2I node becomes BOOTTOM due to missing overflow/underflow handling in range check elimination
  *          in PhaseIdealLoop::add_constraint().
  * @run main/othervm -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,compiler.rangechecks.TestRangeCheckLimits::*
  *                   compiler.rangechecks.TestRangeCheckLimits

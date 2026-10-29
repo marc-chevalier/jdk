@@ -403,9 +403,9 @@ public class TypeSpeculation {
         return true;
     }
 
-    // java/lang/Object:AnyNull:exact *,iid=top
-    // meets
-    // stable:bottom[int:max..0]:NotNull *
+    // java/lang/Object:AnyNull:exact *,iid=boot
+    // jooins
+    // stable:toop[int:max..0]:NotNull *
     static void test10_4(Object o) {
     }
 
@@ -439,9 +439,9 @@ public class TypeSpeculation {
         return true;
     }
 
-    // stable:TypeSpeculation$B:TopPTR *,iid=top[int:max..0]:TopPTR *,iid=top
-    // meets
-    // java/lang/Object:AnyNull:exact *,iid=top
+    // stable:TypeSpeculation$B:BootPTR *,iid=boot[int:max..0]:BootPTR *,iid=boot
+    // jooins
+    // java/lang/Object:AnyNull:exact *,iid=boot
     static void test11_3(Object o) {
     }
 
@@ -468,8 +468,8 @@ public class TypeSpeculation {
     }
 
     // TypeSpeculation$I *
-    // meets
-    // java/lang/Object:AnyNull *,iid=top
+    // jooins
+    // java/lang/Object:AnyNull *,iid=boot
     static void test12_3(Object o) {
     }
 
@@ -495,9 +495,9 @@ public class TypeSpeculation {
         return true;
     }
 
-    // stable:bottom[int:max..0]:NotNull *
-    // meets
-    // stable:TypeSpeculation$A:TopPTR *,iid=top[int:max..0]:AnyNull:exact *,iid=top
+    // stable:toop[int:max..0]:NotNull *
+    // jooins
+    // stable:TypeSpeculation$A:BootPTR *,iid=boot[int:max..0]:AnyNull:exact *,iid=boot
     static Object test13_3(Object o, boolean b) {
         Object oo;
         if (b) {
