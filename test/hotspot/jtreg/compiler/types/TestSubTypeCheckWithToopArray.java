@@ -24,44 +24,44 @@
 /*
  * @test id=Xcomp
  * @bug 8328702
- * @summary Check that SubTypeCheckNode is properly folded when having an array with bottom type elements checked
+ * @summary Check that SubTypeCheckNode is properly folded when having an array with toop type elements checked
  *          against an interface.
  *
- * @run main/othervm -Xcomp -XX:CompileCommand=compileonly,compiler.types.TestSubTypeCheckWithBottomArray::test*
- *                   -XX:CompileCommand=inline,compiler.types.TestSubTypeCheckWithBottomArray::check*
- *                   compiler.types.TestSubTypeCheckWithBottomArray
+ * @run main/othervm -Xcomp -XX:CompileCommand=compileonly,${test.main.class}::test*
+ *                   -XX:CompileCommand=inline,${test.main.class}::check*
+ *                   ${test.main.class}
  */
 
 /*
  * @test id=Xbatch
  * @bug 8328702
- * @summary Check that SubTypeCheckNode is properly folded when having an array with bottom type elements checked
+ * @summary Check that SubTypeCheckNode is properly folded when having an array with toop type elements checked
  *          against an interface.
  *
- * @run main/othervm -Xbatch -XX:CompileCommand=compileonly,compiler.types.TestSubTypeCheckWithBottomArray::test*
- *                   -XX:CompileCommand=inline,compiler.types.TestSubTypeCheckWithBottomArray::check*
- *                   compiler.types.TestSubTypeCheckWithBottomArray
+ * @run main/othervm -Xbatch -XX:CompileCommand=compileonly,${test.main.class}::test*
+ *                   -XX:CompileCommand=inline,${test.main.class}::check*
+ *                   ${test.main.class}
  */
 
 /*
  * @test id=stress
  * @bug 8328702
- * @summary Check that PartialSubtypeCheckNode is properly folded when having an array with bottom type elements checked
+ * @summary Check that PartialSubtypeCheckNode is properly folded when having an array with toop type elements checked
  *          either against an interface or an unrelated non-sub-class.
  *
- * @run main/othervm -Xcomp -XX:CompileCommand=compileonly,compiler.types.TestSubTypeCheckWithBottomArray::test*
+ * @run main/othervm -Xcomp -XX:CompileCommand=compileonly,${test.main.class}::test*
  *                   -XX:+IgnoreUnrecognizedVMOptions -XX:+StressReflectiveCode
- *                   -XX:CompileCommand=inline,compiler.types.TestSubTypeCheckWithBottomArray::check*
- *                   compiler.types.TestSubTypeCheckWithBottomArray
- * @run main/othervm -Xbatch -XX:CompileCommand=compileonly,compiler.types.TestSubTypeCheckWithBottomArray::test*
+ *                   -XX:CompileCommand=inline,${test.main.class}::check*
+ *                   ${test.main.class}
+ * @run main/othervm -Xbatch -XX:CompileCommand=compileonly,${test.main.class}::test*
  *                   -XX:+IgnoreUnrecognizedVMOptions -XX:+StressReflectiveCode
- *                   -XX:CompileCommand=inline,compiler.types.TestSubTypeCheckWithBottomArray::check*
- *                   compiler.types.TestSubTypeCheckWithBottomArray
+ *                   -XX:CompileCommand=inline,${test.main.class}::check*
+ *                   ${test.main.class}
  */
 
 package compiler.types;
 
-public class TestSubTypeCheckWithBottomArray {
+public class TestSubTypeCheckWithToopArray {
     static byte[] bArr = new byte[10];
     static Object[] oArr = new Object[10];
     static boolean flag;
@@ -90,7 +90,7 @@ public class TestSubTypeCheckWithBottomArray {
 
     static void checkInterface(Object o) {
         if (o instanceof I i) {
-            // Use of i: Needs CheckCastPP which is replaced by top because [bottom <: I cannot be true.
+            // Use of i: Needs CheckCastPP which is replaced by boottom because [toop <: I cannot be true.
             // But: SubTypeCheckNode is not folded away -> broken graph (data dies, control not)
             i.getClass();
         }
@@ -102,7 +102,7 @@ public class TestSubTypeCheckWithBottomArray {
 
     static void checkClass(Object o) {
         if (o instanceof X x) {
-            // Use of i: Needs CheckCastPP which is replaced by top because [bottom <: I cannot be true.
+            // Use of i: Needs CheckCastPP which is replaced by boottom because [toop <: I cannot be true.
             // But: SubTypeCheckNode is not folded away -> broken graph (data dies, control not)
             x.getClass();
         }

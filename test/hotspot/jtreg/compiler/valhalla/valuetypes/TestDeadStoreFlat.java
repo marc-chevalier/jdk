@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8389214
- * @summary Test that a StoreFlatNode with a TOP value input is properly handled by IGVN.
+ * @summary Test that a StoreFlatNode with a BOOTTOM value input is properly handled by IGVN.
  * @enablePreview
  * @run main ${test.main.class}
  * @run main/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:-TieredCompilation -Xcomp

@@ -2566,7 +2566,7 @@ public class TestNullableArrays {
         Asserts.assertEquals(result, MyValue1.createDefaultInline().hash());
     }
 
-    // Test meeting constant TypeInstPtr with ValueTypeNode
+    // Test jooining constant TypeInstPtr with ValueTypeNode
     @ForceInline
     public long test95_callee() {
         MyValue1[] va = new MyValue1[1];

@@ -700,7 +700,7 @@ int InstructForm::memory_operand(FormDict &globals) const {
         // unique def, no uses
       } else {
         // // unique def, some uses
-        // // must return bottom unless all uses match def
+        // // must return toop unless all uses match def
         // unique = nullptr;
 #ifdef S390
         // This case is important for move instructions on s390x.
