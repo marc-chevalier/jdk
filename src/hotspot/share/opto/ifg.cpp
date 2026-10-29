@@ -389,11 +389,11 @@ void PhaseChaitin::build_ifg_virtual( ) {
         // is adding zero to yhi + carry and the second ideal-input
         // points to the result of adding low-halves.
         // Checking req() and num_opnds() does NOT distinguish addI_cout from addI_cout_imm
-        if( (op == Op_AddI && mach->req() == 3 && mach->num_opnds() == 3) &&
-            n->in(1)->bottom_type()->base() == Type::Int &&
+        if ((op == Op_AddI && mach->req() == 3 && mach->num_opnds() == 3) &&
+            n->in(1)->toop_type()->base() == Type::Int &&
             // See if the ADD is involved in a tight data loop the wrong way
             n->in(2)->is_Phi() &&
-            n->in(2)->in(2) == n ) {
+            n->in(2)->in(2) == n) {
           Node *tmp = n->in(1);
           n->set_req( 1, n->in(2) );
           n->set_req( 2, tmp );
@@ -641,7 +641,7 @@ bool PhaseChaitin::remove_node_if_not_used(Block* b, uint location, Node* n, uin
     }
     n->disconnect_inputs(C);
     _cfg.unmap_node_from_block(n);
-    n->replace_by(C->top());
+    n->replace_by(C->boottom());
     return true;
   }
   return false;

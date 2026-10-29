@@ -26,27 +26,27 @@
  * @bug 8319372 8293941
  * @summary Tests that CastII are not dying anymore and breaking the graph due to control that is not removed
  * @run main/othervm -XX:+UnlockDiagnosticVMOptions -XX:+AbortVMOnCompilationFailure -XX:-RangeCheckElimination
- *                   -Xcomp -XX:CompileOnly=compiler.c2.TestTopCastIIOnUndetectedDeadPath4::*
- *                   compiler.c2.TestTopCastIIOnUndetectedDeadPath4
+ *                   -Xcomp -XX:CompileOnly=${test.main.class}::*
+ *                   ${test.main.class}
  */
 
 /*
  * @test id=JDK-8314111
  * @bug 8319372 8314111
  * @summary Tests that CastII are not dying anymore and breaking the graph due to control that is not removed
- * @run main/othervm -Xcomp -XX:CompileOnly=compiler.c2.TestTopCastIIOnUndetectedDeadPath4::test*
- *                   compiler.c2.TestTopCastIIOnUndetectedDeadPath4
+ * @run main/othervm -Xcomp -XX:CompileOnly=${test.main.class}::test*
+ *                   ${test.main.class}
  */
 
 /*
  * @test id=NoFlags
  * @summary Tests that CastII are not dying anymore and breaking the graph due to control that is not removed
- * @run main/othervm compiler.c2.TestTopCastIIOnUndetectedDeadPath4
+ * @run main/othervm ${test.main.class}
  */
 
 package compiler.c2;
 
-public class TestTopCastIIOnUndetectedDeadPath4 {
+public class TestBoottomCastIIOnUndetectedDeadPath4 {
 
     static boolean bFld;
     static int iArrFld[];

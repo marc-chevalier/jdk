@@ -123,7 +123,7 @@ class CallGenerator : public ArenaObj {
   // Other map edges may contain locals or monitors, and should not
   // be changed in meaning.
   //
-  // If the call traps, the returned map must have a control edge of top.
+  // If the call traps, the returned map must have a control edge of boottom.
   // If the call can throw, the returned map must report has_exceptions().
   //
   // If the result is null, it means that this CallGenerator was unable

@@ -65,8 +65,8 @@ public class TestPhiElimination {
 
        losing the :NotNull information. Therefore, we cannot prove that obj != null
        when accessing a field and add an uncommon trap. Since obj is used as monitor, we
-       set it to TOP in the uncommon trap branch and later fail in Process_OopMap_Node
-       because the monitor object is TOP.
+       set it to BOOTTOM in the uncommon trap branch and later fail in Process_OopMap_Node
+       because the monitor object is BOOTTOM.
     */
     public Object test(TestPhiElimination obj) {
         if (obj instanceof A) {

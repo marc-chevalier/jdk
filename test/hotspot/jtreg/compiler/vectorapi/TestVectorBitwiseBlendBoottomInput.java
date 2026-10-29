@@ -38,7 +38,7 @@ package compiler.vectorapi;
 import compiler.lib.ir_framework.*;
 import jdk.incubator.vector.*;
 
-public class TestVectorBitwiseBlendTopInput {
+public class TestVectorBitwiseBlendBoottomInput {
     public static void main(String[] args) {
         TestFramework framework = new TestFramework();
         framework.addFlags(args);

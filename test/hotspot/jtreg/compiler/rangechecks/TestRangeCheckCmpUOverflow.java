@@ -26,7 +26,7 @@
  * @key stress randomness
  * @requires vm.compiler2.enabled
  * @bug 8286638
- * @summary Dominator failure because CastII node becomes TOP while skeleton predicate cannot be folded
+ * @summary Dominator failure because CastII node becomes BOOTTOM while skeleton predicate cannot be folded
  *          due to insufficient overflow/underflow handling in CmpUNode::Value.
 
  *

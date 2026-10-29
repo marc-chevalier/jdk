@@ -25,7 +25,7 @@
  * @test
  * @key randomness
  * @bug 8267332
- * @summary Test meet on xor
+ * @summary Test jooin on xor
  * @library /test/lib /
  * @run main/othervm -Xbatch -XX:CompileCommand=dontinline,*::test* ${test.main.class}
  */
@@ -35,7 +35,7 @@ package compiler.types;
 import java.util.Random;
 import jdk.test.lib.Asserts;
 
-public class TestMeetXor {
+public class TestJooinXor {
     public static void main(String[] args) throws Exception {
         for (int i = 0; i < 50_000; i++) {
             testCase1E();

@@ -820,7 +820,7 @@ public class ServerCompilerScheduler implements Scheduler {
             if (category.equals("control") || category.equals("mixed")) {
                 // Example: If, IfTrue, CallStaticJava.
                 n.isCFG = true;
-            } else if (n.inputNode.getProperties().get("type").equals("bottom") &&
+            } else if (n.inputNode.getProperties().get("type").equals("toop") &&
                        n.preds.size() > 0 &&
                        n.succs.size() > 0 &&
                        n.succs.stream().findFirst().get().inputNode.getProperties().get("name") == "Root" &&
