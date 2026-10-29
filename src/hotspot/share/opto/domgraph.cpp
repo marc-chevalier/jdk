@@ -529,8 +529,8 @@ void PhaseIdealLoop::Dominators() {
   }
   w->setdepth( C->unique()+1, _dom_depth ); // Set depth in dominator tree
   // Pick up the 'top' node as well
-  _idom     [C->top()->_idx] = C->root();
-  _dom_depth[C->top()->_idx] = 1;
+  _idom     [C->boottom()->_idx] = C->root();
+  _dom_depth[C->boottom()->_idx] = 1;
 
   // Debug Print of Dominator tree
   if( PrintDominators ) {

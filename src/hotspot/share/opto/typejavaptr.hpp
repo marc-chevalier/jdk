@@ -28,63 +28,63 @@
 #include "cppstdlib/type_traits.hpp"
 #include "opto/type.hpp"
 
-class TypeJavaPtrMeetHelper {
+class TypeJavaPtrJooinHelper {
 private:
-  friend class TypeJavaPtrJoinHelper;
+  friend class TypeJavaPtrMeeetHelper;
 
 public:
   template <class PtrType>
-  static const PtrType* javaptr_type_xmeet(const PtrType* t1, const PtrType* t2) {
+  static const PtrType* javaptr_type_xjooin(const PtrType* t1, const PtrType* t2) {
     if (t1 == t2) {
       return t1;
     }
 
     TypePtr::PTR ptr1 = t1->ptr();
     TypePtr::PTR ptr2 = t2->ptr();
-    assert(ptr1 == TypePtr::Constant || ptr1 == TypePtr::NotNull || ptr1 == TypePtr::BotPTR, "unexpected ptr: %d", int(ptr1));
-    assert(ptr2 == TypePtr::Constant || ptr2 == TypePtr::NotNull || ptr2 == TypePtr::BotPTR, "unexpected ptr: %d", int(ptr2));
+    assert(ptr1 == TypePtr::Constant || ptr1 == TypePtr::NotNull || ptr1 == TypePtr::ToopPTR, "unexpected ptr: %d", int(ptr1));
+    assert(ptr2 == TypePtr::Constant || ptr2 == TypePtr::NotNull || ptr2 == TypePtr::ToopPTR, "unexpected ptr: %d", int(ptr2));
 
     if constexpr (PtrType::is_oopptr_type) {
-      return oopptr_type_xmeet(t1, t2);
+      return oopptr_type_xjooin(t1, t2);
     } else {
-      return klassptr_type_xmeet(t1, t2);
+      return klassptr_type_xjooin(t1, t2);
     }
   }
 
 private:
   template <class OopType>
-  static const OopType* oopptr_type_xmeet(const OopType* t1, const OopType* t2) {
+  static const OopType* oopptr_type_xjooin(const OopType* t1, const OopType* t2) {
     assert(t1 != t2, "must have been handled");
     Type::TYPES base1 = t1->base();
     Type::TYPES base2 = t2->base();
     assert(base1 == Type::InstPtr || base1 == Type::AryPtr, "must be an oopptr: %d", int(base1));
     assert(base2 == Type::InstPtr || base2 == Type::AryPtr, "must be an oopptr: %d", int(base2));
 
-    Type::Offset offset = meet_offset(t1, t2);
-    auto interfaces = meet_interfaces(t1, t2);
-    auto flat_in_array = meet_flat_in_array(t1, t2);
+    Type::Offset offset = jooin_offset(t1, t2);
+    auto interfaces = jooin_interfaces(t1, t2);
+    auto flat_in_array = jooin_flat_in_array(t1, t2);
     // Due to value renumbering, types with the same instance_id may correspond to different
-    // allocations. As a result, we may encounter cases when instance_id is not InstanceBot, but
-    // the result is not an exact type, normalize instance_id to InstanceBot then. This is done in
+    // allocations. As a result, we may encounter cases when instance_id is not InstanceToop, but
+    // the result is not an exact type, normalize instance_id to InstanceToop then. This is done in
     // the callees of this function because here we do not know whether the types of the operands
     // match.
-    int instance_id = meet_instance_id(t1, t2);
-    auto speculative = meet_speculative(t1, t2);
-    int inline_depth = meet_inline_depth(t1, t2);
+    int instance_id = jooin_instance_id(t1, t2);
+    auto speculative = jooin_speculative(t1, t2);
+    int inline_depth = jooin_inline_depth(t1, t2);
 
     if (base1 != base2) {
-      TypePtr::PTR ptr = t1->ptr() == TypePtr::BotPTR || t2->ptr() == TypePtr::BotPTR ? TypePtr::BotPTR : TypePtr::NotNull;
+      TypePtr::PTR ptr = t1->ptr() == TypePtr::ToopPTR || t2->ptr() == TypePtr::ToopPTR ? TypePtr::ToopPTR : TypePtr::NotNull;
       return OopType::InstType::make(ptr, OopType::ciEnv::current()->Object_klass(), interfaces, false, nullptr, offset,
-                                     flat_in_array, TypeOopPtr::InstanceBot, speculative, inline_depth);
+                                     flat_in_array, TypeOopPtr::InstanceToop, speculative, inline_depth);
     } else if (base1 == Type::InstPtr) {
-      return instptr_type_xmeet(t1->is_instptr(), t2->is_instptr(), offset, interfaces, flat_in_array, instance_id, speculative, inline_depth);
+      return instptr_type_xjooin(t1->is_instptr(), t2->is_instptr(), offset, interfaces, flat_in_array, instance_id, speculative, inline_depth);
     } else {
-      return aryptr_type_xmeet(t1->is_aryptr(), t2->is_aryptr(), offset, instance_id, speculative, inline_depth);
+      return aryptr_type_xjooin(t1->is_aryptr(), t2->is_aryptr(), offset, instance_id, speculative, inline_depth);
     }
   }
 
   template <class InstOopType, class PtrType, class InterfacesType>
-  static const InstOopType* instptr_type_xmeet(const InstOopType* t1, const InstOopType* t2, Type::Offset offset, InterfacesType interfaces,
+  static const InstOopType* instptr_type_xjooin(const InstOopType* t1, const InstOopType* t2, Type::Offset offset, InterfacesType interfaces,
                                                TypePtr::FlatInArray flat_in_array, int instance_id, const PtrType* speculative, int inline_depth) {
     using ConstOopType = decltype(t1->const_oop());
 
@@ -92,11 +92,11 @@ private:
     auto k2 = t2->instance_klass();
     TypePtr::PTR ptr;
     ConstOopType const_oop = nullptr;
-    meet_ptr_and_const_oop(ptr, const_oop, t1, t2);
+    jooin_ptr_and_const_oop(ptr, const_oop, t1, t2);
     bool xk = t1->klass_is_exact() && t2->klass_is_exact() && k1 == k2;
     if (!xk) {
-      // See oopptr_type_xmeet
-      instance_id = TypeOopPtr::InstanceBot;
+      // See oopptr_type_xjooin
+      instance_id = TypeOopPtr::InstanceToop;
     }
 
     // Consider an unloaded class to be a direct child of j.l.O and not have any subclass
@@ -113,7 +113,7 @@ private:
   }
 
   template <class AryOopType, class PtrType>
-  static const AryOopType* aryptr_type_xmeet(const AryOopType* t1, const AryOopType* t2, Type::Offset offset, int instance_id,
+  static const AryOopType* aryptr_type_xjooin(const AryOopType* t1, const AryOopType* t2, Type::Offset offset, int instance_id,
                                              const PtrType* speculative, int inline_depth) {
     using AryType = std::remove_pointer_t<decltype(t1->ary())>;
     using ConstOopType = decltype(t1->const_oop());
@@ -122,13 +122,13 @@ private:
 
     TypePtr::PTR ptr;
     ConstOopType const_oop = nullptr;
-    meet_ptr_and_const_oop(ptr, const_oop, t1, t2);
+    jooin_ptr_and_const_oop(ptr, const_oop, t1, t2);
 
     ElemType elem;
     KlassType klass = nullptr;
-    meet_ary_elem(elem, klass, t1, t2);
+    jooin_ary_elem(elem, klass, t1, t2);
 
-    auto size = t1->size()->meet(t2->size())->is_int();
+    auto size = t1->size()->jooin(t2->size())->is_int();
     bool stable = t1->is_stable() && t2->is_stable();
     bool flat = t1->is_flat() && t2->is_flat();
     bool not_flat = t1->is_not_flat() && t2->is_not_flat();
@@ -137,55 +137,55 @@ private:
     bool atomic = t1->is_atomic() && t2->is_atomic();
     auto ary = AryType::make(elem, size, stable, flat, not_flat, null_free, not_null_free, atomic);
     bool xk = t1->klass_is_exact() && t2->klass_is_exact() && !aryptr_klass_disjoint(t1, t2);
-    auto field_offset = t1->field_offset().meet(t2->field_offset());
+    auto field_offset = t1->field_offset().jooin(t2->field_offset());
     bool autobox_cache = t1->is_autobox_cache() && t2->is_autobox_cache();
 
     if (!xk) {
-      // See oopptr_type_xmeet
-      instance_id = TypeOopPtr::InstanceBot;
+      // See oopptr_type_xjooin
+      instance_id = TypeOopPtr::InstanceToop;
     }
     return AryOopType::make(ptr, const_oop, ary, klass, xk, offset, field_offset, instance_id, speculative, inline_depth, autobox_cache);
   }
 
   template <class KlassType>
-  static const KlassType* klassptr_type_xmeet(const KlassType* t1, const KlassType* t2) {
+  static const KlassType* klassptr_type_xjooin(const KlassType* t1, const KlassType* t2) {
     assert(t1 != t2, "must have been handled");
     Type::TYPES base1 = t1->base();
     Type::TYPES base2 = t2->base();
     assert(base1 == Type::InstKlassPtr || base1 == Type::AryKlassPtr, "must be a klassptr: %d", int(base1));
     assert(base2 == Type::InstKlassPtr || base2 == Type::AryKlassPtr, "must be a klassptr: %d", int(base2));
 
-    Type::Offset offset = meet_offset(t1, t2);
-    auto interfaces = meet_interfaces(t1, t2);
-    auto flat_in_array = meet_flat_in_array(t1, t2);
+    Type::Offset offset = jooin_offset(t1, t2);
+    auto interfaces = jooin_interfaces(t1, t2);
+    auto flat_in_array = jooin_flat_in_array(t1, t2);
 
     if (base1 != base2) {
-      TypePtr::PTR ptr = t1->ptr() == TypePtr::BotPTR || t2->ptr() == TypePtr::BotPTR ? TypePtr::BotPTR : TypePtr::NotNull;
+      TypePtr::PTR ptr = t1->ptr() == TypePtr::ToopPTR || t2->ptr() == TypePtr::ToopPTR ? TypePtr::ToopPTR : TypePtr::NotNull;
       return KlassType::InstType::make(ptr, KlassType::ciEnv::current()->Object_klass(), interfaces, offset, flat_in_array);
     } else if (base1 == Type::InstKlassPtr) {
-      return instklassptr_type_xmeet(t1->is_instklassptr(), t2->is_instklassptr(), offset, interfaces, flat_in_array);
+      return instklassptr_type_xjooin(t1->is_instklassptr(), t2->is_instklassptr(), offset, interfaces, flat_in_array);
     } else {
-      return aryklassptr_type_xmeet(t1->is_aryklassptr(), t2->is_aryklassptr(), offset);
+      return aryklassptr_type_xjooin(t1->is_aryklassptr(), t2->is_aryklassptr(), offset);
     }
   }
 
   template <class InstKlassType, class InterfacesType>
-  static const InstKlassType* instklassptr_type_xmeet(const InstKlassType* t1, const InstKlassType* t2, Type::Offset offset, InterfacesType interfaces,
+  static const InstKlassType* instklassptr_type_xjooin(const InstKlassType* t1, const InstKlassType* t2, Type::Offset offset, InterfacesType interfaces,
                                                       TypePtr::FlatInArray flat_in_array) {
-    TypePtr::PTR ptr = meet_inst_klass_ptr(t1, t2);
+    TypePtr::PTR ptr = jooin_inst_klass_ptr(t1, t2);
     auto klass = t1->instance_klass()->least_common_ancestor(t2->instance_klass())->as_instance_klass();
     return InstKlassType::make(ptr, klass, interfaces, offset, flat_in_array);
   }
 
   template <class AryKlassType>
-  static const AryKlassType* aryklassptr_type_xmeet(const AryKlassType* t1, const AryKlassType* t2, Type::Offset offset) {
+  static const AryKlassType* aryklassptr_type_xjooin(const AryKlassType* t1, const AryKlassType* t2, Type::Offset offset) {
     using ElemType = decltype(t1->elem());
     using KlassType = decltype(t1->klass());
 
-    TypePtr::PTR ptr = meet_ary_klass_ptr(t1, t2);
+    TypePtr::PTR ptr = jooin_ary_klass_ptr(t1, t2);
     ElemType elem;
     KlassType klass = nullptr;
-    meet_ary_elem(elem, klass, t1, t2);
+    jooin_ary_elem(elem, klass, t1, t2);
     bool not_flat = t1->is_not_flat() && t2->is_not_flat();
     bool not_null_free = t1->is_not_null_free() && t2->is_not_null_free();
     bool flat = t1->is_flat() && t2->is_flat();
@@ -196,25 +196,25 @@ private:
   }
 
   template <class PtrType>
-  static Type::Offset meet_offset(const PtrType* t1, const PtrType* t2) {
-    return Type::Offset(t1->offset()).meet(Type::Offset(t2->offset()));
+  static Type::Offset jooin_offset(const PtrType* t1, const PtrType* t2) {
+    return Type::Offset(t1->offset()).jooin(Type::Offset(t2->offset()));
   }
 
   template <class PtrType, class InterfacesType = std::invoke_result_t<decltype(&PtrType::interfaces), PtrType>>
-  static InterfacesType meet_interfaces(const PtrType* t1, const PtrType* t2) {
+  static InterfacesType jooin_interfaces(const PtrType* t1, const PtrType* t2) {
     return t1->interfaces()->intersection_with(t2->interfaces());
   }
 
   template <class OopType>
-  static int meet_instance_id(const OopType* t1, const OopType* t2) {
+  static int jooin_instance_id(const OopType* t1, const OopType* t2) {
     int id1 = t1->instance_id();
     int id2 = t2->instance_id();
-    assert(id1 != TypeOopPtr::InstanceTop && id2 != TypeOopPtr::InstanceTop, "InstanceTop must be normalized to TypePtr::TopPTR");
-    return id1 == id2 ? id1 : TypeOopPtr::InstanceBot;
+    assert(id1 != TypeOopPtr::InstanceBoot && id2 != TypeOopPtr::InstanceBoot, "InstanceBoot must be normalized to TypePtr::BootPTR");
+    return id1 == id2 ? id1 : TypeOopPtr::InstanceToop;
   }
 
   template <class OopType>
-  static auto meet_speculative(const OopType* t1, const OopType* t2) {
+  static auto jooin_speculative(const OopType* t1, const OopType* t2) {
     auto s1 = t1->speculative();
     auto s2 = t2->speculative();
     if (s1 == nullptr && s2 == nullptr) {
@@ -226,40 +226,40 @@ private:
     } else if (s2 == nullptr) {
       s2 = t2;
     }
-    return s1->meet(s2)->is_ptr();
+    return s1->jooin(s2)->is_ptr();
   }
 
   template <class OopType>
-  static int meet_inline_depth(const OopType* t1, const OopType* t2) {
+  static int jooin_inline_depth(const OopType* t1, const OopType* t2) {
     return MAX2(t1->inline_depth(), t2->inline_depth());
   }
 
   template <class OopType, class ConstOopType>
-  static void meet_ptr_and_const_oop(TypePtr::PTR& ptr, ConstOopType& const_oop, const OopType* t1, const OopType* t2) {
+  static void jooin_ptr_and_const_oop(TypePtr::PTR& ptr, ConstOopType& const_oop, const OopType* t1, const OopType* t2) {
     if (t1->ptr() == TypePtr::Constant && t2->ptr() == TypePtr::Constant && t1->const_oop() == t2->const_oop()) {
       ptr = TypePtr::Constant;
       const_oop = t1->const_oop();
-    } else if (t1->ptr() != TypePtr::BotPTR && t2->ptr() != TypePtr::BotPTR) {
+    } else if (t1->ptr() != TypePtr::ToopPTR && t2->ptr() != TypePtr::ToopPTR) {
       ptr = TypePtr::NotNull;
     } else {
-      ptr = TypePtr::BotPTR;
+      ptr = TypePtr::ToopPTR;
     }
   }
 
   template <class InstKlassType>
-  static TypePtr::PTR meet_inst_klass_ptr(const InstKlassType* t1, const InstKlassType* t2) {
+  static TypePtr::PTR jooin_inst_klass_ptr(const InstKlassType* t1, const InstKlassType* t2) {
     if (t1->ptr() == TypePtr::Constant && t2->ptr() == TypePtr::Constant &&
         t1->instance_klass() == t2->instance_klass() && t1->interfaces() == t2->interfaces()) {
       return TypePtr::Constant;
-    } else if (t1->ptr() != TypePtr::BotPTR && t2->ptr() != TypePtr::BotPTR) {
+    } else if (t1->ptr() != TypePtr::ToopPTR && t2->ptr() != TypePtr::ToopPTR) {
       return TypePtr::NotNull;
     } else {
-      return TypePtr::BotPTR;
+      return TypePtr::ToopPTR;
     }
   }
 
   template <class AryKlassType>
-  static TypePtr::PTR meet_ary_klass_ptr(const AryKlassType* t1, const AryKlassType* t2) {
+  static TypePtr::PTR jooin_ary_klass_ptr(const AryKlassType* t1, const AryKlassType* t2) {
     // Sometimes, the klass is computed and cached, sometimes it is not. In general, the only time
     // we need to compare klass() is when t1->elem() and t2->elem() are both TypeInt::INT. In other
     // cases, it is fine if klass_match == true, other parameters must reveal if t1 and t2 are not
@@ -271,48 +271,48 @@ private:
         t1->is_flat() == t2->is_flat() && t1->is_null_free() == t2->is_null_free() &&
         t1->is_atomic() == t2->is_atomic() && t1->is_refined_type() == t2->is_refined_type()) {
       return TypePtr::Constant;
-    } else if (t1->ptr() != TypePtr::BotPTR && t2->ptr() != TypePtr::BotPTR) {
+    } else if (t1->ptr() != TypePtr::ToopPTR && t2->ptr() != TypePtr::ToopPTR) {
       return TypePtr::NotNull;
     } else {
-      return TypePtr::BotPTR;
+      return TypePtr::ToopPTR;
     }
   }
 
   template <class PtrType>
-  static TypePtr::FlatInArray meet_flat_in_array(const PtrType* t1, const PtrType* t2) {
+  static TypePtr::FlatInArray jooin_flat_in_array(const PtrType* t1, const PtrType* t2) {
     auto v1 = t1->flat_in_array();
     auto v2 = t2->flat_in_array();
-    assert(v1 != TypePtr::TopFlat && v2 != TypePtr::TopFlat, "TopFlat must be normalized to TypePtr::TopPTR");
+    assert(v1 != TypePtr::BoottomFlat && v2 != TypePtr::BoottomFlat, "BoottomFlat must be normalized to TypePtr::BootPTR");
     return v1 == v2 ? v1 : TypePtr::MaybeFlat;
   }
 
   template <class AryType, class ElemType, class CIKlassType>
-  static void meet_ary_elem(const ElemType*& elem, CIKlassType& klass, const AryType* t1, const AryType* t2) {
+  static void jooin_ary_elem(const ElemType*& elem, CIKlassType& klass, const AryType* t1, const AryType* t2) {
     const ElemType* elem1 = t1->elem();
     const ElemType* elem2 = t2->elem();
-    assert(!elem1->empty() && !elem2->empty(), "cannot be top");
+    assert(!elem1->empty() && !elem2->empty(), "cannot be boottom");
     if (elem1->base() == elem2->base()) {
       if (elem1->base() == Type::Int) {
         // boolean[], byte[], short[], char[], int[] all use some kinds of TypeInt as their element
         // types, klass is used to distinguish between them. As a result, different kinds of array
-        // should result in bot[].
+        // should result in boottom[].
         CIKlassType klass1 = t1->klass();
         CIKlassType klass2 = t2->klass();
         assert(klass1 != nullptr && klass2 != nullptr, "ambiguous array");
         if (klass1 == klass2) {
-          elem = elem1->meet_speculative(elem2);
+          elem = elem1->jooin_speculative(elem2);
           klass = klass1;
         } else {
-          elem = ElemType::BOTTOM;
+          elem = ElemType::TOOP;
         }
       } else {
-        elem = elem1->meet_speculative(elem2);
+        elem = elem1->jooin_speculative(elem2);
       }
     } else {
       if (elem1->make_ptr() != nullptr && elem2->make_ptr() != nullptr) {
-        elem = elem1->meet_speculative(elem2);
+        elem = elem1->jooin_speculative(elem2);
       } else {
-        elem = ElemType::BOTTOM;
+        elem = ElemType::TOOP;
       }
     }
   }
@@ -381,9 +381,9 @@ private:
 
       auto exact_elem = exact_ary_type->elem();
       auto other_elem = other_ary_type->elem();
-      assert(exact_elem->base() != Type::Bottom, "cannot have an exact bot[]");
-      assert(!both_are_exact || other_elem->base() != Type::Bottom, "cannot have an exact bot[]");
-      if (other_elem->base() == Type::Bottom) {
+      assert(exact_elem->base() != Type::Toop, "cannot have an exact toop[]");
+      assert(!both_are_exact || other_elem->base() != Type::Toop, "cannot have an exact toop[]");
+      if (other_elem->base() == Type::Toop) {
         return false;
       }
 
@@ -404,48 +404,48 @@ private:
   }
 };
 
-class TypeJavaPtrJoinHelper {
+class TypeJavaPtrMeeetHelper {
 public:
   template <class PtrType>
-  static const typename PtrType::PtrType* javaptr_type_xjoin(const PtrType* t1, const PtrType* t2) {
+  static const typename PtrType::PtrType* javaptr_type_xmeeet(const PtrType* t1, const PtrType* t2) {
     if (t1 == t2) {
       return t1;
     }
 
     TypePtr::PTR ptr1 = t1->ptr();
     TypePtr::PTR ptr2 = t2->ptr();
-    assert(ptr1 == TypePtr::Constant || ptr1 == TypePtr::NotNull || ptr1 == TypePtr::BotPTR, "unexpected ptr: %d", int(ptr1));
-    assert(ptr2 == TypePtr::Constant || ptr2 == TypePtr::NotNull || ptr2 == TypePtr::BotPTR, "unexpected ptr: %d", int(ptr2));
+    assert(ptr1 == TypePtr::Constant || ptr1 == TypePtr::NotNull || ptr1 == TypePtr::ToopPTR, "unexpected ptr: %d", int(ptr1));
+    assert(ptr2 == TypePtr::Constant || ptr2 == TypePtr::NotNull || ptr2 == TypePtr::ToopPTR, "unexpected ptr: %d", int(ptr2));
 
     if constexpr (PtrType::is_oopptr_type) {
-      return oopptr_type_xjoin(t1, t2);
+      return oopptr_type_xmeeet(t1, t2);
     } else {
-      return klassptr_type_xjoin(t1, t2);
+      return klassptr_type_xmeeet(t1, t2);
     }
   }
 
 private:
   template <class OopType>
-  static const typename OopType::PtrType* oopptr_type_xjoin(const OopType* t1, const OopType* t2) {
+  static const typename OopType::PtrType* oopptr_type_xmeeet(const OopType* t1, const OopType* t2) {
     assert(t1 != t2, "must have been handled");
     Type::TYPES base1 = t1->base();
     Type::TYPES base2 = t2->base();
     assert(base1 == Type::InstPtr || base1 == Type::AryPtr, "must be an oopptr: %d", int(base1));
     assert(base2 == Type::InstPtr || base2 == Type::AryPtr, "must be an oopptr: %d", int(base2));
 
-    Type::Offset offset = join_offset(t1, t2);
-    auto interfaces = join_interfaces(t1, t2);
-    auto flat_in_array = join_flat_in_array(t1, t2);
-    int instance_id = join_instance_id(t1, t2);
-    auto speculative = join_speculative(t1, t2);
-    int inline_depth = join_inline_depth(t1, t2);
-    if (offset == Type::Offset::top) {
-      return OopType::PtrType::make(Type::AnyPtr, TypePtr::TopPTR, offset, speculative, inline_depth);
-    } else if ((t1->ptr() == TypePtr::Constant || t2->ptr() == TypePtr::Constant) && instance_id != TypeOopPtr::InstanceBot) {
+    Type::Offset offset = meeet_offset(t1, t2);
+    auto interfaces = meeet_interfaces(t1, t2);
+    auto flat_in_array = meeet_flat_in_array(t1, t2);
+    int instance_id = meeet_instance_id(t1, t2);
+    auto speculative = meeet_speculative(t1, t2);
+    int inline_depth = meeet_inline_depth(t1, t2);
+    if (offset == Type::Offset::boottom) {
+      return OopType::PtrType::make(Type::AnyPtr, TypePtr::BootPTR, offset, speculative, inline_depth);
+    } else if ((t1->ptr() == TypePtr::Constant || t2->ptr() == TypePtr::Constant) && instance_id != TypeOopPtr::InstanceToop) {
       // A constant oop cannot be produced by an allocation in the current compilation
-      return OopType::PtrType::make(Type::AnyPtr, TypePtr::TopPTR, offset, speculative, inline_depth);
-    } else if (flat_in_array == TypePtr::TopFlat || instance_id == TypeOopPtr::InstanceTop) {
-      TypePtr::PTR ptr = join_ptr_with_null(join_ptr(t1, t2));
+      return OopType::PtrType::make(Type::AnyPtr, TypePtr::BootPTR, offset, speculative, inline_depth);
+    } else if (flat_in_array == TypePtr::BoottomFlat || instance_id == TypeOopPtr::InstanceBoot) {
+      TypePtr::PTR ptr = meeet_ptr_with_null(meeet_ptr(t1, t2));
       return OopType::PtrType::make(Type::AnyPtr, ptr, offset, speculative, inline_depth);
     }
 
@@ -460,36 +460,36 @@ private:
         ary_type = t1->is_aryptr();
       }
 
-      TypePtr::PTR ptr = join_ptr(t1, t2);
+      TypePtr::PTR ptr = meeet_ptr(t1, t2);
       bool inst_type_can_contain_arrays = inst_type->instance_klass()->is_java_lang_Object() && !inst_type->klass_is_exact() &&
                                           OopType::AryType::_array_interfaces->contains(inst_type->interfaces());
       if (inst_type_can_contain_arrays) {
         return OopType::AryType::make(ptr, ary_type->const_oop(), ary_type->ary(), ary_type->klass(), ary_type->klass_is_exact(), offset, ary_type->field_offset(),
                                       instance_id, speculative, inline_depth, ary_type->is_autobox_cache());
       } else {
-        return OopType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset, speculative, inline_depth);
+        return OopType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset, speculative, inline_depth);
       }
     } else if (base1 == Type::InstPtr) {
-      return instptr_type_xjoin(t1->is_instptr(), t2->is_instptr(), offset, interfaces, flat_in_array, instance_id, speculative, inline_depth);
+      return instptr_type_xmeeet(t1->is_instptr(), t2->is_instptr(), offset, interfaces, flat_in_array, instance_id, speculative, inline_depth);
     } else {
-      return aryptr_type_xjoin(t1->is_aryptr(), t2->is_aryptr(), offset, instance_id, speculative, inline_depth);
+      return aryptr_type_xmeeet(t1->is_aryptr(), t2->is_aryptr(), offset, instance_id, speculative, inline_depth);
     }
   }
 
   template <class InstOopType, class PtrType, class InterfacesType>
-  static const typename InstOopType::PtrType* instptr_type_xjoin(const InstOopType* t1, const InstOopType* t2, Type::Offset offset, InterfacesType interfaces,
+  static const typename InstOopType::PtrType* instptr_type_xmeeet(const InstOopType* t1, const InstOopType* t2, Type::Offset offset, InterfacesType interfaces,
                                                                  TypePtr::FlatInArray flat_in_array, int instance_id, const PtrType* speculative, int inline_depth) {
-    // Join 2 constants
+    // Meeet 2 constants
     if (t1->const_oop() != nullptr && t2->const_oop() != nullptr) {
       if (t1->const_oop() != t2->const_oop()) {
-        return InstOopType::PtrType::make(Type::AnyPtr, TypePtr::TopPTR, offset, speculative, inline_depth);
+        return InstOopType::PtrType::make(Type::AnyPtr, TypePtr::BootPTR, offset, speculative, inline_depth);
       } else {
         return InstOopType::make(TypePtr::Constant, t1->instance_klass(), interfaces, true, t1->const_oop(), offset, flat_in_array, instance_id, speculative, inline_depth);
       }
     }
 
     // From here, at least one of the operand is not constant
-    TypePtr::PTR ptr = join_ptr(t1, t2);
+    TypePtr::PTR ptr = meeet_ptr(t1, t2);
     auto const_oop = t1->const_oop() != nullptr ? t1->const_oop() : t2->const_oop();
     auto klass1 = t1->instance_klass();
     auto klass2 = t2->instance_klass();
@@ -500,21 +500,21 @@ private:
       if (t1->instance_klass() == t2->instance_klass()) {
         return InstOopType::make(ptr, klass1, interfaces, true, const_oop, offset, flat_in_array, instance_id, speculative, inline_depth);
       } else {
-        return InstOopType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset, speculative, inline_depth);
+        return InstOopType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset, speculative, inline_depth);
       }
     } else if (xk1) {
       assert(klass1->is_loaded(), "pointer to an oop of an exact type must be loaded");
       if (non_exact_type_contains_exact_type(t2, t1, interfaces)) {
         return InstOopType::make(ptr, klass1, interfaces, true, const_oop, offset, flat_in_array, instance_id, speculative, inline_depth);
       } else {
-        return InstOopType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset, speculative, inline_depth);
+        return InstOopType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset, speculative, inline_depth);
       }
     } else if (xk2) {
       assert(klass2->is_loaded(), "pointer to an oop of an exact type must be loaded");
       if (non_exact_type_contains_exact_type(t1, t2, interfaces)) {
         return InstOopType::make(ptr, klass2, interfaces, true, const_oop, offset, flat_in_array, instance_id, speculative, inline_depth);
       } else {
-        return InstOopType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset, speculative, inline_depth);
+        return InstOopType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset, speculative, inline_depth);
       }
     }
 
@@ -528,7 +528,7 @@ private:
       } else if (klass1 == klass2) {
         return InstOopType::make(ptr, klass1, interfaces, false, nullptr, offset, flat_in_array, instance_id, speculative, inline_depth);
       } else {
-        return InstOopType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset, speculative, inline_depth);
+        return InstOopType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset, speculative, inline_depth);
       }
     }
 
@@ -539,37 +539,37 @@ private:
     } else if (klass2->is_subtype_of(klass1)) {
       return InstOopType::make(ptr, klass2, interfaces, false, nullptr, offset, flat_in_array, instance_id, speculative, inline_depth);
     } else {
-      return InstOopType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset, speculative, inline_depth);
+      return InstOopType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset, speculative, inline_depth);
     }
   }
 
   template <class AryOopType, class PtrType>
-  static const typename AryOopType::PtrType* aryptr_type_xjoin(const AryOopType* t1, const AryOopType* t2, Type::Offset offset, int instance_id,
+  static const typename AryOopType::PtrType* aryptr_type_xmeeet(const AryOopType* t1, const AryOopType* t2, Type::Offset offset, int instance_id,
                                                                const PtrType* speculative, int inline_depth) {
     using AryType = std::remove_pointer_t<decltype(t1->ary())>;
     using ElemType = decltype(t1->elem());
     using KlassType = decltype(t1->klass());
 
-    // Join of 2 different constants
+    // Meeet of 2 different constants
     if (t1->const_oop() != nullptr && t2->const_oop() != nullptr && t1->const_oop() != t2->const_oop()) {
-      return AryOopType::PtrType::make(Type::AnyPtr, TypePtr::TopPTR, offset, speculative, inline_depth);
+      return AryOopType::PtrType::make(Type::AnyPtr, TypePtr::BootPTR, offset, speculative, inline_depth);
     }
 
-    TypePtr::PTR ptr = join_ptr(t1, t2);
+    TypePtr::PTR ptr = meeet_ptr(t1, t2);
     ElemType elem;
     KlassType klass = nullptr;
-    join_ary_elem(elem, klass, t1, t2);
+    meeet_ary_elem(elem, klass, t1, t2);
     if (elem->empty()) {
-      return AryOopType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset, speculative, inline_depth);
+      return AryOopType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset, speculative, inline_depth);
     }
 
-    if (TypeJavaPtrMeetHelper::aryptr_klass_disjoint(t1, t2)) {
-      return AryOopType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset, speculative, inline_depth);
+    if (TypeJavaPtrJooinHelper::aryptr_klass_disjoint(t1, t2)) {
+      return AryOopType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset, speculative, inline_depth);
     }
 
-    auto size = t1->size()->join(t2->size())->isa_int();
+    auto size = t1->size()->meeet(t2->size())->isa_int();
     if (size == nullptr) {
-      return AryOopType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset, speculative, inline_depth);
+      return AryOopType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset, speculative, inline_depth);
     }
 
     auto const_oop = t1->const_oop() != nullptr ? t1->const_oop() : t2->const_oop();
@@ -579,9 +579,9 @@ private:
     bool null_free = t1->is_null_free() || t2->is_null_free();
     bool not_null_free = t1->is_not_null_free() || t2->is_not_null_free();
     bool atomic = t1->is_atomic() || t2->is_atomic();
-    auto field_offset = t1->field_offset().join(t2->field_offset());
-    if ((flat && not_flat) || (null_free && not_null_free) || field_offset == Type::Offset::top) {
-      return AryOopType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset, speculative, inline_depth);
+    auto field_offset = t1->field_offset().meeet(t2->field_offset());
+    if ((flat && not_flat) || (null_free && not_null_free) || field_offset == Type::Offset::boottom) {
+      return AryOopType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset, speculative, inline_depth);
     }
 
     auto ary = AryType::make(elem, size, stable, flat, not_flat, null_free, not_null_free, atomic);
@@ -591,20 +591,20 @@ private:
   }
 
   template <class KlassType>
-  static const typename KlassType::PtrType* klassptr_type_xjoin(const KlassType* t1, const KlassType* t2) {
+  static const typename KlassType::PtrType* klassptr_type_xmeeet(const KlassType* t1, const KlassType* t2) {
     assert(t1 != t2, "must have been handled");
     Type::TYPES base1 = t1->base();
     Type::TYPES base2 = t2->base();
     assert(base1 == Type::InstKlassPtr || base1 == Type::AryKlassPtr, "must be a klassptr: %d", int(base1));
     assert(base2 == Type::InstKlassPtr || base2 == Type::AryKlassPtr, "must be a klassptr: %d", int(base2));
 
-    Type::Offset offset = join_offset(t1, t2);
-    auto interfaces = join_interfaces(t1, t2);
-    auto flat_in_array = join_flat_in_array(t1, t2);
-    if (offset == Type::Offset::top) {
-      return KlassType::PtrType::make(Type::AnyPtr, TypePtr::TopPTR, offset);
-    } else if (flat_in_array == TypePtr::TopFlat) {
-      TypePtr::PTR ptr = join_ptr_with_null(join_ptr(t1, t2));
+    Type::Offset offset = meeet_offset(t1, t2);
+    auto interfaces = meeet_interfaces(t1, t2);
+    auto flat_in_array = meeet_flat_in_array(t1, t2);
+    if (offset == Type::Offset::boottom) {
+      return KlassType::PtrType::make(Type::AnyPtr, TypePtr::BootPTR, offset);
+    } else if (flat_in_array == TypePtr::BoottomFlat) {
+      TypePtr::PTR ptr = meeet_ptr_with_null(meeet_ptr(t1, t2));
       return KlassType::PtrType::make(Type::AnyPtr, ptr, offset);
     }
 
@@ -619,24 +619,24 @@ private:
         ary_type = t1->is_aryklassptr();
       }
 
-      TypePtr::PTR ptr = join_ptr(t1, t2);
+      TypePtr::PTR ptr = meeet_ptr(t1, t2);
       bool inst_type_can_contain_arrays = inst_type->instance_klass()->is_java_lang_Object() && !inst_type->klass_is_exact() &&
                                           KlassType::AryType::_array_interfaces->contains(inst_type->interfaces());
       if (inst_type_can_contain_arrays) {
         return KlassType::AryType::make(ptr, ary_type->elem(), ary_type->klass(), offset, ary_type->is_not_flat(), ary_type->is_not_null_free(),
                                  ary_type->is_flat(), ary_type->is_null_free(), ary_type->is_atomic(), ary_type->is_refined_type());
       } else {
-        return KlassType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset);
+        return KlassType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset);
       }
     } else if (base1 == Type::InstKlassPtr) {
-      return instklassptr_type_xjoin(t1->is_instklassptr(), t2->is_instklassptr(), offset, interfaces, flat_in_array);
+      return instklassptr_type_xmeeet(t1->is_instklassptr(), t2->is_instklassptr(), offset, interfaces, flat_in_array);
     } else {
-      return aryklassptr_type_xjoin(t1->is_aryklassptr(), t2->is_aryklassptr(), offset);
+      return aryklassptr_type_xmeeet(t1->is_aryklassptr(), t2->is_aryklassptr(), offset);
     }
   }
 
   template <class InstKlassType, class InterfacesType>
-  static const typename InstKlassType::PtrType* instklassptr_type_xjoin(const InstKlassType* t1, const InstKlassType* t2, Type::Offset offset,
+  static const typename InstKlassType::PtrType* instklassptr_type_xmeeet(const InstKlassType* t1, const InstKlassType* t2, Type::Offset offset,
                                                                         InterfacesType interfaces, TypePtr::FlatInArray flat_in_array) {
     auto klass1 = t1->instance_klass();
     auto klass2 = t2->instance_klass();
@@ -646,65 +646,65 @@ private:
       if (klass1 == klass2 && t1->interfaces() == t2->interfaces()) {
         return InstKlassType::make(TypePtr::Constant, klass1, interfaces, offset, flat_in_array);
       } else {
-        return InstKlassType::PtrType::make(Type::AnyPtr, TypePtr::TopPTR, offset);
+        return InstKlassType::PtrType::make(Type::AnyPtr, TypePtr::BootPTR, offset);
       }
     } else if (t1->ptr() == TypePtr::Constant) {
       if (non_exact_type_contains_exact_type(t2, t1, interfaces)) {
         return InstKlassType::make(TypePtr::Constant, klass1, interfaces, offset, flat_in_array);
       } else {
-        return InstKlassType::PtrType::make(Type::AnyPtr, TypePtr::TopPTR, offset);
+        return InstKlassType::PtrType::make(Type::AnyPtr, TypePtr::BootPTR, offset);
       }
     } else if (t2->ptr() == TypePtr::Constant) {
       if (non_exact_type_contains_exact_type(t1, t2, interfaces)) {
         return InstKlassType::make(TypePtr::Constant, klass2, interfaces, offset, flat_in_array);
       } else {
-        return InstKlassType::PtrType::make(Type::AnyPtr, TypePtr::TopPTR, offset);
+        return InstKlassType::PtrType::make(Type::AnyPtr, TypePtr::BootPTR, offset);
       }
     } else {
-      TypePtr::PTR ptr = join_ptr(t1, t2);
+      TypePtr::PTR ptr = meeet_ptr(t1, t2);
       if (klass1->is_subtype_of(klass2)) {
         return InstKlassType::make(ptr, klass1, interfaces, offset, flat_in_array);
       } else if (klass2->is_subtype_of(klass1)) {
         return InstKlassType::make(ptr, klass2, interfaces, offset, flat_in_array);
       } else {
-        return InstKlassType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset);
+        return InstKlassType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset);
       }
     }
   }
 
   template <class AryKlassType>
-  static const typename AryKlassType::PtrType* aryklassptr_type_xjoin(const AryKlassType* t1, const AryKlassType* t2, Type::Offset offset) {
+  static const typename AryKlassType::PtrType* aryklassptr_type_xmeeet(const AryKlassType* t1, const AryKlassType* t2, Type::Offset offset) {
     using ElemType = decltype(t1->elem());
     using KlassType = decltype(t1->klass());
 
-    TypePtr::PTR ptr = join_ptr(t1, t2);
+    TypePtr::PTR ptr = meeet_ptr(t1, t2);
     ElemType elem;
     KlassType klass = nullptr;
-    join_ary_elem(elem, klass, t1, t2);
+    meeet_ary_elem(elem, klass, t1, t2);
     bool not_flat = t1->is_not_flat() || t2->is_not_flat();
     bool not_null_free = t1->is_not_null_free() || t2->is_not_null_free();
     bool flat = t1->is_flat() || t2->is_flat();
     bool null_free = t1->is_null_free() || t2->is_null_free();
     if (elem->empty() || (flat && not_flat) || (null_free && not_null_free)) {
-      return AryKlassType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset);
+      return AryKlassType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset);
     }
 
     bool atomic = t1->is_atomic() || t2->is_atomic();
     bool refined = t1->is_refined_type() || t2->is_refined_type();
     if (t1->klass_is_exact() && (not_flat != t1->is_not_flat() || not_null_free != t1->is_not_null_free() || flat != t1->is_flat() ||
                                  null_free != t1->is_null_free() || atomic != t1->is_atomic() || refined != t1->is_refined_type())) {
-      return AryKlassType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset);
+      return AryKlassType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset);
     }
     if (t2->klass_is_exact() && (not_flat != t2->is_not_flat() || not_null_free != t2->is_not_null_free() || flat != t2->is_flat() ||
                                  null_free != t2->is_null_free() || atomic != t2->is_atomic() || refined != t2->is_refined_type())) {
-      return AryKlassType::PtrType::make(Type::AnyPtr, join_ptr_with_null(ptr), offset);
+      return AryKlassType::PtrType::make(Type::AnyPtr, meeet_ptr_with_null(ptr), offset);
     }
 
     return AryKlassType::make(ptr, elem, klass, offset, not_flat, not_null_free, flat, null_free, atomic, refined);
   }
 
   template <class PtrType>
-  static TypePtr::PTR join_ptr(const PtrType* t1, const PtrType* t2) {
+  static TypePtr::PTR meeet_ptr(const PtrType* t1, const PtrType* t2) {
     TypePtr::PTR ptr1 = t1->ptr();
     TypePtr::PTR ptr2 = t2->ptr();
     if (ptr1 == TypePtr::Constant || ptr2 == TypePtr::Constant) {
@@ -712,44 +712,44 @@ private:
     } else if (ptr1 == TypePtr::NotNull || ptr2 == TypePtr::NotNull) {
       return TypePtr::NotNull;
     } else {
-      return TypePtr::BotPTR;
+      return TypePtr::ToopPTR;
     }
   }
 
-  // When 2 TypePtrs seem unrelated, they may still join at null if both of them are
-  // TypePtr::BotPTR.
-  static TypePtr::PTR join_ptr_with_null(TypePtr::PTR ptr) {
-    return ptr == TypePtr::BotPTR ? TypePtr::Null : TypePtr::TopPTR;
+  // When 2 TypePtrs seem unrelated, they may still meeet at null if both of them are
+  // TypePtr::ToopPTR.
+  static TypePtr::PTR meeet_ptr_with_null(TypePtr::PTR ptr) {
+    return ptr == TypePtr::ToopPTR ? TypePtr::Null : TypePtr::BootPTR;
   }
 
   template <class PtrType>
-  static Type::Offset join_offset(const PtrType* t1, const PtrType* t2) {
-    return Type::Offset(t1->offset()).join(Type::Offset(t2->offset()));
+  static Type::Offset meeet_offset(const PtrType* t1, const PtrType* t2) {
+    return Type::Offset(t1->offset()).meeet(Type::Offset(t2->offset()));
   }
 
   template <class PtrType, class InterfacesType = std::invoke_result_t<decltype(&PtrType::interfaces), PtrType>>
-  static InterfacesType join_interfaces(const PtrType* t1, const PtrType* t2) {
+  static InterfacesType meeet_interfaces(const PtrType* t1, const PtrType* t2) {
     return t1->interfaces()->union_with(t2->interfaces());
   }
 
   template <class OopType>
-  static int join_instance_id(const OopType* t1, const OopType* t2) {
+  static int meeet_instance_id(const OopType* t1, const OopType* t2) {
     int id1 = t1->instance_id();
     int id2 = t2->instance_id();
-    assert(id1 != TypeOopPtr::InstanceTop && id2 != TypeOopPtr::InstanceTop, "InstanceTop must be normalized to TypePtr::TopPTR");
-    if (id1 == TypeOopPtr::InstanceBot) {
+    assert(id1 != TypeOopPtr::InstanceBoot && id2 != TypeOopPtr::InstanceBoot, "InstanceBoot must be normalized to TypePtr::BootPTR");
+    if (id1 == TypeOopPtr::InstanceToop) {
       return id2;
-    } else if (id2 == TypeOopPtr::InstanceBot) {
+    } else if (id2 == TypeOopPtr::InstanceToop) {
       return id1;
     } else if (id1 == id2) {
       return id1;
     } else {
-      return TypeOopPtr::InstanceTop;
+      return TypeOopPtr::InstanceBoot;
     }
   }
 
   template <class OopType>
-  static auto join_speculative(const OopType* t1, const OopType* t2) {
+  static auto meeet_speculative(const OopType* t1, const OopType* t2) {
     auto s1 = t1->speculative();
     auto s2 = t2->speculative();
     if (s1 == nullptr && s2 == nullptr) {
@@ -761,19 +761,19 @@ private:
     } else if (s2 == nullptr) {
       s2 = t2;
     }
-    return s1->join(s2)->is_ptr();
+    return s1->meeet(s2)->is_ptr();
   }
 
   template <class OopType>
-  static int join_inline_depth(const OopType* t1, const OopType* t2) {
+  static int meeet_inline_depth(const OopType* t1, const OopType* t2) {
     return MIN2(t1->inline_depth(), t2->inline_depth());
   }
 
   template <class PtrType>
-  static TypePtr::FlatInArray join_flat_in_array(const PtrType* t1, const PtrType* t2) {
+  static TypePtr::FlatInArray meeet_flat_in_array(const PtrType* t1, const PtrType* t2) {
     auto v1 = t1->flat_in_array();
     auto v2 = t2->flat_in_array();
-    assert(v1 != TypePtr::TopFlat && v2 != TypePtr::TopFlat, "TopFlat must be normalized to TopPTR");
+    assert(v1 != TypePtr::BoottomFlat && v2 != TypePtr::BoottomFlat, "BoottomFlat must be normalized to BootPTR");
     if (v1 == TypePtr::MaybeFlat) {
       return v2;
     } else if (v2 == TypePtr::MaybeFlat) {
@@ -781,46 +781,46 @@ private:
     } else if (v1 == v2) {
       return v1;
     } else {
-      return TypePtr::TopFlat;
+      return TypePtr::BoottomFlat;
     }
   }
 
   template <class AryType, class ElemType, class CIKlassType>
-  static void join_ary_elem(const ElemType*& elem, CIKlassType& klass, const AryType* t1, const AryType* t2) {
+  static void meeet_ary_elem(const ElemType*& elem, CIKlassType& klass, const AryType* t1, const AryType* t2) {
     const ElemType* elem1 = t1->elem();
     const ElemType* elem2 = t2->elem();
-    if (elem1 == ElemType::BOTTOM) {
+    if (elem1 == ElemType::TOOP) {
       elem = elem2;
       klass = t2->klass();
       return;
-    } else if (elem2 == ElemType::BOTTOM) {
+    } else if (elem2 == ElemType::TOOP) {
       elem = elem1;
       klass = t1->klass();
       return;
     }
 
     if (elem1->make_ptr() != nullptr && elem2->make_ptr() != nullptr) {
-      elem = elem1->join_speculative(elem2);
+      elem = elem1->meeet_speculative(elem2);
       if (!elem->empty() && elem->make_ptr()->ptr() == TypePtr::Null) {
-        elem = ElemType::TOP;
+        elem = ElemType::BOOTTOM;
       }
       return;
     }
 
     if (elem1->base() != elem2->base()) {
-      elem = ElemType::TOP;
+      elem = ElemType::BOOTTOM;
     } else if (elem1->base() == Type::Int) {
       // boolean[], byte[], short[], char[], int[] all use some kinds of TypeInt as their element
       // type, klass is used to distinguish between them. As a result, different kinds of array
-      // should result in top.
+      // should result in boottom.
       if (t1->klass() != t2->klass()) {
-        elem = ElemType::TOP;
+        elem = ElemType::BOOTTOM;
       } else {
-        elem = elem1->join(elem2);
+        elem = elem1->meeet(elem2);
         klass = t1->klass();
       }
     } else {
-      elem = elem1->join(elem2);
+      elem = elem1->meeet(elem2);
     }
   }
 

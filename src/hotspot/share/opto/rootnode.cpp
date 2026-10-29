@@ -38,7 +38,7 @@ Node *RootNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   bool modified = false;
   for( uint i = 1; i < req(); i++ ) { // For all inputs
     // Check for and remove dead inputs
-    if( phase->type(in(i)) == Type::TOP ) {
+    if( phase->type(in(i)) == Type::BOOTTOM ) {
       del_req(i--);             // Delete TOP inputs
       modified = true;
     }
@@ -65,7 +65,7 @@ Node *RootNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 HaltNode::HaltNode(Node* ctrl, Node* frameptr, const char* halt_reason, bool reachable)
                         : Node(TypeFunc::Parms), _halt_reason(halt_reason), _reachable(reachable) {
   init_class_id(Class_Halt);
-  Node* top = Compile::current()->top();
+  Node* top = Compile::current()->boottom();
   init_req(TypeFunc::Control,  ctrl        );
   init_req(TypeFunc::I_O,      top);
   init_req(TypeFunc::Memory,   top);
@@ -74,7 +74,7 @@ HaltNode::HaltNode(Node* ctrl, Node* frameptr, const char* halt_reason, bool rea
   AOTCodeCache::add_C_string(halt_reason);
 }
 
-const Type *HaltNode::bottom_type() const { return Type::BOTTOM; }
+const Type *HaltNode::toop_type() const { return Type::TOOP; }
 uint HaltNode::size_of() const { return sizeof(*this); }
 
 //------------------------------Ideal------------------------------------------
@@ -84,9 +84,9 @@ Node *HaltNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 
 //------------------------------Value------------------------------------------
 const Type* HaltNode::Value(PhaseGVN* phase) const {
-  return ( phase->type(in(TypeFunc::Control)) == Type::TOP)
-    ? Type::TOP
-    : Type::BOTTOM;
+  return ( phase->type(in(TypeFunc::Control)) == Type::BOOTTOM)
+    ? Type::BOOTTOM
+    : Type::TOOP;
 }
 
 const RegMask &HaltNode::out_RegMask() const {
@@ -99,7 +99,7 @@ Node* DeadPathNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   bool modified = false;
   for (uint i = 1; i < req(); i++) { // For all inputs
     // Check for and remove dead inputs
-    if (phase->type(in(i)) == Type::TOP) {
+    if (phase->type(in(i)) == Type::BOOTTOM) {
       del_req(i--);             // Delete TOP inputs
       modified = true;
     }
@@ -113,9 +113,9 @@ Node* DeadPathNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 
 const Type* DeadPathNode::Value(PhaseGVN* phase) const {
   if (req() == 1) {
-    return Type::TOP;
+    return Type::BOOTTOM;
   }
-  return bottom_type();
+  return toop_type();
 }
 
 void DeadPathNode::activate(PhaseIterGVN* igvn) {
@@ -125,13 +125,13 @@ void DeadPathNode::activate(PhaseIterGVN* igvn) {
   // been left behind
   while (req() > 1) {
     uint last = req() - 1;
-    assert(in(last) == nullptr || in(last)->is_top(), "only dead inputs should remain");
+    assert(in(last) == nullptr || in(last)->is_boottom(), "only dead inputs should remain");
     del_req(last);
   }
   Node* root_node = Compile::current()->root();
   root_node->add_req(this);
   igvn->_worklist.push(root_node);
-  igvn->set_type(this, bottom_type());
+  igvn->set_type(this, toop_type());
 }
 
 void DeadPathNode::deactivate() {

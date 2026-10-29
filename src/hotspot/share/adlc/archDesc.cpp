@@ -1051,8 +1051,8 @@ const char *ArchDesc::getIdealType(const char *idealOp) {
   // !!!!!
   switch(last_char) {
   case 'I':    return "TypeInt::INT";
-  case 'P':    return "TypePtr::BOTTOM";
-  case 'N':    return "TypeNarrowOop::BOTTOM";
+  case 'P':    return "TypePtr::TOOP";
+  case 'N':    return "TypeNarrowOop::TOOP";
   case 'F':    return "Type::FLOAT";
   case 'H':    return "Type::HALF_FLOAT";
   case 'D':    return "Type::DOUBLE";

@@ -53,7 +53,7 @@ public class MixedUnsafeStoreObject {
     public static void testFieldInstanceObject(Object t) {
         for (int c = 0; c < 20000; c++) { // trigger OSR compilation
             // java/lang/Object+12 *
-            // _base = InstPtr, _ptr = BotPTR, _field = NULL, mismatched = true
+            // _base = InstPtr, _ptr = ToopPTR, _field = NULL, mismatched = true
             UNSAFE.putReference(t, F_OFFSET, "foo");
         }
     }
@@ -61,7 +61,7 @@ public class MixedUnsafeStoreObject {
     public static void testFieldInstanceT(T t) {
         for (int c = 0; c < 20000; c++) { // trigger OSR compilation
             // ...$T+12 *
-            // _base = InstPtr, _ptr = BotPTR, _field = T.f, mismatched = false
+            // _base = InstPtr, _ptr = ToopPTR, _field = T.f, mismatched = false
             UNSAFE.putReference(t, F_OFFSET, "foo");
         }
     }

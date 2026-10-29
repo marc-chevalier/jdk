@@ -66,11 +66,11 @@ IfNode::IfNode(Node* control, Node* bol, float p, float fcnt, AssertionPredicate
 //------------------------------Value------------------------------------------
 // Return a tuple for whichever arm of the IF is reachable
 const Type* IfNode::Value(PhaseGVN* phase) const {
-  if( !in(0) ) return Type::TOP;
-  if( phase->type(in(0)) == Type::TOP )
-    return Type::TOP;
+  if( !in(0) ) return Type::BOOTTOM;
+  if( phase->type(in(0)) == Type::BOOTTOM )
+    return Type::BOOTTOM;
   const Type *t = phase->type(in(1));
-  if( t == Type::TOP )          // data is undefined
+  if( t == Type::BOOTTOM )          // data is undefined
     return TypeTuple::IFNEITHER; // unreachable altogether
   if( t == TypeInt::ZERO )      // zero, or false
     return TypeTuple::IFFALSE;  // only false branch is reachable
@@ -112,7 +112,7 @@ static Node* split_if(IfNode *iff, PhaseIterGVN *igvn) {
   for (i4 = 1; i4 < phi->req(); i4++ ) {
     con1 = phi->in(i4);
     // Do not optimize partially collapsed merges
-    if (con1 == nullptr || phi_region->in(i4) == nullptr || igvn->type(phi_region->in(i4)) == Type::TOP) {
+    if (con1 == nullptr || phi_region->in(i4) == nullptr || igvn->type(phi_region->in(i4)) == Type::BOOTTOM) {
       igvn->_worklist.push(iff);
       return nullptr;
     }
@@ -325,14 +325,14 @@ static Node* split_if(IfNode *iff, PhaseIterGVN *igvn) {
   IfNode* iff_c = iff->clone()->as_If();
   iff_c->set_req(0, region_c);
   iff_c->set_req(1, b_c);
-  igvn->set_type_bottom(iff_c);
+  igvn->set_type_toop(iff_c);
   igvn->_worklist.push(iff_c);
   hook->init_req(2, iff_c);
 
   IfNode* iff_x = iff->clone()->as_If();
   iff_x->set_req(0, region_x);
   iff_x->set_req(1, b_x);
-  igvn->set_type_bottom(iff_x);
+  igvn->set_type_toop(iff_x);
   igvn->_worklist.push(iff_x);
   hook->init_req(3, iff_x);
 
@@ -508,7 +508,7 @@ IfProjNode* IfNode::range_check_trap_proj(int& flip_test, Node*& l, Node*& r) co
   } else if (bn->_test._test != BoolTest::lt) {
     return nullptr;
   }
-  if (l->is_top())  return nullptr;   // Top input means dead test
+  if (l->is_boottom())  return nullptr;   // Top input means dead test
   if (r->Opcode() != Op_LoadRange && !is_RangeCheck())  return nullptr;
 
   // We have recognized one of these forms:
@@ -547,7 +547,7 @@ int RangeCheckNode::is_range_check(Node* &range, Node* &index, jint &offset) {
   // Look for index+offset form
   Node* ind = l;
   jint  off = 0;
-  if (l->is_top()) {
+  if (l->is_boottom()) {
     return 0;
   } else if (l->Opcode() == Op_AddI) {
     if ((off = l->in(1)->find_int_con(0)) != 0) {
@@ -578,7 +578,7 @@ static void adjust_check(IfProjNode* proj, Node* range, Node* index,
   // Break apart the old check
   Node *iff = proj->in(0);
   Node *bol = iff->in(1);
-  if( bol->is_top() ) return;   // In case a partially dead range check appears
+  if( bol->is_boottom() ) return;   // In case a partially dead range check appears
   // bail (or bomb[ASSERT/DEBUG]) if NOT projection-->IfNode-->BoolNode
   DEBUG_ONLY( if (!bol->is_Bool()) { proj->dump(3); fatal("Expect projection-->IfNode-->BoolNode"); } )
   if (!bol->is_Bool()) return;
@@ -787,7 +787,7 @@ bool IfNode::cmpi_folds(PhaseIterGVN* igvn, bool fold_ne) {
     in(1)->in(1) != nullptr &&
     in(1)->in(1)->Opcode() == Op_CmpI &&
     in(1)->in(1)->in(2) != nullptr &&
-    in(1)->in(1)->in(2) != igvn->C->top() &&
+    in(1)->in(1)->in(2) != igvn->C->boottom() &&
     (in(1)->as_Bool()->_test.is_less() ||
      in(1)->as_Bool()->_test.is_greater() ||
      (fold_ne && in(1)->as_Bool()->_test._test == BoolTest::ne));
@@ -804,7 +804,7 @@ bool IfNode::is_ctrl_folds(Node* ctrl, PhaseIterGVN* igvn) {
     ctrl->in(0)->as_If()->cmpi_folds(igvn, true) &&
     // Must compare same value
     ctrl->in(0)->in(1)->in(1)->in(1) != nullptr &&
-    ctrl->in(0)->in(1)->in(1)->in(1) != igvn->C->top() &&
+    ctrl->in(0)->in(1)->in(1)->in(1) != igvn->C->boottom() &&
     ctrl->in(0)->in(1)->in(1)->in(1) == in(1)->in(1)->in(1);
 }
 
@@ -1017,7 +1017,7 @@ bool IfNode::fold_compares_helper(IfProjNode* middle, IfProjNode* fail2, IfProjN
   if (type_middle != nullptr) {
     const TypeInt* type_succ = filtered_int_type(igvn, n, succ);
     if (type_succ != nullptr) {
-      if (type_middle->filter(type_succ) == Type::TOP) {
+      if (type_middle->filter(type_succ) == Type::BOOTTOM) {
         // The intersection is empty -> succ is not reachable.
         // Fold iff2 towards fail2 (and away from succ).
         igvn->replace_input_of(iff2, 1, igvn->intcon(fail2->_con));
@@ -1471,7 +1471,7 @@ Node* IfNode::merge_uncommon_traps(IfProjNode* proj, IfProjNode* success, IfProj
     // nodes would have caused the trap so we have to restart
     // execution at the first one
     igvn->replace_input_of(dom_unc, 0, r);
-    igvn->replace_input_of(unc, 0, igvn->C->top());
+    igvn->replace_input_of(unc, 0, igvn->C->boottom());
   }
   int trap_request = dom_unc->uncommon_trap_request();
   Deoptimization::DeoptReason reason = Deoptimization::trap_request_reason(trap_request);
@@ -1694,7 +1694,7 @@ void IfNode::reroute_side_effect_free_unc(IfProjNode* proj, IfProjNode* dom_proj
   halt->set_req(0, call_proj);
   halt = igvn->transform(halt);
 
-  igvn->replace_node(otherproj, igvn->C->top());
+  igvn->replace_node(otherproj, igvn->C->boottom());
   igvn->C->root()->add_req(halt);
 }
 
@@ -1823,9 +1823,9 @@ Node* IfNode::Ideal_common(PhaseGVN *phase, bool can_reshape) {
   if (!can_reshape)  return nullptr;
 
   // Don't bother trying to transform a dead if
-  if (in(0)->is_top())  return nullptr;
+  if (in(0)->is_boottom())  return nullptr;
   // Don't bother trying to transform an if with a dead test
-  if (in(1)->is_top())  return nullptr;
+  if (in(1)->is_boottom())  return nullptr;
   // Another variation of a dead test
   if (in(1)->is_Con())  return nullptr;
   // Another variation of a dead if
@@ -1872,7 +1872,7 @@ Node* IfNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     Node* cmp = in(1)->in(1);
     if (cmp->Opcode() == Op_CmpP &&
         cmp->in(2) != nullptr && // make sure cmp is not already dead
-        cmp->in(2)->bottom_type() == TypePtr::NULL_PTR) {
+        cmp->in(2)->toop_type() == TypePtr::NULL_PTR) {
       dist = 64;              // Limit for null-pointer scans
     }
   }
@@ -1920,7 +1920,7 @@ Node* IfNode::dominated_by(Node* prev_dom, PhaseIterGVN* igvn, bool prev_dom_not
   Node *idom = in(0);
   // Need opcode to decide which way 'this' test goes
   int prev_op = prev_dom->Opcode();
-  Node *top = igvn->C->top(); // Shortcut to top
+  Node *top = igvn->C->boottom(); // Shortcut to top
 
   // Now walk the current IfNode's projections.
   // Loop ends when 'this' has no more uses.
@@ -2328,7 +2328,7 @@ static IfNode* idealize_test(PhaseGVN* phase, IfNode* iff) {
     iff = (IfNode*)prior;
   } else {
     // Cannot call transform on it just yet
-    igvn->set_type_bottom(iff);
+    igvn->set_type_toop(iff);
   }
   igvn->_worklist.push(iff);
 
@@ -2621,13 +2621,13 @@ Node* ParsePredicateNode::uncommon_trap() const {
 const Type* ParsePredicateNode::Value(PhaseGVN* phase) const {
   assert(_predicate_state != PredicateState::MaybeUseful, "should only be MaybeUseful when eliminating useless "
                                                           "predicates during loop opts");
-  if (phase->type(in(0)) == Type::TOP) {
-    return Type::TOP;
+  if (phase->type(in(0)) == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
   if (_predicate_state == PredicateState::Useless || phase->C->post_loop_opts_phase()) {
     return TypeTuple::IFTRUE;
   }
-  return bottom_type();
+  return toop_type();
 }
 
 #ifndef PRODUCT

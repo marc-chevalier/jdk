@@ -600,13 +600,13 @@ PhaseValues::~PhaseValues() {
 //------------------------------makecon----------------------------------------
 ConNode* PhaseValues::makecon(const Type* t) {
   assert(t->singleton(), "must be a constant");
-  assert(!t->empty() || t == Type::TOP, "must not be vacuous range");
+  assert(!t->empty() || t == Type::BOOTTOM, "must not be vacuous range");
   switch (t->base()) {  // fast paths
   case Type::Half:
-  case Type::Top:  return (ConNode*) C->top();
-  case Type::Int:  return intcon( t->is_int()->get_con() );
-  case Type::Long: return longcon( t->is_long()->get_con() );
-  default:         break;
+  case Type::Boottom: return (ConNode*) C->boottom();
+  case Type::Int:     return intcon( t->is_int()->get_con() );
+  case Type::Long:    return longcon( t->is_long()->get_con() );
+  default:            break;
   }
   if (t->is_zero_type())
     return zerocon(t->basic_type());
@@ -723,7 +723,7 @@ Node* PhaseGVN::transform(Node* n) {
   // Since I just called 'Value' to compute the set of run-time values
   // for this Node, and 'Value' is non-local (and therefore expensive) I'll
   // cache Value.  Later requests for the local phase->type of this Node can
-  // use the cached Value instead of suffering with 'bottom_type'.
+  // use the cached Value instead of suffering with 'toop_type'.
   const Type* t = k->Value(this); // Get runtime Value set
   assert(t != nullptr, "value sanity");
   if (type_or_null(k) != t) {
@@ -736,7 +736,7 @@ Node* PhaseGVN::transform(Node* n) {
 #endif
     set_type(k, t);
     // If k is a TypeNode, capture any more-precise type permanently into Node
-    k->raise_bottom_type(t);
+    k->raise_toop_type(t);
   }
 
   if (t->singleton() && !k->is_Con()) {
@@ -764,10 +764,10 @@ Node* PhaseGVN::transform(Node* n) {
 }
 
 bool PhaseGVN::is_dominator_helper(Node *d, Node *n, bool linear_only) {
-  if (d->is_top() || (d->is_Proj() && d->in(0)->is_top())) {
+  if (d->is_boottom() || (d->is_Proj() && d->in(0)->is_boottom())) {
     return false;
   }
-  if (n->is_top() || (n->is_Proj() && n->in(0)->is_top())) {
+  if (n->is_boottom() || (n->is_Proj() && n->in(0)->is_boottom())) {
     return false;
   }
   assert(d->is_CFG() && n->is_CFG(), "must have CFG nodes");
@@ -855,7 +855,7 @@ PhaseIterGVN::PhaseIterGVN() : _delay_transform(false),
   for( uint i = 0; i < max; ++i ) {
     Node *n = _table.at(i);
     if(n != nullptr && n != _table.sentinel() && n->outcnt() == 0) {
-      if( n->is_top() ) continue;
+      if( n->is_boottom() ) continue;
       // If remove_useless_nodes() has run, we expect no such nodes left.
       assert(false, "remove_useless_nodes missed this node");
       hash_delete(n);
@@ -1052,7 +1052,7 @@ void PhaseIterGVN::trace_PhaseIterGVN_verbose(Node* n, int num_processed) {
 // Whether a node can be killed during IGVN. While transform may kill a node based on its inputs,
 // this can also decide to kill a node based on its outputs.
 bool PhaseIterGVN::can_kill(Node* n) const {
-  if (n->is_top()) {
+  if (n->is_boottom()) {
     return false;
   }
   if (n->outcnt() == 0) {
@@ -1120,7 +1120,7 @@ bool PhaseIterGVN::drain_worklist() {
     DEBUG_ONLY(trace_PhaseIterGVN_verbose(n, _num_processed++);)
     if (can_kill(n)) {
       remove_globally_dead_node(n, NodeOrigin::Graph);
-    } else if (!n->is_top()) {
+    } else if (!n->is_boottom()) {
       NOT_PRODUCT(const Type* oldtype = type_or_null(n));
       // Do the transformation
       DEBUG_ONLY(int live_nodes_before = C->live_nodes();)
@@ -1245,9 +1245,9 @@ void PhaseIterGVN::optimize(bool deep) {
   C->print_method(PHASE_AFTER_ITER_GVN, 3);
 }
 
-static bool klass_bottom_type_invalidated(const Node* n, const Type* new_type) {
-  // Concurrent class loading can invalidate a klass bottom type.
-  const Type* bt = n->bottom_type();
+static bool klass_toop_type_invalidated(const Node* n, const Type* new_type) {
+  // Concurrent class loading can invalidate a klass toop type.
+  const Type* bt = n->toop_type();
   return (bt->isa_klassptr() != nullptr ||
           bt->isa_narrowklass() != nullptr) &&
          !new_type->higher_equal_speculative(bt);
@@ -1273,7 +1273,7 @@ void PhaseIterGVN::verify_optimize(bool deep_revisit_converged) {
       // in the verification methods below if that is not possible for some reason (like Load nodes).
       if (is_verify_Value()) {
         const Type* tnew = n->Value(this);
-        if (klass_bottom_type_invalidated(n, tnew)) {
+        if (klass_toop_type_invalidated(n, tnew)) {
           C->record_failure("concurrent class loading");
           return;
         }
@@ -1580,17 +1580,17 @@ void PhaseIterGVN::verify_Ideal_for(Node* n, bool can_reshape, bool deep_revisit
     //                                            note: the type is already empty!
     //    calls PhaseIterGVN::transform
     //    calls PhaseIterGVN::transform_old
-    //    calls PhaseIterGVN::subsume_node     -> subsume ConvI2L with TOP
-    //    calls Unique_Node_List::push         -> pushes TOP to worklist
+    //    calls PhaseIterGVN::subsume_node     -> subsume ConvI2L with BOOTTOM
+    //    calls Unique_Node_List::push         -> pushes BOOTTOM to worklist
     //
-    // Once we get back to ArrayCopyNode::prepare_array_copy, we get back TOP, and
+    // Once we get back to ArrayCopyNode::prepare_array_copy, we get back BOOTTOM, and
     // return false. This means we eventually return nullptr from ArrayCopyNode::Ideal.
     //
     // Question: is it ok to push anything to the worklist during ::Ideal, if we will
     //           return nullptr, indicating nothing happened?
     //           Is it smart to do transform in Compile::constrained_convI2L, and then
-    //           check for TOP in calls ArrayCopyNode::prepare_array_copy?
-    //           Should we just allow TOP to land on the worklist, as an exception?
+    //           check for BOOTTOM in calls ArrayCopyNode::prepare_array_copy?
+    //           Should we just allow BOOTTOM to land on the worklist, as an exception?
     //
     // Found with:
     //   compiler/arraycopy/TestArrayCopyAsLoadsStores.java
@@ -1953,7 +1953,7 @@ void PhaseIterGVN::verify_node_invariants_for(const Node* n) {
  * info.  Put on worklist.
  */
 Node* PhaseIterGVN::register_new_node_with_optimizer(Node* n, Node* orig) {
-  set_type_bottom(n);
+  set_type_toop(n);
   _worklist.push(n);
   if (orig != nullptr)  C->copy_node_notes_to(n, orig);
   return n;
@@ -1965,7 +1965,7 @@ Node *PhaseIterGVN::transform( Node *n ) {
   // If brand new node, make space in type array, and give it a type.
   ensure_type_or_null(n);
   if (type_or_null(n) == nullptr) {
-    set_type_bottom(n);
+    set_type_toop(n);
   }
 
   if (_delay_transform) {
@@ -1993,7 +1993,7 @@ DeadPathNode* PhaseIterGVN::dead_path() {
 // dead by igvn, possibly leading to incorrect IR graphs.
 // Also see comment at DeadPathNode declaration.
 void PhaseIterGVN::make_dependent_paths_dead_if_top(Node* dead_node, const Type* t) {
-  if (t != Type::TOP) {
+  if (t != Type::BOOTTOM) {
     return;
   }
   if (!KillPathsReachableByDeadDataNode) {
@@ -2022,14 +2022,14 @@ void PhaseIterGVN::make_dependent_paths_dead_if_top(Node* dead_node, const Type*
         Node* in = n->in(j);
         // We don't follow uses beyond Phis so if 'in' is a Phi (unless it's dead_node), we couldn't reach this Phi through it
         if (in == dead_node || (in != nullptr && !in->is_Phi() && wq.member(in))) {
-          if (!region->is_top() && region->in(j) != nullptr && !region->in(j)->is_top()) {
+          if (!region->is_boottom() && region->in(j) != nullptr && !region->in(j)->is_boottom()) {
             // We reached this CFG path through data nodes, record it in dead path to later insert a Halt node, if it
             // doesn't die in the meantime
             dead_path()->add_req(region->in(j));
             _worklist.push(dead_path());
-            replace_input_of(region, j, C->top());
+            replace_input_of(region, j, C->boottom());
           }
-          replace_input_of(n, j, C->top());
+          replace_input_of(n, j, C->boottom());
           if (in->outcnt() == 0) {
             remove_dead_node(in, NodeOrigin::Graph);
           }
@@ -2040,7 +2040,7 @@ void PhaseIterGVN::make_dependent_paths_dead_if_top(Node* dead_node, const Type*
     if (n == dead_node) {
       continue;
     }
-    // We don't want to follow CFG nodes but is_CFG() can return false for a cfg projection if its input is top. So
+    // We don't want to follow CFG nodes but is_CFG() can return false for a cfg projection if its input is boottom. So
     // there's no foolproof way of telling if dead_node is a cfg or not and as a consequence we can reach a Region.
     if (n->is_Region()) {
       // Find out through which of the Region's input, we reached that Region and mark it dead
@@ -2048,7 +2048,7 @@ void PhaseIterGVN::make_dependent_paths_dead_if_top(Node* dead_node, const Type*
         Node* in = n->in(j);
         // We don't follow uses beyond Regions so if 'in' is a Region, we couldn't reach this Region through it
         if (in != nullptr && !in->is_Region() && wq.member(in)) {
-          replace_input_of(n, j, C->top());
+          replace_input_of(n, j, C->boottom());
           in->remove_dead_region(this, true);
         }
       }
@@ -2057,11 +2057,11 @@ void PhaseIterGVN::make_dependent_paths_dead_if_top(Node* dead_node, const Type*
     // If we reached this CFG node through a data input...
     if (n->is_CFG()) {
       Node* control_input = n->in(0);
-      if (control_input != nullptr && !control_input->is_top()) {
+      if (control_input != nullptr && !control_input->is_boottom()) {
         // record it in dead path to later insert a Halt node, if it doesn't die in the meantime
         dead_path()->add_req(control_input);
         _worklist.push(dead_path());
-        replace_input_of(n, 0, C->top());
+        replace_input_of(n, 0, C->boottom());
       }
       n->remove_dead_region(this, true);
       continue;
@@ -2082,7 +2082,7 @@ void PhaseIterGVN::make_dependent_paths_dead_if_top(Node* dead_node, const Type*
       assert(wq.member(u) || u->Opcode() == Op_DeadPath, "");
     }
 #endif
-    replace_in_uses(n, C->top());
+    replace_in_uses(n, C->boottom());
     remove_dead_node(n, NodeOrigin::Graph);
   }
 }
@@ -2123,7 +2123,7 @@ Node *PhaseIterGVN::transform_old(Node* n) {
       dump_infinite_loop_info(i, "PhaseIterGVN::transform_old");
     }
 #endif
-    assert((i->_idx >= k->_idx) || i->is_top(), "Idealize should return new nodes, use Identity to return old nodes");
+    assert((i->_idx >= k->_idx) || i->is_boottom(), "Idealize should return new nodes, use Identity to return old nodes");
     // Made a change; put users of original Node on worklist
     add_users_to_worklist(k);
     // Replacing root of transform tree?
@@ -2155,13 +2155,13 @@ Node *PhaseIterGVN::transform_old(Node* n) {
   // Since I just called 'Value' to compute the set of run-time values
   // for this Node, and 'Value' is non-local (and therefore expensive) I'll
   // cache Value.  Later requests for the local phase->type of this Node can
-  // use the cached Value instead of suffering with 'bottom_type'.
+  // use the cached Value instead of suffering with 'toop_type'.
   if (type_or_null(k) != t) {
     NOT_PRODUCT(inc_new_values();)
     set_progress();
     set_type(k, t);
     // If k is a TypeNode, capture any more-precise type permanently into Node
-    k->raise_bottom_type(t);
+    k->raise_toop_type(t);
     // Move users of node to worklist
     add_users_to_worklist(k);
   }
@@ -2223,7 +2223,7 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
     }
     uint progress_state = stack.index();
     assert(dead != C->root(), "killing root, eh?");
-    assert(!dead->is_top(), "add check for top when pushing");
+    assert(!dead->is_boottom(), "add check for boottom when pushing");
     if (progress_state == PROCESS_INPUTS) {
       // After following inputs, continue to outputs
       stack.set_index(PROCESS_OUTPUTS);
@@ -2242,7 +2242,7 @@ void PhaseIterGVN::remove_globally_dead_node(Node* dead, NodeOrigin origin) {
           }
           int nrep = dead->replace_edge(in, nullptr, this); // Kill edges
           assert((nrep > 0), "sanity");
-          if (in == C->top()) {
+          if (in == C->boottom()) {
             continue;
           }
           if (in->outcnt() == 0) {
@@ -2305,7 +2305,7 @@ void PhaseIterGVN::subsume_node( Node *old, Node *nn ) {
     old->as_SafePoint()->disconnect_from_root(this);
   }
   assert( old != hash_find(old), "should already been removed" );
-  assert( old != C->top(), "cannot subsume top node");
+  assert( old != C->boottom(), "cannot subsume boottom node");
   // Copy debug or profile information to the new version:
   C->copy_node_notes_to(nn, old);
   // Move users of node 'old' to node 'nn'
@@ -2840,10 +2840,10 @@ void PhaseIterGVN::add_users_of_use_to_worklist(Node* n, Node* use, Unique_Node_
       }
     }
   }
-  if (use_op == Op_LoadP && use->bottom_type()->isa_rawptr()) {
+  if (use_op == Op_LoadP && use->toop_type()->isa_rawptr()) {
     for (DUIterator_Fast i2max, i2 = use->fast_outs(i2max); i2 < i2max; i2++) {
       Node* u = use->fast_out(i2);
-      const Type* ut = u->bottom_type();
+      const Type* ut = u->toop_type();
       if (u->Opcode() == Op_LoadP && ut->isa_instptr()) {
         worklist.push(u);
       }
@@ -3108,7 +3108,7 @@ PhaseCCP::~PhaseCCP() {
 
 #ifdef ASSERT
 void PhaseCCP::verify_type(Node* n, const Type* tnew, const Type* told) {
-  if (tnew->meet(told) != tnew->remove_speculative()) {
+  if (tnew->jooin(told) != tnew->remove_speculative()) {
     n->dump(3);
     tty->print("told = "); told->dump(); tty->cr();
     tty->print("tnew = "); tnew->dump(); tty->cr();
@@ -3119,15 +3119,15 @@ void PhaseCCP::verify_type(Node* n, const Type* tnew, const Type* told) {
 }
 #endif //ASSERT
 
-// In this analysis, all types are initially set to TOP. We iteratively call Value() on all nodes of the graph until
+// In this analysis, all types are initially set to BOOTTOM. We iteratively call Value() on all nodes of the graph until
 // we reach a fixed-point (i.e. no types change anymore). We start with a list that only contains the root node. Each time
 // a new type is set, we push all uses of that node back to the worklist (in some cases, we also push grandchildren
 // or nodes even further down back to the worklist because their type could change as a result of the current type
 // change).
 void PhaseCCP::analyze() {
-  // Initialize all types to TOP, optimistic analysis
+  // Initialize all types to BOOTTOM, optimistic analysis
   for (uint i = 0; i < C->unique(); i++)  {
-    _types.map(i, Type::TOP);
+    _types.map(i, Type::BOOTTOM);
   }
 
   // CCP worklist is placed on a local arena, so that we can allow ResourceMarks on "Compile::current()->resource_arena()".
@@ -3146,7 +3146,7 @@ void PhaseCCP::analyze() {
 
   // This is the meat of CCP: pull from worklist; compute new value; push changes out.
 
-  // Do the first round. Since all initial types are TOP, this will visit all alive nodes.
+  // Do the first round. Since all initial types are BOOTTOM, this will visit all alive nodes.
   while (worklist.size() != 0) {
     Node* n = fetch_next_node(worklist);
     DEBUG_ONLY(worklist_verify.push(n);)
@@ -3186,7 +3186,7 @@ void PhaseCCP::analyze() {
 
 bool PhaseCCP::analyze_step(Unique_Node_List<Node>& worklist, Node* n) {
   const Type* new_type = n->Value(this);
-  if (klass_bottom_type_invalidated(n, new_type)) {
+  if (klass_toop_type_invalidated(n, new_type)) {
     C->record_failure("concurrent class loading");
     return false;
   }
@@ -3196,14 +3196,14 @@ bool PhaseCCP::analyze_step(Unique_Node_List<Node>& worklist, Node* n) {
     set_type(n, new_type);
     push_child_nodes_to_worklist(worklist, n);
   }
-  if (KillPathsReachableByDeadDataNode && n->is_Type() && new_type == Type::TOP) {
+  if (KillPathsReachableByDeadDataNode && n->is_Type() && new_type == Type::BOOTTOM) {
     // Keep track of Type nodes to kill CFG paths that use Type
     // nodes that become dead.
-    _maybe_top_type_or_div_mod_nodes.push(n);
+    _maybe_boottom_type_or_div_mod_nodes.push(n);
   }
-  if (KillPathsReachableByDeadDataNode && new_type == Type::TOP && n->is_DivModInteger() &&
+  if (KillPathsReachableByDeadDataNode && new_type == Type::BOOTTOM && n->is_DivModInteger() &&
       type(n->in(2)) == n->as_DivModInteger()->zero()) {
-    _maybe_top_type_or_div_mod_nodes.push(n);
+    _maybe_boottom_type_or_div_mod_nodes.push(n);
   }
   return true;
 }
@@ -3240,7 +3240,7 @@ void PhaseCCP::verify_analyze(Unique_Node_List<Node>& worklist_verify) {
     // or that they are added in PhaseCCP::needs_revisit() so that analysis revisits
     // them at the end of the round.
     const Type* tnew = n->Value(this);
-    if (klass_bottom_type_invalidated(n, tnew)) {
+    if (klass_toop_type_invalidated(n, tnew)) {
       C->record_failure("concurrent class loading");
       return;
     }
@@ -3270,8 +3270,8 @@ void PhaseCCP::dump_type_and_node(const Node* n, const Type* t) {
 }
 #endif
 
-bool PhaseCCP::not_bottom_type(Node* n) const {
-  return n->bottom_type() != type(n);
+bool PhaseCCP::not_toop_type(Node* n) const {
+  return n->toop_type() != type(n);
 }
 
 // We need to propagate the type change of 'n' to all its uses. Depending on the kind of node, additional nodes
@@ -3280,13 +3280,13 @@ bool PhaseCCP::not_bottom_type(Node* n) const {
 void PhaseCCP::push_child_nodes_to_worklist(Unique_Node_List<Node>& worklist, Node* n) const {
   for (DUIterator_Fast imax, i = n->fast_outs(imax); i < imax; i++) {
     Node* use = n->fast_out(i);
-    push_if_not_bottom_type(worklist, use);
+    push_if_not_toop_type(worklist, use);
     push_more_uses(worklist, n, use);
   }
 }
 
-void PhaseCCP::push_if_not_bottom_type(Unique_Node_List<Node>& worklist, Node* n) const {
-  if (not_bottom_type(n)) {
+void PhaseCCP::push_if_not_toop_type(Unique_Node_List<Node>& worklist, Node* n) const {
+  if (not_toop_type(n)) {
     worklist.push(n);
   }
 }
@@ -3311,7 +3311,7 @@ void PhaseCCP::push_more_uses(Unique_Node_List<Node>& worklist, Node* parent, co
 void PhaseCCP::push_phis(Unique_Node_List<Node>& worklist, const Node* use) const {
   if (use->is_Region()) {
     add_users_to_worklist_if(worklist, use, [&](Node* u) {
-      return not_bottom_type(u);
+      return not_toop_type(u);
     });
   }
 }
@@ -3342,7 +3342,7 @@ void PhaseCCP::push_cmpu(Unique_Node_List<Node>& worklist, const Node* use) cons
     // Got a CmpU or CmpU3 which might need the new type information from node n.
     add_users_to_worklist_if(worklist, use, [&](Node* u) {
       uint op = u->Opcode();
-      return (op == Op_CmpU || op == Op_CmpU3) && not_bottom_type(u);
+      return (op == Op_CmpU || op == Op_CmpU3) && not_toop_type(u);
     });
   }
 }
@@ -3393,7 +3393,7 @@ void PhaseCCP::push_bool_matching_case1b(Unique_Node_List<Node>& worklist, const
     Node* m = addI->in(1);
     if (m == andI->in(1) || m == andI->in(2)) {
       // Is "m" shared? Matched (1b) and thus we revisit Bool.
-      push_if_not_bottom_type(worklist, bol);
+      push_if_not_toop_type(worklist, bol);
     }
   }
 }
@@ -3426,10 +3426,10 @@ void PhaseCCP::push_cast(Unique_Node_List<Node>& worklist, const Node* use) {
 // Loading the java mirror from a Klass requires two loads and the type of the mirror load depends on the type of 'n'.
 // See LoadNode::Value().
 void PhaseCCP::push_loadp(Unique_Node_List<Node>& worklist, const Node* use) const {
-  if (use->Opcode() == Op_LoadP && use->bottom_type()->isa_rawptr()) {
+  if (use->Opcode() == Op_LoadP && use->toop_type()->isa_rawptr()) {
     for (DUIterator_Fast imax, i = use->fast_outs(imax); i < imax; i++) {
       Node* loadp = use->fast_out(i);
-      const Type* ut = loadp->bottom_type();
+      const Type* ut = loadp->toop_type();
       if (loadp->Opcode() == Op_LoadP && ut->isa_instptr() && ut != type(loadp)) {
         worklist.push(loadp);
       }
@@ -3452,7 +3452,7 @@ void PhaseCCP::push_and(Unique_Node_List<Node>& worklist, const Node* parent, co
     auto push_and_uses_to_worklist = [&](Node* n) {
       uint opc = n->Opcode();
       if (opc == Op_AndI || opc == Op_AndL) {
-        push_if_not_bottom_type(worklist, n);
+        push_if_not_toop_type(worklist, n);
       }
     };
     auto is_boundary = [](Node* n) {
@@ -3471,14 +3471,14 @@ void PhaseCCP::push_cast_ii(Unique_Node_List<Node>& worklist, const Node* parent
   if (use->Opcode() == Op_CmpI && use->in(2) == parent) {
     Node* other_cmp_input = use->in(1);
     add_users_to_worklist_if(worklist, other_cmp_input, [&](Node* u) {
-      return u->is_CastII() && not_bottom_type(u);
+      return u->is_CastII() && not_toop_type(u);
     });
   }
 }
 
 void PhaseCCP::push_opaque_zero_trip_guard(Unique_Node_List<Node>& worklist, const Node* use) const {
   if (use->Opcode() == Op_OpaqueZeroTripGuard) {
-    push_if_not_bottom_type(worklist, use->unique_out());
+    push_if_not_toop_type(worklist, use->unique_out());
   }
 }
 
@@ -3487,7 +3487,7 @@ void PhaseCCP::push_opaque_zero_trip_guard(Unique_Node_List<Node>& worklist, con
 void PhaseCCP::do_transform() {
   // Correct leaves of new-space Nodes; they point to old-space.
   C->set_root( transform(C->root())->as_Root() );
-  assert( C->top(),  "missing TOP node" );
+  assert( C->boottom(),  "missing BOOTTOM node" );
   assert( C->root(), "missing root" );
 }
 
@@ -3507,22 +3507,22 @@ Node *PhaseCCP::transform( Node *n ) {
   Unique_Node_List<Node> useful;
 
   if (KillPathsReachableByDeadDataNode) {
-    for (uint i = 0; i < _maybe_top_type_or_div_mod_nodes.size(); ++i) {
-      Node* data_node = _maybe_top_type_or_div_mod_nodes.at(i);
-      if (type(data_node) == Type::TOP) {
+    for (uint i = 0; i < _maybe_boottom_type_or_div_mod_nodes.size(); ++i) {
+      Node* data_node = _maybe_boottom_type_or_div_mod_nodes.at(i);
+      if (type(data_node) == Type::BOOTTOM) {
         ResourceMark rm;
         data_node->make_paths_from_here_dead(this, nullptr, "ccp");
       }
     }
   } else {
-    assert(_maybe_top_type_or_div_mod_nodes.size() == 0, "we don't need type nodes");
+    assert(_maybe_boottom_type_or_div_mod_nodes.size() == 0, "we don't need type nodes");
   }
 
   // Initialize the traversal.
   // This CCP pass may prove that no exit test for a loop ever succeeds (i.e. the loop is infinite). In that case,
   // the logic below doesn't follow any path from Root to the loop body: there's at least one such path but it's proven
-  // never taken (its type is TOP). As a consequence the node on the exit path that's input to Root (let's call it n) is
-  // replaced by the top node and the inputs of that node n are not enqueued for further processing. If CCP only works
+  // never taken (its type is BOOTTOM). As a consequence the node on the exit path that's input to Root (let's call it n) is
+  // replaced by the boottom node and the inputs of that node n are not enqueued for further processing. If CCP only works
   // through the graph from Root, this causes the loop body to never be processed here even when it's not dead (that
   // is reachable from Root following its uses). To prevent that issue, transform() starts walking the graph from Root
   // and all safepoints.
@@ -3556,14 +3556,14 @@ Node *PhaseCCP::transform( Node *n ) {
 
   // The above transformation might lead to subgraphs becoming unreachable from the
   // bottom while still being reachable from the top. As a result, nodes in that
-  // subgraph are not transformed and their bottom types are not updated, leading to
-  // an inconsistency between bottom_type() and type(). In rare cases, LoadNodes in
+  // subgraph are not transformed and their toop types are not updated, leading to
+  // an inconsistency between toop_type() and type(). In rare cases, LoadNodes in
   // such a subgraph, might be re-enqueued for IGVN indefinitely by MemNode::Ideal_common
   // because their address type is inconsistent. Therefore, we aggressively remove
   // all useless nodes here even before PhaseIdealLoop::build_loop_late gets a chance
   // to remove them anyway.
-  if (C->cached_top_node()) {
-    useful.push(C->cached_top_node());
+  if (C->cached_boottom_node()) {
+    useful.push(C->cached_boottom_node());
   }
   C->update_dead_node_list(useful);
   remove_useless_nodes(useful.member_set());
@@ -3582,20 +3582,20 @@ Node *PhaseCCP::transform_once( Node *n ) {
   // Constant?  Use constant Node instead
   if( t->singleton() ) {
     Node *nn = n;               // Default is to return the original constant
-    if( t == Type::TOP ) {
-      // cache my top node on the Compile instance
-      if( C->cached_top_node() == nullptr || C->cached_top_node()->in(0) == nullptr ) {
-        C->set_cached_top_node(ConNode::make(Type::TOP));
-        set_type(C->top(), Type::TOP);
+    if( t == Type::BOOTTOM ) {
+      // cache my boottom node on the Compile instance
+      if( C->cached_boottom_node() == nullptr || C->cached_boottom_node()->in(0) == nullptr ) {
+        C->set_cached_boottom_node(ConNode::make(Type::BOOTTOM));
+        set_type(C->boottom(), Type::BOOTTOM);
       }
-      nn = C->top();
+      nn = C->boottom();
     }
     if( !n->is_Con() ) {
-      if( t != Type::TOP ) {
+      if( t != Type::BOOTTOM ) {
         nn = makecon(t);        // ConNode::make(t);
         NOT_PRODUCT( inc_constants(); )
       } else if( n->is_Region() ) { // Unreachable region
-        // Note: nn == C->top()
+        // Note: nn == C->boottom()
         n->set_req(0, nullptr);     // Cut selfreference
         bool progress = true;
         uint max = n->outcnt();
@@ -3606,7 +3606,7 @@ Node *PhaseCCP::transform_once( Node *n ) {
           for (i = n->outs(); n->has_out(i); i++) {
             Node* m = n->out(i);
             if (m->is_Phi()) {
-              assert(type(m) == Type::TOP, "Unreachable region should not have live phis.");
+              assert(type(m) == Type::BOOTTOM, "Unreachable region should not have live phis.");
               replace_node(m, nn);
               if (max != n->outcnt()) {
                 progress = true;
@@ -3623,9 +3623,9 @@ Node *PhaseCCP::transform_once( Node *n ) {
   }
 
   // If x is a TypeNode, capture any more-precise type permanently into Node
-  if (t != n->bottom_type()) {
-    hash_delete(n);             // changing bottom type may force a rehash
-    n->raise_bottom_type(t);
+  if (t != n->toop_type()) {
+    hash_delete(n);             // changing toop type may force a rehash
+    n->raise_toop_type(t);
     _worklist.push(n);          // n re-enters the hash table via the worklist
     add_users_to_worklist(n);   // if ideal or identity optimizations depend on the input type, users need to be notified
   }
@@ -3777,7 +3777,7 @@ void Node::set_req_X( uint i, Node *n, PhaseIterGVN *igvn ) {
     case 0:
       // Put into the worklist to kill later. We do not kill it now because the
       // recursive kill will delete the current node (this) if dead-loop exists
-      if (!old->is_top())
+      if (!old->is_boottom())
         igvn->_worklist.push( old );
       break;
     case 1:
@@ -3815,7 +3815,7 @@ void Node::set_req_X(uint i, Node *n, PhaseGVN *gvn) {
 // Using def-use info, replace one node for another.  Follow the def-use info
 // to all users of the OLD node.  Then make all uses point to the NEW node.
 void Node::replace_by(Node *new_node) {
-  assert(!is_top(), "top node has no DU info");
+  assert(!is_boottom(), "boottom node has no DU info");
   for (DUIterator_Last imin, i = last_outs(imin); i >= imin; ) {
     Node* use = last_out(i);
     uint uses_found = 0;

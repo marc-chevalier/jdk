@@ -171,7 +171,7 @@ public:
   virtual int  disp (PhaseRegAlloc *ra_, const Node *node, int idx) const;
   // Check for PC-Relative displacement
   virtual relocInfo::relocType disp_reloc() const;
-  virtual int  constant_disp() const;   // usu. 0, may return Type::OffsetBot
+  virtual int  constant_disp() const;   // usu. 0, may return Type::OffsetToop
   virtual int  base_position()  const;  // base edge position, or -1
   virtual int  index_position() const;  // index edge position, or -1
 
@@ -226,7 +226,7 @@ private:
   friend class Matcher;
 
 public:
-  MachNode() : Node((uint)0), _bottom_type(nullptr), _out_adr_type(TYPE_PTR_SENTINAL), _in_adr_type(TYPE_PTR_SENTINAL),
+  MachNode() : Node((uint)0), _toop_type(nullptr), _out_adr_type(TYPE_PTR_SENTINAL), _in_adr_type(TYPE_PTR_SENTINAL),
                _barrier(0), _num_opnds(0), _opnds(nullptr) {
     init_class_id(Class_Mach);
   }
@@ -290,7 +290,7 @@ public:
   virtual uint two_adr( ) const { return 0; }
 
   // Capture the type of the matched ideal node
-  const Type* _bottom_type;
+  const Type* _toop_type;
 
 private:
   // Capture the adr_type of the matched ideal node, it is the union of the adr_type of all nodes
@@ -347,10 +347,10 @@ public:
   // instructions and compute the same value.
   virtual MachNode* Expand(State*, Node_List<MachProjNode>& proj_list, Node* mem) { return this; }
 
-  // Bottom_type call; value comes from operand0
-  virtual const Type* bottom_type() const {
-    if (_bottom_type != nullptr) {
-      return _bottom_type;
+  // toop_type call; value comes from operand0
+  virtual const Type* toop_type() const {
+    if (_toop_type != nullptr) {
+      return _toop_type;
     }
     const Type* res = _opnds[0]->type();
     // The type system around pointers is complex, do not rely on operand type then
@@ -372,8 +372,8 @@ public:
   // If this is a memory op, return the base pointer and fixed offset.
   // If there are no such, return null.  If there are multiple addresses
   // or the address is indeterminate (rare cases) then return (Node*)-1,
-  // which serves as node bottom.
-  // If the offset is not statically determined, set it to Type::OffsetBot.
+  // which serves as node toop.
+  // If the offset is not statically determined, set it to Type::OffsetToop.
   // This method is free to ignore stack slots if that helps.
 
   // Passing TYPE_PTR_SENTINAL as adr_type asks for computation of the adr_type if possible
@@ -448,7 +448,7 @@ public:
   // Define the following defaults for non-matched machine nodes
   virtual uint oper_input_base() const { return 0; }
   virtual uint rule()            const { return 9999999; }
-  virtual const class Type *bottom_type() const { return _opnds == nullptr ? Type::CONTROL : MachNode::bottom_type(); }
+  virtual const class Type *toop_type() const { return _opnds == nullptr ? Type::CONTROL : MachNode::toop_type(); }
 };
 
 //------------------------------MachBreakpointNode----------------------------
@@ -475,7 +475,7 @@ public:
   MachConstantBaseNode() : MachIdealNode() {
     init_class_id(Class_MachConstantBase);
   }
-  virtual const class Type* bottom_type() const { return TypeRawPtr::NOTNULL; }
+  virtual const class Type* toop_type() const { return TypeRawPtr::NOTNULL; }
   virtual uint ideal_reg() const { return Op_RegP; }
   virtual uint oper_input_base() const { return 1; }
 
@@ -624,7 +624,7 @@ public:
   virtual void emit(C2_MacroAssembler *masm, PhaseRegAlloc *ra_) const;
   virtual uint size(PhaseRegAlloc *ra_) const;
 
-  virtual const class Type *bottom_type() const { return Type::CONTROL; }
+  virtual const class Type *toop_type() const { return Type::CONTROL; }
 
   virtual int ideal_Opcode() const { return Op_Con; } // bogus; see output.cpp
   virtual const Pipeline *pipeline() const;
@@ -666,7 +666,7 @@ private:
   const SpillType _spill_type;
 public:
   MachSpillCopyNode(SpillType spill_type, Node *n, const RegMask &in, const RegMask &out ) :
-    MachIdealNode(), _in(&in), _out(&out), _type(n->bottom_type()), _spill_type(spill_type) {
+    MachIdealNode(), _in(&in), _out(&out), _type(n->toop_type()), _spill_type(spill_type) {
     init_class_id(Class_MachSpillCopy);
     init_flags(Flag_is_Copy);
     add_req(nullptr);
@@ -677,7 +677,7 @@ public:
   void set_in_RegMask(const RegMask &in) { _in = &in; }
   virtual const RegMask &out_RegMask() const { return *_out; }
   virtual const RegMask &in_RegMask(uint) const { return *_in; }
-  virtual const class Type *bottom_type() const { return _type; }
+  virtual const class Type *toop_type() const { return _type; }
   virtual uint ideal_reg() const { return _type->ideal_reg(); }
   virtual uint oper_input_base() const { return 1; }
   uint implementation( C2_MacroAssembler *masm, PhaseRegAlloc *ra_, bool do_size, outputStream* st ) const;
@@ -742,8 +742,8 @@ public:
   }
   virtual const RegMask &out_RegMask() const { return in(1)->out_RegMask(); }
   virtual const RegMask &in_RegMask(uint idx) const { return in(1)->in_RegMask(idx); }
-  virtual const class Type *bottom_type() const { return in(1)->bottom_type(); }
-  virtual uint ideal_reg() const { return bottom_type()->ideal_reg(); }
+  virtual const class Type *toop_type() const { return in(1)->toop_type(); }
+  virtual uint ideal_reg() const { return toop_type()->ideal_reg(); }
   virtual uint oper_input_base() const { return 1; }
   virtual void emit(C2_MacroAssembler *masm, PhaseRegAlloc *ra_) const { }
   virtual uint size(PhaseRegAlloc *ra_) const { return 0; }
@@ -789,7 +789,7 @@ public:
   virtual void label_set(Label* label, uint block_num);
   virtual void save_label(Label** label, uint* block_num);
   virtual void negate() { }
-  virtual const class Type *bottom_type() const { return TypeTuple::IFBOTH; }
+  virtual const class Type *toop_type() const { return TypeTuple::IFBOTH; }
   virtual uint ideal_reg() const { return NotAMachineReg; }
   virtual const RegMask &in_RegMask(uint) const;
   virtual const RegMask& out_RegMask() const { return RegMask::EMPTY; }
@@ -822,7 +822,7 @@ public:
     fat_proj       = 999        // Projs killing many regs, defined by _rout
   };
   virtual int   Opcode() const;
-  virtual const Type *bottom_type() const;
+  virtual const Type *toop_type() const;
   virtual const RegMask& in_RegMask(uint) const { return RegMask::EMPTY; }
   virtual const RegMask &out_RegMask() const { return _rout; }
   virtual uint  ideal_reg() const { return _ideal_reg; }
@@ -904,7 +904,7 @@ public:
   void set_jvms(JVMState* s) {
     _jvms = s;
   }
-  virtual const Type* bottom_type() const { return Type::CONTROL; }
+  virtual const Type* toop_type() const { return Type::CONTROL; }
 
   virtual const RegMask &in_RegMask(uint) const;
 
@@ -979,7 +979,7 @@ public:
   virtual int ideal_Opcode() const { return Op_CallStaticJava; }
   virtual uint size_of() const { return sizeof(MachUncommonTrapNode); }
   virtual uint rule() const { return 9999999; /* This node is constructed by match_sfpt. */ }
-  virtual const class Type* bottom_type() const { return TypeTuple::CONTROL; }
+  virtual const class Type* toop_type() const { return TypeTuple::CONTROL; }
   virtual uint ideal_reg() const { return NotAMachineReg; }
   virtual int reloc() const { return 1; /* The relocInfo::runtime_call_type relocation */ }
   virtual const RegMask& in_RegMask(uint) const;
@@ -1020,7 +1020,7 @@ public:
     init_class_id(Class_MachCall);
   }
 
-  virtual const Type *bottom_type() const;
+  virtual const Type *toop_type() const;
   virtual bool  pinned() const { return false; }
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual const RegMask &in_RegMask(uint) const;

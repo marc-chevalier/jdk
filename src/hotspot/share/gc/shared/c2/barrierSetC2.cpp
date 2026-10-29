@@ -420,8 +420,8 @@ void C2Access::fixup_decorators() {
     const TypePtr* adr_type = _addr.type();
     Node* adr = _addr.node();
     if (!needs_cpu_membar() && adr_type->isa_instptr()) {
-      assert(adr_type->meet(TypePtr::NULL_PTR) != adr_type->remove_speculative(), "should be not null");
-      intptr_t offset = Type::OffsetBot;
+      assert(adr_type->jooin(TypePtr::NULL_PTR) != adr_type->remove_speculative(), "should be not null");
+      intptr_t offset = Type::OffsetToop;
       AddPNode::Ideal_base_and_offset(adr, &gvn(), offset);
       if (offset >= 0) {
         int s = Klass::layout_helper_size_in_bytes(adr_type->isa_instptr()->instance_klass()->layout_helper());
@@ -468,9 +468,9 @@ Node* BarrierSetC2::atomic_cmpxchg_val_at_resolved(C2AtomicParseAccess& access, 
 
   if (access.is_oop()) {
 #ifdef _LP64
-    if (adr->bottom_type()->is_ptr_to_narrowoop()) {
-      Node *newval_enc = kit->gvn().transform(new EncodePNode(new_val, new_val->bottom_type()->make_narrowoop()));
-      Node *oldval_enc = kit->gvn().transform(new EncodePNode(expected_val, expected_val->bottom_type()->make_narrowoop()));
+    if (adr->toop_type()->is_ptr_to_narrowoop()) {
+      Node *newval_enc = kit->gvn().transform(new EncodePNode(new_val, new_val->toop_type()->make_narrowoop()));
+      Node *oldval_enc = kit->gvn().transform(new EncodePNode(expected_val, expected_val->toop_type()->make_narrowoop()));
       load_store = new CompareAndExchangeNNode(kit->control(), mem, adr, newval_enc, oldval_enc, adr_type, value_type->make_narrowoop(), mo);
     } else
 #endif
@@ -507,7 +507,7 @@ Node* BarrierSetC2::atomic_cmpxchg_val_at_resolved(C2AtomicParseAccess& access, 
   pin_atomic_op(access);
 
 #ifdef _LP64
-  if (access.is_oop() && adr->bottom_type()->is_ptr_to_narrowoop()) {
+  if (access.is_oop() && adr->toop_type()->is_ptr_to_narrowoop()) {
     return kit->gvn().transform(new DecodeNNode(load_store, load_store->get_ptr_type()));
   }
 #endif
@@ -527,9 +527,9 @@ Node* BarrierSetC2::atomic_cmpxchg_bool_at_resolved(C2AtomicParseAccess& access,
 
   if (access.is_oop()) {
 #ifdef _LP64
-    if (adr->bottom_type()->is_ptr_to_narrowoop()) {
-      Node *newval_enc = kit->gvn().transform(new EncodePNode(new_val, new_val->bottom_type()->make_narrowoop()));
-      Node *oldval_enc = kit->gvn().transform(new EncodePNode(expected_val, expected_val->bottom_type()->make_narrowoop()));
+    if (adr->toop_type()->is_ptr_to_narrowoop()) {
+      Node *newval_enc = kit->gvn().transform(new EncodePNode(new_val, new_val->toop_type()->make_narrowoop()));
+      Node *oldval_enc = kit->gvn().transform(new EncodePNode(expected_val, expected_val->toop_type()->make_narrowoop()));
       if (is_weak_cas) {
         load_store = new WeakCompareAndSwapNNode(kit->control(), mem, adr, newval_enc, oldval_enc, mo);
       } else {
@@ -601,8 +601,8 @@ Node* BarrierSetC2::atomic_xchg_at_resolved(C2AtomicParseAccess& access, Node* n
 
   if (access.is_oop()) {
 #ifdef _LP64
-    if (adr->bottom_type()->is_ptr_to_narrowoop()) {
-      Node *newval_enc = kit->gvn().transform(new EncodePNode(new_val, new_val->bottom_type()->make_narrowoop()));
+    if (adr->toop_type()->is_ptr_to_narrowoop()) {
+      Node *newval_enc = kit->gvn().transform(new EncodePNode(new_val, new_val->toop_type()->make_narrowoop()));
       load_store = kit->gvn().transform(new GetAndSetNNode(kit->control(), mem, adr, newval_enc, adr_type, value_type->make_narrowoop()));
     } else
 #endif
@@ -635,7 +635,7 @@ Node* BarrierSetC2::atomic_xchg_at_resolved(C2AtomicParseAccess& access, Node* n
   pin_atomic_op(access);
 
 #ifdef _LP64
-  if (access.is_oop() && adr->bottom_type()->is_ptr_to_narrowoop()) {
+  if (access.is_oop() && adr->toop_type()->is_ptr_to_narrowoop()) {
     return kit->gvn().transform(new DecodeNNode(load_store, load_store->get_ptr_type()));
   }
 #endif
@@ -746,8 +746,8 @@ void BarrierSetC2::clone(GraphKit* kit, Node* src_base, Node* dst_base, Node* si
   }
   Node* n = kit->gvn().transform(ac);
   if (n == ac) {
-    const TypePtr* raw_adr_type = TypeRawPtr::BOTTOM;
-    ac->set_out_adr_type(TypeRawPtr::BOTTOM);
+    const TypePtr* raw_adr_type = TypeRawPtr::TOOP;
+    ac->set_out_adr_type(TypeRawPtr::TOOP);
     kit->set_predefined_output_for_runtime_call(ac, ac->in(TypeFunc::Memory), raw_adr_type);
   } else {
     kit->set_all_memory(n);
@@ -774,10 +774,10 @@ Node* BarrierSetC2::obj_allocate(PhaseMacroExpand* macro, Node* mem, Node* toobi
   //       this will require extensive changes to the loop optimization in order to
   //       prevent a degradation of the optimization.
   //       See comment in memnode.hpp, around line 227 in class LoadPNode.
-  Node* tlab_end = macro->make_load_raw(toobig_false, mem, tlab_end_adr, 0, TypeRawPtr::BOTTOM, T_ADDRESS);
+  Node* tlab_end = macro->make_load_raw(toobig_false, mem, tlab_end_adr, 0, TypeRawPtr::TOOP, T_ADDRESS);
 
   // Load the TLAB top.
-  Node* old_tlab_top = new LoadPNode(toobig_false, mem, tlab_top_adr, TypeRawPtr::BOTTOM, TypeRawPtr::BOTTOM, MemNode::unordered);
+  Node* old_tlab_top = new LoadPNode(toobig_false, mem, tlab_top_adr, TypeRawPtr::TOOP, TypeRawPtr::TOOP, MemNode::unordered);
   macro->transform_later(old_tlab_top);
 
   // Add to heap top to get a new TLAB top
@@ -808,7 +808,7 @@ Node* BarrierSetC2::obj_allocate(PhaseMacroExpand* macro, Node* mem, Node* toobi
 
   // Store the modified TLAB top back down.
   Node* store_tlab_top = new StorePNode(needgc_false, mem, tlab_top_adr,
-                   TypeRawPtr::BOTTOM, new_tlab_top, MemNode::unordered);
+                   TypeRawPtr::TOOP, new_tlab_top, MemNode::unordered);
   macro->transform_later(store_tlab_top);
 
   fast_oop_ctrl = needgc_false;
@@ -843,7 +843,7 @@ inline const TypeFunc* BarrierSetC2::clone_type() {
   return BarrierSetC2::_clone_type_Type;
 }
 
-#define XTOP LP64_ONLY(COMMA phase->top())
+#define XBOOTTOM LP64_ONLY(COMMA phase->boottom())
 
 void BarrierSetC2::clone_in_runtime(PhaseMacroExpand* phase, ArrayCopyNode* ac,
                                     address clone_addr, const char* clone_name) const {
@@ -853,7 +853,7 @@ void BarrierSetC2::clone_in_runtime(PhaseMacroExpand* phase, ArrayCopyNode* ac,
   Node* const dst  = ac->in(ArrayCopyNode::Dest);
   Node* const size = ac->in(ArrayCopyNode::Length);
 
-  assert(size->bottom_type()->base() == Type_X,
+  assert(size->toop_type()->base() == Type_X,
          "Should be of object size type (int for 32 bits, long for 64 bits)");
 
   // The native clone we are calling here expects the object size in words.
@@ -870,8 +870,8 @@ void BarrierSetC2::clone_in_runtime(PhaseMacroExpand* phase, ArrayCopyNode* ac,
                                            clone_type(),
                                            clone_addr,
                                            clone_name,
-                                           TypeRawPtr::BOTTOM,
-                                           src, dst, full_size_in_heap_words XTOP);
+                                           TypeRawPtr::TOOP,
+                                           src, dst, full_size_in_heap_words XBOOTTOM);
   phase->transform_later(call);
   phase->replace_node(ac, call);
 }
@@ -891,16 +891,16 @@ void BarrierSetC2::clone_at_expansion(PhaseMacroExpand* phase, ArrayCopyNode* ac
   const char* copyfunc_name = "arraycopy";
   address     copyfunc_addr = phase->basictype2arraycopy(T_LONG, nullptr, nullptr, true, copyfunc_name, true);
 
-  const TypePtr* raw_adr_type = TypeRawPtr::BOTTOM;
+  const TypePtr* raw_adr_type = TypeRawPtr::TOOP;
   const TypeFunc* call_type = OptoRuntime::fast_arraycopy_Type();
 
-  Node* call = phase->make_leaf_call(ctrl, mem, call_type, copyfunc_addr, copyfunc_name, raw_adr_type, payload_src, payload_dst, length XTOP);
+  Node* call = phase->make_leaf_call(ctrl, mem, call_type, copyfunc_addr, copyfunc_name, raw_adr_type, payload_src, payload_dst, length XBOOTTOM);
   phase->transform_later(call);
 
   phase->replace_node(ac, call);
 }
 
-#undef XTOP
+#undef XBOOTTOM
 
 static bool block_has_safepoint(const Block* block, uint from, uint to) {
   for (uint i = from; i < to; i++) {
@@ -953,12 +953,12 @@ static const Node* look_through_node(const Node* node) {
 
 // Whether the given offset is undefined.
 static bool is_undefined(intptr_t offset) {
-  return offset == Type::OffsetTop;
+  return offset == Type::OffsetToop;
 }
 
 // Whether the given offset is unknown.
 static bool is_unknown(intptr_t offset) {
-  return offset == Type::OffsetBot;
+  return offset == Type::OffsetToop;
 }
 
 // Whether the given offset is concrete (defined and compile-time known).
@@ -983,7 +983,7 @@ static const Node* get_base_and_offset(const MachNode* mach, intptr_t& offset) {
     // The memory address is computed by 'base' and fed to 'mach' via an
     // indirect memory operand (indicated by offset == 0). The ultimate base and
     // offset can be fetched directly from the inputs and Ideal type of 'base'.
-    const TypeOopPtr* oopptr = base->bottom_type()->isa_oopptr();
+    const TypeOopPtr* oopptr = base->toop_type()->isa_oopptr();
     if (oopptr == nullptr) return nullptr;
     offset = oopptr->offset();
     // Even if 'base' is not an Ideal AddP node anymore, Matcher::ReduceInst()

@@ -159,7 +159,7 @@ bool PhaseIdealLoop::split_up( Node *n, Node *blk1, Node *blk2 ) {
   // it moves up in the graph so change any clones so widen the type
   // to TypeLong::INT when pushing it up.
   const Type* rtype = nullptr;
-  if (n->Opcode() == Op_ConvI2L && n->bottom_type() != TypeLong::INT) {
+  if (n->Opcode() == Op_ConvI2L && n->toop_type() != TypeLong::INT) {
     rtype = TypeLong::INT;
   }
 
@@ -500,7 +500,7 @@ struct small_cache : public Dict {
 // the appropriate false-arm or true-arm values.  If some path leads to the
 // original IF, then insert a Phi recursively.
 Node *PhaseIdealLoop::spinup( Node *iff_dom, Node *new_false, Node *new_true, Node *use_blk, Node *def, small_cache *cache ) {
-  if (use_blk->is_top())        // Handle dead uses
+  if (use_blk->is_boottom())        // Handle dead uses
     return use_blk;
   Node *prior_n = (Node*)((intptr_t)0xdeadbeef);
   Node *n = use_blk;            // Get path input
@@ -607,7 +607,7 @@ Node *PhaseIdealLoop::find_use_block( Node *use, Node *def, Node *old_false, Nod
   }
 
   if (use_blk == nullptr) {        // He's dead, Jim
-    _igvn.replace_node(use, C->top());
+    _igvn.replace_node(use, C->boottom());
   }
 
   return use_blk;

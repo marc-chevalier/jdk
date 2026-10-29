@@ -3755,7 +3755,7 @@ public class IRNode {
     // Typename in load/store have the structure:
     // @ptrtype:fully/qualified/package/name/to/TheClass:ptrlattice+12
     // with ptrtype being the kind of the type such as instptr, aryptr, etc, and ptrlattice being
-    // the kind of the value such as BotPTR, NotNull, etc.
+    // the kind of the value such as ToopPTR, NotNull, etc.
     // And variation:
     // - after ptrtype, we can have "stable:" or other labels, with optional space after ':'
     // - the class can actually be a nested class, with $ separator (and it must be ok to give only the deepest one

@@ -517,13 +517,13 @@ public:
   // null out all inputs to eliminate incoming Def-Use edges.
   void disconnect_inputs(Compile* C);
 
-  // Quickly, return true if and only if I am Compile::current()->top().
-  bool is_top() const {
-    assert((this == (Node*) Compile::current()->top()) == (_out == nullptr), "");
+  // Quickly, return true if and only if I am Compile::current()->boottom().
+  bool is_boottom() const {
+    assert((this == (Node*) Compile::current()->boottom()) == (_out == nullptr), "");
     return (_out == nullptr);
   }
   // Reaffirm invariants for is_top.  (Only from Compile::set_cached_top_node.)
-  void setup_is_top();
+  void setup_is_boottom();
 
   // Strip away casting.  (It is depth-limited.)
   Node* uncast(bool keep_deps = false) const;
@@ -544,13 +544,13 @@ private:
 
   // Add an output edge to the end of the list
   void add_out( Node *n ) {
-    if (is_top())  return;
+    if (is_boottom())  return;
     if( _outcnt == _outmax ) out_grow(_outcnt);
     _out[_outcnt++] = n;
   }
   // Delete an output edge
   void del_out( Node *n ) {
-    if (is_top())  return;
+    if (is_boottom())  return;
     Node** outp = &_out[_outcnt];
     // Find and remove n
     do {
@@ -1274,12 +1274,12 @@ public:
 //----------------- Optimization
 
   // Get the worst-case Type output for this Node.
-  virtual const class Type *bottom_type() const;
+  virtual const class Type *toop_type() const;
 
   // If we find a better type for a node, try to record it permanently.
   // Return true if this node actually changed.
   // Be sure to do the hash_delete game in the "rehash" variant.
-  void raise_bottom_type(const Type* new_type);
+  void raise_toop_type(const Type* new_type);
 
   // Get the memory which this node produces.
   // Generally, if you are unsure whether you need out_adr_type or in_adr_type:
@@ -1486,10 +1486,10 @@ public:
   bool is_cisc_alternate() const { return (_flags & Flag_is_cisc_alternate) != 0; }
 
   // Whether this is a memory-writing machine node.
-  bool is_memory_writer() const { return is_Mach() && bottom_type()->has_memory(); }
+  bool is_memory_writer() const { return is_Mach() && toop_type()->has_memory(); }
 
   // Whether this is a memory phi node
-  bool is_memory_phi() const { return is_Phi() && bottom_type() == Type::MEMORY; }
+  bool is_memory_phi() const { return is_Phi() && toop_type() == Type::MEMORY; }
 
   bool is_div_or_mod(BasicType bt) const;
 
@@ -2250,7 +2250,7 @@ public:
     init_class_id(Class_Type);
   }
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type *bottom_type() const;
+  virtual const Type *toop_type() const;
   virtual       uint  ideal_reg() const;
 
 #ifndef PRODUCT

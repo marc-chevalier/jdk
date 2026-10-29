@@ -62,7 +62,7 @@
 uint StartNode::size_of() const { return sizeof(*this); }
 bool StartNode::cmp( const Node &n ) const
 { return _domain == ((StartNode&)n)._domain; }
-const Type *StartNode::bottom_type() const { return _domain; }
+const Type* StartNode::toop_type() const { return _domain; }
 const Type* StartNode::Value(PhaseGVN* phase) const { return _domain; }
 #ifndef PRODUCT
 void StartNode::dump_spec(outputStream *st) const { st->print(" #"); _domain->dump_on(st);}
@@ -101,7 +101,7 @@ Node* StartNode::match(const ProjNode* proj, const Matcher* match) {
       uint parm_num = proj->_con - TypeFunc::Parms;
       const Type *t = _domain->field_at(proj->_con);
       if (t->base() == Type::Half)  // 2nd half of Longs and Doubles
-        return new ConNode(Type::TOP);
+        return new ConNode(Type::BOOTTOM);
       uint ideal_reg = t->ideal_reg();
       RegMask &rm = match->_calling_convention_mask[parm_num];
       return new MachProjNode(this,proj->_con,rm,ideal_reg);
@@ -121,8 +121,8 @@ void ParmNode::dump_spec(outputStream *st) const {
     st->print("%s", names[_con]);
   } else {
     st->print("Parm%d: ",_con-TypeFunc::Parms);
-    // Verbose and WizardMode dump bottom_type for all nodes
-    if( !Verbose && !WizardMode )   bottom_type()->dump_on(st);
+    // Verbose and WizardMode dump toop_type for all nodes
+    if( !Verbose && !WizardMode )   toop_type()->dump_on(st);
   }
 }
 
@@ -131,8 +131,8 @@ void ParmNode::dump_compact_spec(outputStream *st) const {
     st->print("%s", names[_con]);
   } else {
     st->print("%d:", _con-TypeFunc::Parms);
-    // unconditionally dump bottom_type
-    bottom_type()->dump_on(st);
+    // unconditionally dump toop_type
+    toop_type()->dump_on(st);
   }
 }
 #endif
@@ -170,9 +170,9 @@ Node *ReturnNode::Ideal(PhaseGVN *phase, bool can_reshape){
 }
 
 const Type* ReturnNode::Value(PhaseGVN* phase) const {
-  return ( phase->type(in(TypeFunc::Control)) == Type::TOP)
-    ? Type::TOP
-    : Type::BOTTOM;
+  return ( phase->type(in(TypeFunc::Control)) == Type::BOOTTOM)
+    ? Type::BOOTTOM
+    : Type::TOOP;
 }
 
 // Do we Match on this edge index or not?  No edges on return nodes
@@ -220,9 +220,9 @@ Node *RethrowNode::Ideal(PhaseGVN *phase, bool can_reshape){
 }
 
 const Type* RethrowNode::Value(PhaseGVN* phase) const {
-  return (phase->type(in(TypeFunc::Control)) == Type::TOP)
-    ? Type::TOP
-    : Type::BOTTOM;
+  return (phase->type(in(TypeFunc::Control)) == Type::BOOTTOM)
+    ? Type::BOOTTOM
+    : Type::TOOP;
 }
 
 uint RethrowNode::match_edge(uint idx) const {
@@ -366,7 +366,7 @@ static void format_helper( PhaseRegAlloc *regalloc, outputStream* st, Node *n, c
     regalloc->dump_register(n,buf,sizeof(buf));
     st->print(" %s%d]=%s",msg,i,buf);
   } else {                      // No register, but might be constant
-    const Type *t = n->bottom_type();
+    const Type *t = n->toop_type();
     switch (t->base()) {
     case Type::Int:
       st->print(" %s%d]=#" INT32_FORMAT,msg,i,t->is_int()->get_con());
@@ -403,7 +403,7 @@ static void format_helper( PhaseRegAlloc *regalloc, outputStream* st, Node *n, c
       st->print(" %s%d]=#" INT64_FORMAT,msg,i,(int64_t)(t->is_long()->get_con()));
       break;
     case Type::Half:
-    case Type::Top:
+    case Type::Boottom:
       st->print(" %s%d]=_",msg,i);
       break;
     default: ShouldNotReachHere();
@@ -473,7 +473,7 @@ void JVMState::format(PhaseRegAlloc *regalloc, const Node *n, outputStream* st) 
       st->cr();
       st->print("        # ScObj" INT32_FORMAT " ", i);
       SafePointScalarObjectNode* spobj = scobjs.at(i);
-      ciKlass* cik = spobj->bottom_type()->is_oopptr()->exact_klass();
+      ciKlass* cik = spobj->toop_type()->is_oopptr()->exact_klass();
       assert(cik->is_instance_klass() ||
              cik->is_array_klass(), "Not supported allocation.");
       ciInstanceKlass *iklass = nullptr;
@@ -506,7 +506,7 @@ void JVMState::format(PhaseRegAlloc *regalloc, const Node *n, outputStream* st) 
         uint first_ind = spobj->first_index(mcall->jvms());
         if (iklass != nullptr && iklass->is_value_klass()) {
           Node* null_marker = mcall->in(first_ind++);
-          if (!null_marker->is_top()) {
+          if (!null_marker->is_boottom()) {
             st->print(" [null marker");
             format_helper(regalloc, st, null_marker, ":", -1, nullptr);
           }
@@ -674,7 +674,7 @@ int JVMState::interpreter_frame_size() const {
   while (jvms != nullptr) {
     int locks = jvms->nof_monitors();
     int temps = jvms->stk_size();
-    bool is_top_frame = (jvms == this);
+    bool is_boottom_frame = (jvms == this);
     ciMethod* method = jvms->method();
 
     int frame_size = BytesPerWord * Interpreter::size_activation(method->max_stack(),
@@ -683,7 +683,7 @@ int JVMState::interpreter_frame_size() const {
                                                                  locks,
                                                                  callee_parameters,
                                                                  callee_locals,
-                                                                 is_top_frame);
+                                                                 is_boottom_frame);
     size += frame_size;
 
     callee_parameters = method->size_of_parameters();
@@ -700,7 +700,7 @@ ciInstance* JVMState::compute_receiver_info(ciMethod* callee) const {
   if (has_method() && method()->is_compiled_lambda_form()) { // callee is not a MH invoker
     Node* recv = map()->argument(this, 0);
     assert(recv != nullptr, "");
-    const TypeOopPtr* recv_toop = recv->bottom_type()->isa_oopptr();
+    const TypeOopPtr* recv_toop = recv->toop_type()->isa_oopptr();
     if (recv_toop != nullptr && recv_toop->const_oop() != nullptr) {
       return recv_toop->const_oop()->as_instance();
     }
@@ -740,7 +740,7 @@ ciKlass* AllocateNode::allocation_klass() const {
   if (klass_node == nullptr) {
     return nullptr;
   }
-  const TypeKlassPtr* const klass_ptr = klass_node->bottom_type()->isa_klassptr();
+  const TypeKlassPtr* const klass_ptr = klass_node->toop_type()->isa_klassptr();
   if (klass_ptr == nullptr || !klass_ptr->klass_is_exact()) {
     return nullptr;
   }
@@ -766,10 +766,10 @@ void AllocateNode::dump_spec(outputStream* st) const {
 }
 #endif // !PRODUCT
 
-const Type *CallNode::bottom_type() const { return tf()->range_cc(); }
+const Type *CallNode::toop_type() const { return tf()->range_cc(); }
 const Type* CallNode::Value(PhaseGVN* phase) const {
-  if (in(0) == nullptr || phase->type(in(0)) == Type::TOP) {
-    return Type::TOP;
+  if (in(0) == nullptr || phase->type(in(0)) == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
   return tf()->range_cc();
 }
@@ -878,7 +878,7 @@ bool CallNode::may_modify(const TypeOopPtr* t_oop, PhaseValues* phase) const {
       // may happen for an arraycopy that initializes a newly allocated object. Conservatively return true;
       return true;
     }
-    if (!dest->is_top() && may_modify_arraycopy_helper(phase->type(dest)->is_oopptr(), t_oop, phase)) {
+    if (!dest->is_boottom() && may_modify_arraycopy_helper(phase->type(dest)->is_oopptr(), t_oop, phase)) {
       return true;
     }
     return false;
@@ -1177,13 +1177,13 @@ Node* CallStaticJavaNode::Ideal(PhaseGVN* phase, bool can_reshape) {
     PhaseIterGVN* igvn = phase->is_IterGVN();
     if (remove_unknown_flat_array_load(igvn, control(), memory(), in(TypeFunc::Parms))) {
       if (!control()->is_Region()) {
-        igvn->replace_input_of(this, 0, phase->C->top());
+        igvn->replace_input_of(this, 0, phase->C->boottom());
       }
       return this;
     }
   }
 
-  if (can_reshape && !control()->is_top() && !memory()->is_top() && method() != nullptr) {
+  if (can_reshape && !control()->is_boottom() && !memory()->is_boottom() && method() != nullptr) {
     if (method()->holder() == phase->C->env()->ValueObjectMethods_klass() &&
         method()->name() == ciSymbols::isSubstitutable_name()) {
       // Try to replace the runtime call to the substitutability test emitted by acmp if we can reason
@@ -1253,21 +1253,21 @@ int CallStaticJavaNode::extract_uncommon_trap_request(const Node* call) {
 #ifndef PRODUCT
   if (!(call->req() > TypeFunc::Parms &&
         call->in(TypeFunc::Parms) != nullptr &&
-        call->in(TypeFunc::Parms)->bottom_type()->isa_int() &&
-        call->in(TypeFunc::Parms)->bottom_type()->is_int()->is_con())) {
+        call->in(TypeFunc::Parms)->toop_type()->isa_int() &&
+        call->in(TypeFunc::Parms)->toop_type()->is_int()->is_con())) {
     assert(in_dump() != 0, "OK if dumping");
     tty->print("[bad uncommon trap]");
     return 0;
   }
 #endif
-  return call->in(TypeFunc::Parms)->bottom_type()->is_int()->get_con();
+  return call->in(TypeFunc::Parms)->toop_type()->is_int()->get_con();
 }
 
 // Split if can cause the flat array branch of an array load with unknown type (see
 // Parse::array_load) to end in an uncommon trap. In that case, the call to
 // 'load_unknown_value' is useless. Replace it with an uncommon trap with the same JVMState.
 bool CallStaticJavaNode::remove_unknown_flat_array_load(PhaseIterGVN* igvn, Node* ctl, Node* mem, Node* unc_arg) {
-  if (ctl == nullptr || ctl->is_top() || mem == nullptr || mem->is_top() || !mem->is_MergeMem()) {
+  if (ctl == nullptr || ctl->is_boottom() || mem == nullptr || mem->is_boottom() || !mem->is_MergeMem()) {
     return false;
   }
   if (ctl->is_Region()) {
@@ -1283,7 +1283,7 @@ bool CallStaticJavaNode::remove_unknown_flat_array_load(PhaseIterGVN* igvn, Node
       if (remove_unknown_flat_array_load(igvn, ctl->in(i), mm, unc_arg)) {
         res = true;
         if (!ctl->in(i)->is_Region()) {
-          igvn->replace_input_of(ctl, i, igvn->C->top());
+          igvn->replace_input_of(ctl, i, igvn->C->boottom());
         }
       }
       igvn->remove_dead_node(mm, PhaseIterGVN::NodeOrigin::Speculative);
@@ -1294,12 +1294,12 @@ bool CallStaticJavaNode::remove_unknown_flat_array_load(PhaseIterGVN* igvn, Node
   Node* call = ctl;
   MemBarNode* membar = nullptr;
   for (;;) {
-    if (call == nullptr || call->is_top()) {
+    if (call == nullptr || call->is_boottom()) {
       return false;
     }
     if (call->is_Proj() || call->is_Catch() || call->is_MemBar()) {
       call = call->in(0);
-    } else if (call->Opcode() == Op_CallStaticJava && !call->in(0)->is_top() &&
+    } else if (call->Opcode() == Op_CallStaticJava && !call->in(0)->is_boottom() &&
                call->as_Call()->entry_point() == OptoRuntime::load_unknown_value_Java()) {
       // If there is no explicit flat array accesses in the compilation unit, there would be no
       // membar here
@@ -1318,7 +1318,7 @@ bool CallStaticJavaNode::remove_unknown_flat_array_load(PhaseIterGVN* igvn, Node
   }
 
   Node* call_mem = call->in(TypeFunc::Memory);
-  if (call_mem == nullptr || call_mem->is_top()) {
+  if (call_mem == nullptr || call_mem->is_boottom()) {
     return false;
   }
   if (!call_mem->is_MergeMem()) {
@@ -1350,7 +1350,7 @@ bool CallStaticJavaNode::remove_unknown_flat_array_load(PhaseIterGVN* igvn, Node
       } else if (m1->is_MergeMem()) {
         MergeMemNode* mm = m1->as_MergeMem();
         int idx = mms2.alias_idx();
-        if (idx == Compile::AliasIdxBot) {
+        if (idx == Compile::AliasIdxToop) {
           m1 = mm->base_memory();
         } else {
           m1 = mm->memory_at(idx);
@@ -1373,7 +1373,7 @@ bool CallStaticJavaNode::remove_unknown_flat_array_load(PhaseIterGVN* igvn, Node
   }
 
   address call_addr = OptoRuntime::uncommon_trap_blob()->entry_point();
-  CallNode* unc = new CallStaticJavaNode(OptoRuntime::uncommon_trap_Type(), call_addr, "uncommon_trap", nullptr, TypePtr::BOTTOM);
+  CallNode* unc = new CallStaticJavaNode(OptoRuntime::uncommon_trap_Type(), call_addr, "uncommon_trap", nullptr, TypePtr::TOOP);
   unc->init_req(TypeFunc::Control, call->in(0));
   unc->init_req(TypeFunc::I_O, call->in(TypeFunc::I_O));
   unc->init_req(TypeFunc::Memory, call->in(TypeFunc::Memory));
@@ -1384,7 +1384,7 @@ bool CallStaticJavaNode::remove_unknown_flat_array_load(PhaseIterGVN* igvn, Node
   unc->copy_call_debug_info(igvn, call->as_CallStaticJava());
 
   // Replace the call with an uncommon trap
-  igvn->replace_input_of(call, 0, igvn->C->top());
+  igvn->replace_input_of(call, 0, igvn->C->boottom());
 
   igvn->register_new_node_with_optimizer(unc);
 
@@ -1446,17 +1446,17 @@ Node* CallStaticJavaNode::replace_identity_hash_code(PhaseIterGVN* igvn) {
     igvn->replace_node(projs->fallthrough_catchproj, kit.control());
   }
   if (projs->catchall_memproj != nullptr) {
-    igvn->replace_node(projs->catchall_memproj, igvn->C->top());
+    igvn->replace_node(projs->catchall_memproj, igvn->C->boottom());
   }
   if (projs->catchall_ioproj != nullptr) {
-    igvn->replace_node(projs->catchall_ioproj, igvn->C->top());
+    igvn->replace_node(projs->catchall_ioproj, igvn->C->boottom());
   }
   if (projs->catchall_catchproj != nullptr) {
-    igvn->replace_node(projs->catchall_catchproj, igvn->C->top());
+    igvn->replace_node(projs->catchall_catchproj, igvn->C->boottom());
   }
   Node* new_mem = kit.reset_memory();
   assert(in(TypeFunc::Memory) == new_mem, "must not modify memory");
-  return TupleNode::make(tf()->range_cc(), out_adr_type(), igvn->C->top(), kit.i_o(), new_mem, kit.frameptr(), kit.returnadr(), replace);
+  return TupleNode::make(tf()->range_cc(), out_adr_type(), igvn->C->boottom(), kit.i_o(), new_mem, kit.frameptr(), kit.returnadr(), replace);
 }
 
 // Try to replace a runtime call to the substitutability test by either a simple pointer comparison
@@ -1493,17 +1493,17 @@ Node* CallStaticJavaNode::replace_is_substitutable(PhaseIterGVN* igvn) {
     igvn->replace_node(projs->fallthrough_catchproj, kit.control());
   }
   if (projs->catchall_memproj != nullptr) {
-    igvn->replace_node(projs->catchall_memproj, igvn->C->top());
+    igvn->replace_node(projs->catchall_memproj, igvn->C->boottom());
   }
   if (projs->catchall_ioproj != nullptr) {
-    igvn->replace_node(projs->catchall_ioproj, igvn->C->top());
+    igvn->replace_node(projs->catchall_ioproj, igvn->C->boottom());
   }
   if (projs->catchall_catchproj != nullptr) {
-    igvn->replace_node(projs->catchall_catchproj, igvn->C->top());
+    igvn->replace_node(projs->catchall_catchproj, igvn->C->boottom());
   }
   Node* new_mem = kit.reset_memory();
   assert(in(TypeFunc::Memory) == new_mem, "must not modify memory");
-  return TupleNode::make(tf()->range_cc(), out_adr_type(), igvn->C->top(), kit.i_o(), new_mem, kit.frameptr(), kit.returnadr(), replace);
+  return TupleNode::make(tf()->range_cc(), out_adr_type(), igvn->C->boottom(), kit.i_o(), new_mem, kit.frameptr(), kit.returnadr(), replace);
 }
 
 #ifndef PRODUCT
@@ -1639,7 +1639,7 @@ void CallLeafVectorNode::calling_convention( BasicType* sig_bt, VMRegPair *parm_
   const TypeTuple* d = tf()->domain_sig();
   for (uint i = TypeFunc::Parms; i < d->cnt(); i++) {
     Node* arg = in(i);
-    assert(arg->bottom_type()->is_vect()->length_in_bytes() * BitsPerByte == _num_bits,
+    assert(arg->toop_type()->is_vect()->length_in_bytes() * BitsPerByte == _num_bits,
            "vector argument size must match");
   }
 #endif
@@ -1669,7 +1669,7 @@ bool CallLeafPureNode::is_dead() const {
  * values of the function to respect the return arity, and in case there is a projection
  * that would pick an output (which shouldn't happen at the moment).
  */
-TupleNode* CallLeafPureNode::make_tuple_of_input_state_and_top_return_values(const Compile* C) const {
+TupleNode* CallLeafPureNode::make_tuple_of_input_state_and_boottom_return_values(const Compile* C) const {
   // Transparently propagate input state but parameters
   TupleNode* tuple = TupleNode::make(
       tf()->range_cc(), nullptr,
@@ -1681,14 +1681,14 @@ TupleNode* CallLeafPureNode::make_tuple_of_input_state_and_top_return_values(con
 
   // And add TOPs for the return values
   for (uint i = TypeFunc::Parms; i < tf()->range_cc()->cnt(); i++) {
-    tuple->set_req(i, C->top());
+    tuple->set_req(i, C->boottom());
   }
 
   return tuple;
 }
 
 CallLeafPureNode* CallLeafPureNode::inline_call_leaf_pure_node(Node* control) const {
-  Node* top = Compile::current()->top();
+  Node* top = Compile::current()->boottom();
   if (control == nullptr) {
     control = in(TypeFunc::Control);
   }
@@ -1716,7 +1716,7 @@ Node* CallLeafPureNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   if (can_reshape && is_unused()) {
     // The result is not used. We remove the call by replacing it with a tuple, that
     // is later disintegrated by the projections.
-    return make_tuple_of_input_state_and_top_return_values(phase->C);
+    return make_tuple_of_input_state_and_boottom_return_values(phase->C);
   }
 
   return CallRuntimeNode::Ideal(phase, can_reshape);
@@ -1741,7 +1741,7 @@ uint CallLeafNoFPNode::match_edge(uint idx) const {
 void SafePointNode::set_local(const JVMState* jvms, uint idx, Node *c) {
   assert(verify_jvms(jvms), "jvms must match");
   int loc = jvms->locoff() + idx;
-  if (in(loc)->is_top() && idx > 0 && !c->is_top() ) {
+  if (in(loc)->is_boottom() && idx > 0 && !c->is_boottom() ) {
     // If current local idx is top then local idx - 1 could
     // be a long/double that needs to be killed since top could
     // represent the 2nd half of the long/double.
@@ -1843,11 +1843,11 @@ Node* SafePointNode::Identity(PhaseGVN* phase) {
 
 //------------------------------Value------------------------------------------
 const Type* SafePointNode::Value(PhaseGVN* phase) const {
-  if (phase->type(in(0)) == Type::TOP) {
-    return Type::TOP;
+  if (phase->type(in(0)) == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
   if (in(0) == this) {
-    return Type::TOP; // Dead infinite loop
+    return Type::BOOTTOM; // Dead infinite loop
   }
   return Type::CONTROL;
 }
@@ -1877,7 +1877,7 @@ void SafePointNode::grow_stack(JVMState* jvms, uint grow_by) {
   int scloff = jvms->scloff();
   int endoff = jvms->endoff();
   assert(endoff == (int)req(), "no other states or debug info after me");
-  Node* top = Compile::current()->top();
+  Node* top = Compile::current()->boottom();
   for (uint i = 0; i < grow_by; i++) {
     ins_req(monoff, top);
   }
@@ -2090,13 +2090,13 @@ AllocateNode::AllocateNode(Compile* C, const TypeFunc *atype,
                            Node *size, Node *klass_node,
                            Node* initial_test,
                            ValueTypeNode* value_type_node)
-  : CallNode(atype, nullptr, TypeRawPtr::BOTTOM, TypePtr::BOTTOM)
+  : CallNode(atype, nullptr, TypeRawPtr::TOOP, TypePtr::TOOP)
 {
   init_class_id(Class_Allocate);
   _is_scalar_replaceable = false;
   _is_non_escaping = false;
   _is_allocation_MemBar_redundant = false;
-  Node *topnode = C->top();
+  Node *topnode = C->boottom();
 
   init_req( TypeFunc::Control  , ctrl );
   init_req( TypeFunc::I_O      , abio );
@@ -2133,7 +2133,7 @@ Node* AllocateNode::make_ideal_mark(PhaseGVN* phase, Node* control, Node* mem) {
   Node* mark_node = nullptr;
   if (UseCompactObjectHeaders || Arguments::is_valhalla_enabled()) {
     Node* klass_node = in(AllocateNode::KlassNode);
-    Node* proto_adr = phase->transform(AddPNode::make_with_base(phase->C->top(), klass_node, phase->MakeConX(in_bytes(Klass::prototype_header_offset()))));
+    Node* proto_adr = phase->transform(AddPNode::make_with_base(phase->C->boottom(), klass_node, phase->MakeConX(in_bytes(Klass::prototype_header_offset()))));
     mark_node = LoadNode::make(*phase, control, mem, proto_adr, phase->type(proto_adr)->is_ptr(), TypeX_X, TypeX_X->basic_type(), MemNode::unordered);
   } else {
     // For now only enable fast locking for non-array types
@@ -2471,7 +2471,7 @@ Node* LockNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   Node *result = SafePointNode::Ideal(phase, can_reshape);
   if (result != nullptr)  return result;
   // Don't bother trying to transform a dead node
-  if (in(0) && in(0)->is_top())  return nullptr;
+  if (in(0) && in(0)->is_boottom())  return nullptr;
 
   // Now see if we can optimize away this lock.  We don't actually
   // remove the locking here, we simply set the _eliminate flag which
@@ -2669,7 +2669,7 @@ Node *UnlockNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   Node *result = SafePointNode::Ideal(phase, can_reshape);
   if (result != nullptr)  return result;
   // Don't bother trying to transform a dead node
-  if (in(0) && in(0)->is_top())  return nullptr;
+  if (in(0) && in(0)->is_boottom())  return nullptr;
 
   // Now see if we can optimize away this unlock.  We don't actually
   // remove the unlocking here, we simply set the _eliminate flag which
@@ -2753,13 +2753,13 @@ bool CallNode::may_modify_arraycopy_helper(const TypeOopPtr* dest_t, const TypeO
     }
 
     const Type* elem = dest_t->is_aryptr()->elem();
-    if (elem == Type::BOTTOM) {
+    if (elem == Type::TOOP) {
       // An array but we don't know what elements are
       return true;
     }
 
-    dest_t = dest_t->is_aryptr()->with_field_offset(Type::OffsetBot)->add_offset(Type::OffsetBot)->is_oopptr();
-    t_oop = t_oop->is_aryptr()->with_field_offset(Type::OffsetBot);
+    dest_t = dest_t->is_aryptr()->with_field_offset(Type::OffsetToop)->add_offset(Type::OffsetToop)->is_oopptr();
+    t_oop = t_oop->is_aryptr()->with_field_offset(Type::OffsetToop);
     uint dest_alias = phase->C->get_alias_index(dest_t);
     uint t_oop_alias = phase->C->get_alias_index(t_oop);
 
@@ -2777,17 +2777,17 @@ PowDNode::PowDNode(Compile* C, Node* base, Node* exp)
   C->add_macro_node(this);
 
   init_req(TypeFunc::Parms + 0, base);
-  init_req(TypeFunc::Parms + 1, C->top());  // double slot padding
+  init_req(TypeFunc::Parms + 1, C->boottom());  // double slot padding
   init_req(TypeFunc::Parms + 2, exp);
-  init_req(TypeFunc::Parms + 3, C->top());  // double slot padding
+  init_req(TypeFunc::Parms + 3, C->boottom());  // double slot padding
 }
 
 const Type* PowDNode::Value(PhaseGVN* phase) const {
   const Type* t_base = phase->type(base());
   const Type* t_exp  = phase->type(exp());
 
-  if (t_base == Type::TOP || t_exp == Type::TOP) {
-    return Type::TOP;
+  if (t_base == Type::BOOTTOM || t_exp == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
   const TypeD* base_con = t_base->isa_double_constant();
@@ -2918,6 +2918,6 @@ TupleNode* PowDNode::make_tuple_of_input_state_and_result(PhaseIterGVN* phase, N
       in(TypeFunc::FramePtr),
       in(TypeFunc::ReturnAdr),
       result,
-      C->top());
+      C->boottom());
   return tuple;
 }

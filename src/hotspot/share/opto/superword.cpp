@@ -157,7 +157,7 @@ void SuperWord::unrolling_analysis(const VLoop &vloop, int &local_loop_unroll_fa
     if (n->is_Mem()) {
       bt = n->as_Mem()->value_basic_type();
     } else {
-      bt = n->bottom_type()->basic_type();
+      bt = n->toop_type()->basic_type();
     }
     if (is_java_primitive(bt) == false) {
       ignored_nodes.set_ignored(i);
@@ -190,7 +190,7 @@ void SuperWord::unrolling_analysis(const VLoop &vloop, int &local_loop_unroll_fa
       if (n->is_Mem()) {
         bt = n->as_Mem()->value_basic_type();
       } else {
-        bt = n->bottom_type()->basic_type();
+        bt = n->toop_type()->basic_type();
       }
 
       if (is_java_primitive(bt) == false) continue;
@@ -226,11 +226,11 @@ void SuperWord::unrolling_analysis(const VLoop &vloop, int &local_loop_unroll_fa
             for (uint j = start; j < end; j++) {
               Node* in = n->in(j);
               // Don't propagate through a memory
-              if (!in->is_Mem() && vloop.in_bb(in) && in->bottom_type()->basic_type() == T_INT) {
+              if (!in->is_Mem() && vloop.in_bb(in) && in->toop_type()->basic_type() == T_INT) {
                 bool same_type = true;
                 for (DUIterator_Fast kmax, k = in->fast_outs(kmax); k < kmax; k++) {
                   Node *use = in->fast_out(k);
-                  if (!vloop.in_bb(use) && use->bottom_type()->basic_type() != bt) {
+                  if (!vloop.in_bb(use) && use->toop_type()->basic_type() != bt) {
                     same_type = false;
                     break;
                   }
@@ -278,7 +278,7 @@ bool VLoopReductions::is_reduction(const Node* n) {
 
 bool VLoopReductions::is_reduction_operator(const Node* n) {
   int opc = n->Opcode();
-  return (opc != ReductionNode::opcode(opc, n->bottom_type()->basic_type()));
+  return (opc != ReductionNode::opcode(opc, n->toop_type()->basic_type()));
 }
 
 bool VLoopReductions::in_reduction_cycle(const Node* n, uint input) {
@@ -1586,7 +1586,7 @@ bool SuperWord::implemented(const Node_List<Node>* pack, const uint size) const 
   if (p0 != nullptr) {
     int opc = p0->Opcode();
     if (is_marked_reduction(p0)) {
-      const Type* arith_type = p0->bottom_type();
+      const Type* arith_type = p0->toop_type();
       retValue = ReductionNode::implemented(opc, size, arith_type->basic_type());
     } else if (VectorNode::is_convert_opcode(opc)) {
       retValue = VectorCastNode::implemented(opc, size, velt_basic_type(p0->in(1)), velt_basic_type(p0));
@@ -2207,7 +2207,7 @@ bool SuperWord::is_vector_use(Node* use, int u_idx) const {
         // in use pack have inputs of iv plus node index.
         Node* use_in = u_pk->at(i)->in(u_idx);
         if (!use_in->is_Add() || use_in->in(1) != n) return false;
-        const TypeInt* offset_t = use_in->in(2)->bottom_type()->is_int();
+        const TypeInt* offset_t = use_in->in(2)->toop_type()->is_int();
         if (offset_t == nullptr || !offset_t->is_con() ||
             offset_t->get_con() != (jint) i) return false;
       }
@@ -2799,7 +2799,7 @@ void VTransform::adjust_pre_loop_limit_to_align_main_loop_vectors() {
 
   // Ensure the original loop limit is available from the pre-loop Opaque1 node.
   Node* orig_limit = pre_opaq->original_loop_limit();
-  assert(orig_limit != nullptr && igvn().type(orig_limit) != Type::TOP, "");
+  assert(orig_limit != nullptr && igvn().type(orig_limit) != Type::BOOTTOM, "");
 
   // For the main-loop, we want the address of vpointer p to be memory aligned
   // with some alignment width (aw, a power of 2). When we enter the main-loop,

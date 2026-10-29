@@ -40,7 +40,7 @@
 //------------------------------Identity---------------------------------------
 Node* Conv2BNode::Identity(PhaseGVN* phase) {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return in(1);
+  if( t == Type::BOOTTOM ) return in(1);
   if( t == TypeInt::ZERO ) return in(1);
   if( t == TypeInt::ONE ) return in(1);
   if( t == TypeInt::BOOL ) return in(1);
@@ -50,7 +50,7 @@ Node* Conv2BNode::Identity(PhaseGVN* phase) {
 //------------------------------Value------------------------------------------
 const Type* Conv2BNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return Type::TOP;
+  if( t == Type::BOOTTOM ) return Type::BOOTTOM;
   if( t == TypeInt::ZERO ) return TypeInt::ZERO;
   if( t == TypePtr::NULL_PTR ) return TypeInt::ZERO;
   const TypePtr *tp = t->isa_ptr();
@@ -154,7 +154,7 @@ Node* ConvertNode::create_convert(BasicType source, BasicType target, Node* inpu
 //------------------------------Value------------------------------------------
 const Type* ConvD2FNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return Type::TOP;
+  if( t == Type::BOOTTOM ) return Type::BOOTTOM;
   if( t == Type::DOUBLE ) return Type::FLOAT;
   const TypeD *td = t->is_double_constant();
   return TypeF::make( (float)td->getd() );
@@ -186,7 +186,7 @@ Node* ConvD2FNode::Identity(PhaseGVN* phase) {
 //------------------------------Value------------------------------------------
 const Type* ConvD2INode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return Type::TOP;
+  if( t == Type::BOOTTOM ) return Type::BOOTTOM;
   if( t == Type::DOUBLE ) return TypeInt::INT;
   const TypeD *td = t->is_double_constant();
   return TypeInt::make( SharedRuntime::d2i( td->getd() ) );
@@ -203,7 +203,7 @@ Node* ConvD2INode::Identity(PhaseGVN* phase) {
 //------------------------------Value------------------------------------------
 const Type* ConvD2LNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return Type::TOP;
+  if( t == Type::BOOTTOM ) return Type::BOOTTOM;
   if( t == Type::DOUBLE ) return TypeLong::LONG;
   const TypeD *td = t->is_double_constant();
   return TypeLong::make( SharedRuntime::d2l( td->getd() ) );
@@ -222,7 +222,7 @@ Node* ConvD2LNode::Identity(PhaseGVN* phase) {
 //------------------------------Value------------------------------------------
 const Type* ConvF2DNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return Type::TOP;
+  if( t == Type::BOOTTOM ) return Type::BOOTTOM;
   if( t == Type::FLOAT ) return Type::DOUBLE;
   const TypeF *tf = t->is_float_constant();
   return TypeD::make( (double)tf->getf() );
@@ -232,7 +232,7 @@ const Type* ConvF2DNode::Value(PhaseGVN* phase) const {
 //------------------------------Value------------------------------------------
 const Type* ConvF2HFNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if (t == Type::TOP) return Type::TOP;
+  if (t == Type::BOOTTOM) return Type::BOOTTOM;
   if (t == Type::FLOAT || StubRoutines::f2hf_adr() == nullptr) {
     return TypeInt::SHORT;
   }
@@ -293,13 +293,13 @@ Node* ConvF2HFNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 
     if (conF != nullptr &&
         varS != nullptr &&
-        conF->bottom_type()->isa_float_constant() != nullptr &&
+        conF->toop_type()->isa_float_constant() != nullptr &&
         Matcher::match_rule_supported(Float16NodeFactory::get_float16_binary_oper(binopF->Opcode())) &&
         Matcher::match_rule_supported(Op_ReinterpretS2HF) &&
         Matcher::match_rule_supported(Op_ReinterpretHF2S) &&
         StubRoutines::hf2f_adr() != nullptr &&
         StubRoutines::f2hf_adr() != nullptr) {
-      jfloat con = conF->bottom_type()->getf();
+      jfloat con = conF->toop_type()->getf();
       // Conditions under which floating point constant can be considered for a pattern match.
       // 1. conF must lie within Float16 value range, otherwise we would have rounding issues:
       //    Doing the operation in float32 and then rounding is not the same as
@@ -336,7 +336,7 @@ Node* ConvF2HFNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 //------------------------------Value------------------------------------------
 const Type* ConvF2INode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP )       return Type::TOP;
+  if( t == Type::BOOTTOM )       return Type::BOOTTOM;
   if( t == Type::FLOAT ) return TypeInt::INT;
   const TypeF *tf = t->is_float_constant();
   return TypeInt::make( SharedRuntime::f2i( tf->getf() ) );
@@ -355,7 +355,7 @@ Node* ConvF2INode::Identity(PhaseGVN* phase) {
 //------------------------------Value------------------------------------------
 const Type* ConvF2LNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP )       return Type::TOP;
+  if( t == Type::BOOTTOM )       return Type::BOOTTOM;
   if( t == Type::FLOAT ) return TypeLong::LONG;
   const TypeF *tf = t->is_float_constant();
   return TypeLong::make( SharedRuntime::f2l( tf->getf() ) );
@@ -374,7 +374,7 @@ Node* ConvF2LNode::Identity(PhaseGVN* phase) {
 //------------------------------Value------------------------------------------
 const Type* ConvHF2FNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if (t == Type::TOP) return Type::TOP;
+  if (t == Type::BOOTTOM) return Type::BOOTTOM;
   if (t == TypeInt::SHORT || StubRoutines::hf2f_adr() == nullptr) {
     return Type::FLOAT;
   }
@@ -390,7 +390,7 @@ const Type* ConvHF2FNode::Value(PhaseGVN* phase) const {
 //------------------------------Value------------------------------------------
 const Type* ConvI2DNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return Type::TOP;
+  if( t == Type::BOOTTOM ) return Type::BOOTTOM;
   const TypeInt *ti = t->is_int();
   if( ti->is_con() ) return TypeD::make( (double)ti->get_con() );
   return Type::DOUBLE;
@@ -400,7 +400,7 @@ const Type* ConvI2DNode::Value(PhaseGVN* phase) const {
 //------------------------------Value------------------------------------------
 const Type* ConvI2FNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return Type::TOP;
+  if( t == Type::BOOTTOM ) return Type::BOOTTOM;
   const TypeInt *ti = t->is_int();
   if( ti->is_con() ) return TypeF::make( (float)ti->get_con() );
   return Type::FLOAT;
@@ -419,8 +419,8 @@ Node* ConvI2FNode::Identity(PhaseGVN* phase) {
 //------------------------------Value------------------------------------------
 const Type* ConvI2LNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if (t == Type::TOP) {
-    return Type::TOP;
+  if (t == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
   const TypeInt *ti = t->is_int();
   const Type* tl = TypeLong::make(ti->_lo, ti->_hi, ti->_widen);
@@ -740,10 +740,10 @@ bool Compile::push_thru_add(PhaseGVN* phase, Node* z, const TypeInteger* tz, con
     Node* x = z->in(1);
     Node* y = z->in(2);
     assert (x != z && y != z, "dead loop in ConvI2LNode::Ideal");
-    if (phase->type(x) == Type::TOP) {
+    if (phase->type(x) == Type::BOOTTOM) {
       return false;
     }
-    if (phase->type(y) == Type::TOP) {
+    if (phase->type(y) == Type::BOOTTOM) {
       return false;
     }
     const TypeInteger* tx = phase->type(x)->is_integer(in_bt);
@@ -820,7 +820,7 @@ Node* ConvI2LNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 //------------------------------Value------------------------------------------
 const Type* ConvL2DNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return Type::TOP;
+  if( t == Type::BOOTTOM ) return Type::BOOTTOM;
   const TypeLong *tl = t->is_long();
   if( tl->is_con() ) return TypeD::make( (double)tl->get_con() );
   return Type::DOUBLE;
@@ -830,7 +830,7 @@ const Type* ConvL2DNode::Value(PhaseGVN* phase) const {
 //------------------------------Value------------------------------------------
 const Type* ConvL2FNode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return Type::TOP;
+  if( t == Type::BOOTTOM ) return Type::BOOTTOM;
   const TypeLong *tl = t->is_long();
   if( tl->is_con() ) return TypeF::make( (float)tl->get_con() );
   return Type::FLOAT;
@@ -847,7 +847,7 @@ Node* ConvL2INode::Identity(PhaseGVN* phase) {
 //------------------------------Value------------------------------------------
 const Type* ConvL2INode::Value(PhaseGVN* phase) const {
   const Type *t = phase->type( in(1) );
-  if( t == Type::TOP ) return Type::TOP;
+  if( t == Type::BOOTTOM ) return Type::BOOTTOM;
   const TypeLong *tl = t->is_long();
   const TypeInt* ti = TypeInt::INT;
   if (tl->is_con()) {
@@ -883,8 +883,8 @@ Node* ConvL2INode::Ideal(PhaseGVN* phase, bool can_reshape) {
     Node* x = andl->in(1);
     Node* y = andl->in(2);
     assert( x != andl && y != andl, "dead loop in ConvL2INode::Ideal" );
-    if (phase->type(x) == Type::TOP)  return nullptr;
-    if (phase->type(y) == Type::TOP)  return nullptr;
+    if (phase->type(x) == Type::BOOTTOM)  return nullptr;
+    if (phase->type(y) == Type::BOOTTOM)  return nullptr;
     Node *add1 = phase->transform(new ConvL2INode(x));
     Node *add2 = phase->transform(new ConvL2INode(y));
     return new AddINode(add1,add2);
@@ -927,7 +927,7 @@ const Type* ReinterpretS2HFNode::Value(PhaseGVN* phase) const {
 
 Node* ReinterpretS2HFNode::Identity(PhaseGVN* phase) {
   if (in(1)->Opcode() == Op_ReinterpretHF2S) {
-     assert(in(1)->in(1)->bottom_type()->isa_half_float(), "");
+     assert(in(1)->in(1)->toop_type()->isa_half_float(), "");
      return in(1)->in(1);
   }
   return this;

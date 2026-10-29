@@ -69,7 +69,7 @@ Node* CardTableBarrierSetC2::store_at_resolved(C2Access& access, C2AccessValue& 
       ciField* field = vt->field(i);
       ciType* type = field->type();
       if (!type->is_primitive_type()) {
-        ciValueKlass* vk = vt->bottom_type()->value_klass();
+        ciValueKlass* vk = vt->toop_type()->value_klass();
         int field_offset = field->offset_in_bytes() - vk->payload_offset();
         Node* value = vt->field_value(i);
         Node* field_adr = kit->basic_plus_adr(access.base(), adr, field_offset);
@@ -165,8 +165,8 @@ void CardTableBarrierSetC2::post_barrier(GraphKit* kit,
                                          bool use_precise) const {
   // No store check needed if we're storing a null.
   if (val != nullptr && val->is_Con()) {
-    const Type* t = val->bottom_type();
-    if (t == TypePtr::NULL_PTR || t == Type::TOP) {
+    const Type* t = val->toop_type();
+    if (t == TypePtr::NULL_PTR || t == Type::BOOTTOM) {
       return;
     }
   }
@@ -199,7 +199,7 @@ void CardTableBarrierSetC2::post_barrier(GraphKit* kit,
   Node* card_offset = __ URShiftX(cast, __ ConI(CardTable::card_shift()));
 
   // Combine card table base and card offset
-  Node* card_adr = __ AddP(__ top(), byte_map_base_node(&ideal), card_offset);
+  Node* card_adr = __ AddP(__ boottom(), byte_map_base_node(&ideal), card_offset);
 
   // Get the alias_index for raw card-mark memory
   int adr_type = Compile::AliasIdxRaw;

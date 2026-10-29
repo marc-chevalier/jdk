@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8027571
- * @summary meet of TopPTR exact array with constant array is not symmetric
+ * @summary meet of BootPTR exact array with constant array is not symmetric
  *
  * @run main/othervm -XX:+IgnoreUnrecognizedVMOptions -XX:-UseOnStackReplacement
  *                   -XX:TypeProfileLevel=222 -XX:+UseTypeSpeculation

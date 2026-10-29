@@ -383,13 +383,13 @@ void VTransform::add_speculative_alignment_check(Node* node, juint alignment) {
   Node* ctrl = phase()->get_ctrl(node);
 
   // Cast adr/long -> int
-  if (node->bottom_type()->basic_type() == T_ADDRESS) {
+  if (node->toop_type()->basic_type() == T_ADDRESS) {
     // adr -> int/long
     node = new CastP2XNode(nullptr, node);
     phase()->register_new_node(node, ctrl);
     TRACE_SPECULATIVE_ALIGNMENT_CHECK(node);
   }
-  if (node->bottom_type()->basic_type() == T_LONG) {
+  if (node->toop_type()->basic_type() == T_LONG) {
     // long -> int
     node  = new ConvL2INode(node);
     phase()->register_new_node(node, ctrl);
@@ -1069,7 +1069,7 @@ float VTransformShiftCountNode::cost(const VLoopAnalyzer& vloop_analyzer) const 
 VTransformApplyResult VTransformShiftCountNode::apply(VTransformApplyState& apply_state) const {
   PhaseIdealLoop* phase = apply_state.phase();
   Node* shift_count_in = apply_state.transformed_node(in_req(1));
-  assert(shift_count_in->bottom_type()->isa_int(), "int type only for shift count");
+  assert(shift_count_in->toop_type()->isa_int(), "int type only for shift count");
   // The shift_count_in would be automatically truncated to the lowest _mask
   // bits in a scalar shift operation. But vector shift does not truncate, so
   // we must apply the mask now.

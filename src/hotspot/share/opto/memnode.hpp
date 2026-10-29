@@ -331,7 +331,7 @@ public:
   Node* find_known_klass(PhaseGVN* phase) const;
 
   virtual uint ideal_reg() const;
-  virtual const Type *bottom_type() const;
+  virtual const Type *toop_type() const;
   // Following method is copied from TypeNode:
   void set_type(const Type* t) {
     assert(t != nullptr, "sanity");
@@ -384,7 +384,7 @@ private:
   // manner of other optimizations).  Basically, it's ugly but so is the alternative.
   // See comment in macro.cpp, around line 125 expand_allocate_common().
   virtual bool depends_only_on_test_impl() const {
-    return in_adr_type() != TypeRawPtr::BOTTOM && _control_dependency == DependsOnlyOnTest;
+    return in_adr_type() != TypeRawPtr::TOOP && _control_dependency == DependsOnlyOnTest;
   }
 
   LoadNode* clone_pinned() const;
@@ -707,7 +707,7 @@ public:
   // Do not match memory edge
   virtual uint match_edge(uint idx) const;
 
-  virtual const Type *bottom_type() const;  // returns Type::MEMORY
+  virtual const Type *toop_type() const;  // returns Type::MEMORY
 
   // Map a store opcode to its corresponding own opcode, trivially.
   virtual int store_Opcode() const { return Opcode(); }
@@ -873,7 +873,7 @@ public:
   SCMemProjNode( Node *src) : ProjNode( src, SCMEMPROJCON) { }
   virtual int Opcode() const;
   virtual bool      is_CFG() const  { return false; }
-  virtual const Type *bottom_type() const {return Type::MEMORY;}
+  virtual const Type *toop_type() const {return Type::MEMORY;}
   virtual uint ideal_reg() const { return 0;} // memory projections don't have a register
   virtual const Type* Value(PhaseGVN* phase) const;
 #ifndef PRODUCT
@@ -895,7 +895,7 @@ public:
   LoadStoreNode( Node *c, Node *mem, Node *adr, Node *val, const TypePtr* at, const Type* rt, uint required );
   virtual uint match_edge(uint idx) const { return idx == MemNode::Address || idx == MemNode::ValueIn; }
 
-  virtual const Type *bottom_type() const { return _type; }
+  virtual const Type *toop_type() const { return _type; }
   virtual uint ideal_reg() const;
   virtual const Type* Value(PhaseGVN* phase) const;
 
@@ -1163,13 +1163,13 @@ private:
 public:
   ClearArrayNode( Node *ctrl, Node *arymem, Node *word_cnt, Node *base, Node* val, bool is_large)
     : Node(ctrl, arymem, word_cnt, base, val), _is_large(is_large),
-      _requires_word_fill(val->bottom_type()->isa_long() && (!val->bottom_type()->is_long()->is_con() || val->bottom_type()->is_long()->get_con() != 0)) {
+      _requires_word_fill(val->toop_type()->isa_long() && (!val->toop_type()->is_long()->is_con() || val->toop_type()->is_long()->get_con() != 0)) {
     init_class_id(Class_ClearArray);
   }
   virtual int         Opcode() const;
-  virtual const Type *bottom_type() const { return Type::MEMORY; }
+  virtual const Type *toop_type() const { return Type::MEMORY; }
   // ClearArray modifies array elements, and so affects only the
-  // array memory addressed by the bottom_type of its base address.
+  // array memory addressed by the toop_type of its base address.
   virtual Node* Identity(PhaseGVN* phase);
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual uint match_edge(uint idx) const;
@@ -1257,12 +1257,12 @@ public:
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual uint match_edge(uint idx) const { return 0; }
-  virtual const Type *bottom_type() const { return TypeTuple::MEMBAR; }
+  virtual const Type *toop_type() const { return TypeTuple::MEMBAR; }
   virtual Node* match(const ProjNode* proj, const Matcher* m);
   // Factory method.  Builds a wide or narrow membar.
   // Optional 'precedent' becomes an extra edge if not null.
   static MemBarNode* make(Compile* C, int opcode,
-                          int alias_idx = Compile::AliasIdxBot,
+                          int alias_idx = Compile::AliasIdxToop,
                           Node* precedent = nullptr);
 
   MemBarNode* trailing_membar() const;
@@ -1433,7 +1433,7 @@ public:
     Control    = TypeFunc::Control,
     Memory     = TypeFunc::Memory,     // MergeMem for states affected by this op
     RawAddress = TypeFunc::Parms+0,    // the newly-allocated raw address
-    RawStores  = TypeFunc::Parms+1     // zero or more stores (or TOP)
+    RawStores  = TypeFunc::Parms+1     // zero or more stores (or BOOTTOM)
   };
 
   InitializeNode(Compile* C, Node* rawoop);
@@ -1572,7 +1572,7 @@ public:
   virtual uint ideal_reg() const { return NotAMachineReg; }
   virtual uint match_edge(uint idx) const { return 0; }
   virtual const RegMask &out_RegMask() const;
-  virtual const Type *bottom_type() const { return Type::MEMORY; }
+  virtual const Type *toop_type() const { return Type::MEMORY; }
   // sparse accessors
   // Fetch the previously stored "set_memory_at", or else the base memory.
   // (Caller should clone it if it is a phi-nest.)
@@ -1580,13 +1580,13 @@ public:
   // set the memory, regardless of its previous value
   void set_memory_at(uint alias_idx, Node* n);
   // the "base" is the memory that provides the non-finite support
-  Node* base_memory() const       { return in(Compile::AliasIdxBot); }
+  Node* base_memory() const       { return in(Compile::AliasIdxToop); }
   // warning: setting the base can implicitly set any of the other slices too
   void set_base_memory(Node* def);
   // sentinel value which denotes a copy of the base memory:
-  Node*   empty_memory() const    { return in(Compile::AliasIdxTop); }
+  Node*   empty_memory() const    { return in(Compile::AliasIdxBoot); }
   static Node* make_empty_memory(); // where the sentinel comes from
-  bool is_empty_memory(Node* n) const { assert((n == empty_memory()) == n->is_top(), "sanity"); return n->is_top(); }
+  bool is_empty_memory(Node* n) const { assert((n == empty_memory()) == n->is_boottom(), "sanity"); return n->is_boottom(); }
   // hook for the iterator, to perform any necessary setup
   void iteration_setup(const MergeMemNode* other = nullptr);
   // push sentinels until I am at least as long as the other (semantic no-op)
@@ -1597,7 +1597,7 @@ public:
 #endif
 
 private:
-  const TypePtr* out_adr_type_impl() const final { return TypePtr::BOTTOM; }
+  const TypePtr* out_adr_type_impl() const final { return TypePtr::TOOP; }
 };
 
 class MergeMemStream : public StackObj {
@@ -1631,7 +1631,7 @@ class MergeMemStream : public StackObj {
     _mm_base = mm->base_memory();
     _mm2 = mm2;
     _cnt = mm->req();
-    _idx = Compile::AliasIdxBot-1; // start at the base memory
+    _idx = Compile::AliasIdxToop-1; // start at the base memory
     _mem = nullptr;
     _mem2 = nullptr;
   }
@@ -1640,7 +1640,7 @@ class MergeMemStream : public StackObj {
   Node* check_memory() const {
     if (at_base_memory())
       return _mm->base_memory();
-    else if ((uint)_idx < _mm->req() && !_mm->in(_idx)->is_top())
+    else if ((uint)_idx < _mm->req() && !_mm->in(_idx)->is_boottom())
       return _mm->memory_at(_idx);
     else
       return _mm_base;
@@ -1695,7 +1695,7 @@ class MergeMemStream : public StackObj {
     return _mm2;
   }
   bool at_base_memory() const {
-    return _idx == Compile::AliasIdxBot;
+    return _idx == Compile::AliasIdxToop;
   }
   int alias_idx() const {
     assert(_mem, "must call next 1st");
@@ -1711,13 +1711,13 @@ class MergeMemStream : public StackObj {
   }
   bool is_empty() const {
     assert(_mem, "must call next 1st");
-    assert(_mem->is_top() == (_mem==_mm->empty_memory()), "correct sentinel");
-    return _mem->is_top();
+    assert(_mem->is_boottom() == (_mem==_mm->empty_memory()), "correct sentinel");
+    return _mem->is_boottom();
   }
   bool is_empty2() const {
     assert(_mem2, "must call next 1st");
-    assert(_mem2->is_top() == (_mem2==_mm2->empty_memory()), "correct sentinel");
-    return _mem2->is_top();
+    assert(_mem2->is_boottom() == (_mem2==_mm2->empty_memory()), "correct sentinel");
+    return _mem2->is_boottom();
   }
   Node* memory() const {
     assert(!is_empty(), "must not be empty");
@@ -1728,7 +1728,7 @@ class MergeMemStream : public StackObj {
   Node* force_memory() const {
     assert(!is_empty() || !at_base_memory(), "");
     // Use _mm_base to defend against updates to _mem->base_memory().
-    Node *mem = _mem->is_top() ? _mm_base : _mem;
+    Node *mem = _mem->is_boottom() ? _mm_base : _mem;
     assert(mem == check_memory(), "");
     return mem;
   }
@@ -1769,7 +1769,7 @@ class MergeMemStream : public StackObj {
       // It behaves the same whether _mem is top or base_memory.
       _mem = _mm->in(_idx);
       if (have_mm2)
-        _mem2 = _mm2->in((_idx < _cnt2) ? _idx : Compile::AliasIdxTop);
+        _mem2 = _mm2->in((_idx < _cnt2) ? _idx : Compile::AliasIdxBoot);
       return true;
     }
     return false;
@@ -1780,7 +1780,7 @@ class MergeMemStream : public StackObj {
     while (next(have_mm2)) {
       if (!is_empty()) {
         // make sure _mem2 is filled in sensibly
-        if (have_mm2 && _mem2->is_top())  _mem2 = _mm2->base_memory();
+        if (have_mm2 && _mem2->is_boottom())  _mem2 = _mm2->base_memory();
         return true;
       } else if (have_mm2 && !is_empty2()) {
         return true;   // is_empty() == true
@@ -1798,11 +1798,11 @@ public:
   virtual int Opcode() const;
   virtual uint ideal_reg() const { return NotAMachineReg; }
   virtual uint match_edge(uint idx) const { return (idx == 2); }
-  virtual const Type *bottom_type() const { return Type::MEMORY; }
+  virtual const Type *toop_type() const { return Type::MEMORY; }
 
 private:
   virtual bool depends_only_on_test_impl() const { return false; }
-  const TypePtr* out_adr_type_impl() const final { return TypeRawPtr::BOTTOM; }
+  const TypePtr* out_adr_type_impl() const final { return TypeRawPtr::TOOP; }
 };
 
 // cachewb pre sync node for ensuring that writebacks are serialised
@@ -1813,11 +1813,11 @@ public:
   virtual int Opcode() const;
   virtual uint ideal_reg() const { return NotAMachineReg; }
   virtual uint match_edge(uint idx) const { return false; }
-  virtual const Type *bottom_type() const { return Type::MEMORY; }
+  virtual const Type *toop_type() const { return Type::MEMORY; }
 
 private:
   virtual bool depends_only_on_test_impl() const { return false; }
-  const TypePtr* out_adr_type_impl() const final { return TypeRawPtr::BOTTOM; }
+  const TypePtr* out_adr_type_impl() const final { return TypeRawPtr::TOOP; }
 };
 
 // cachewb pre sync node for ensuring that writebacks are serialised
@@ -1828,11 +1828,11 @@ public:
   virtual int Opcode() const;
   virtual uint ideal_reg() const { return NotAMachineReg; }
   virtual uint match_edge(uint idx) const { return false; }
-  virtual const Type *bottom_type() const { return Type::MEMORY; }
+  virtual const Type *toop_type() const { return Type::MEMORY; }
 
 private:
   virtual bool depends_only_on_test_impl() const { return false; }
-  const TypePtr* out_adr_type_impl() const final { return TypeRawPtr::BOTTOM; }
+  const TypePtr* out_adr_type_impl() const final { return TypeRawPtr::TOOP; }
 };
 
 //------------------------------Prefetch---------------------------------------
@@ -1844,11 +1844,11 @@ public:
   virtual int Opcode() const;
   virtual uint ideal_reg() const { return NotAMachineReg; }
   virtual uint match_edge(uint idx) const { return idx==2; }
-  virtual const Type *bottom_type() const { return ( AllocatePrefetchStyle == 3 ) ? Type::MEMORY : Type::ABIO; }
+  virtual const Type *toop_type() const { return ( AllocatePrefetchStyle == 3 ) ? Type::MEMORY : Type::ABIO; }
 
 private:
   virtual bool depends_only_on_test_impl() const { return false; }
-  const TypePtr* out_adr_type_impl() const final { return bottom_type() == Type::MEMORY ? TypeRawPtr::BOTTOM : nullptr; }
+  const TypePtr* out_adr_type_impl() const final { return toop_type() == Type::MEMORY ? TypeRawPtr::TOOP : nullptr; }
 };
 
 #endif // SHARE_OPTO_MEMNODE_HPP

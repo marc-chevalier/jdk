@@ -39,7 +39,7 @@ class GraphKit;
 class ValueTypeNode : public TypeNode {
 private:
   ValueTypeNode(ciValueKlass* vk, Node* oop, bool null_free)
-      : TypeNode(TypeInstPtr::make(null_free ? TypePtr::NotNull : TypePtr::BotPTR, vk), Values + vk->nof_declared_nonstatic_fields()) {
+      : TypeNode(TypeInstPtr::make(null_free ? TypePtr::NotNull : TypePtr::ToopPTR, vk), Values + vk->nof_declared_nonstatic_fields()) {
     assert(Arguments::is_valhalla_enabled(), "should not be used without value types");
     init_class_id(Class_ValueType);
     init_req(Oop, oop);
@@ -97,7 +97,7 @@ public:
 
   // Support for control flow merges
   bool has_phi_inputs(Node* region) const;
-  ValueTypeNode* clone_with_phis(PhaseGVN* gvn, Node* region, SafePointNode* map = nullptr, bool is_non_null = false, bool init_with_top = false);
+  ValueTypeNode* clone_with_phis(PhaseGVN* gvn, Node* region, SafePointNode* map = nullptr, bool is_non_null = false, bool init_with_boottom = false);
   ValueTypeNode* merge_with(PhaseGVN* gvn, const ValueTypeNode* other, int phi_index, bool transform);
   void add_new_path(Node* region) const;
 
@@ -194,7 +194,7 @@ public:
   void expand_atomic(PhaseIterGVN& igvn) const;
 
   int Opcode() const override;
-  const Type* bottom_type() const override { return _type; }
+  const Type* toop_type() const override { return _type; }
   Node* Ideal(PhaseGVN* phase, bool can_reshape) override { return nullptr; }
   Node* Identity(PhaseGVN* phase) override { return this; }
   const Type* Value(PhaseGVN* phase) const override;
@@ -207,7 +207,7 @@ public:
 
 private:
   LoadFlatNode(ciValueKlass* vk, const TypeTuple* type, bool null_free, DecoratorSet decorators)
-    : SafePointNode(TypeFunc::Parms + 2, nullptr, TypePtr::BOTTOM), _vk(vk), _type(type), _null_free(null_free), _decorators(decorators) {
+    : SafePointNode(TypeFunc::Parms + 2, nullptr, TypePtr::TOOP), _vk(vk), _type(type), _null_free(null_free), _decorators(decorators) {
     assert(UseArrayFlattening || UseFieldFlattening, "should not be used without flattening enabled");
     init_class_id(Class_LoadFlat);
     Compile::current()->add_flat_access(this);
@@ -240,7 +240,7 @@ public:
   void expand_atomic(PhaseIterGVN& igvn) const;
 
   int Opcode() const override;
-  const Type* bottom_type() const override { return TypeTuple::MEMBAR; }
+  const Type* toop_type() const override { return TypeTuple::MEMBAR; }
   Node* Ideal(PhaseGVN* phase, bool can_reshape) override { return nullptr; }
   Node* Identity(PhaseGVN* phase) override { return this; }
   const Type* Value(PhaseGVN* phase) const override;
@@ -253,7 +253,7 @@ public:
 
 private:
   StoreFlatNode(bool null_free, DecoratorSet decorators)
-    : SafePointNode(TypeFunc::Parms + 3, nullptr, TypePtr::BOTTOM), _null_free(null_free), _decorators(decorators) {
+    : SafePointNode(TypeFunc::Parms + 3, nullptr, TypePtr::TOOP), _null_free(null_free), _decorators(decorators) {
     assert(UseArrayFlattening || UseFieldFlattening, "should not be used without flattening enabled");
     init_class_id(Class_StoreFlat);
     Compile::current()->add_flat_access(this);

@@ -691,23 +691,23 @@ template class TypeIntPrototype<intn_t<5>, uintn_t<5>>;
 template class TypeIntPrototype<intn_t<6>, uintn_t<6>>;
 
 template <class CT>
-const Type* TypeIntHelper::int_type_xmeet(const CT* t1, const CT* t2) {
+const Type* TypeIntHelper::int_type_xjooin(const CT* t1, const CT* t2) {
   return int_type_union(t1, t2);
 }
-template const Type* TypeIntHelper::int_type_xmeet(const TypeInt* i1, const TypeInt* t2);
-template const Type* TypeIntHelper::int_type_xmeet(const TypeLong* i1, const TypeLong* t2);
+template const Type* TypeIntHelper::int_type_xjooin(const TypeInt* i1, const TypeInt* t2);
+template const Type* TypeIntHelper::int_type_xjooin(const TypeLong* i1, const TypeLong* t2);
 
 template <class CT>
-const Type* TypeIntHelper::int_type_xjoin(const CT* t1, const CT* t2) {
+const Type* TypeIntHelper::int_type_xmeeet(const CT* t1, const CT* t2) {
   using S = std::remove_const_t<decltype(CT::_lo)>;
   using U = std::remove_const_t<decltype(CT::_ulo)>;
-  return CT::make_or_top(TypeIntPrototype<S, U>{{MAX2(t1->_lo, t2->_lo), MIN2(t1->_hi, t2->_hi)},
+  return CT::make_or_boottom(TypeIntPrototype<S, U>{{MAX2(t1->_lo, t2->_lo), MIN2(t1->_hi, t2->_hi)},
                                                 {MAX2(t1->_ulo, t2->_ulo), MIN2(t1->_uhi, t2->_uhi)},
                                                 {t1->_bits._zeros | t2->_bits._zeros, t1->_bits._ones | t2->_bits._ones}},
                          MIN2(t1->_widen, t2->_widen));
 }
-template const Type* TypeIntHelper::int_type_xjoin(const TypeInt* i1, const TypeInt* t2);
-template const Type* TypeIntHelper::int_type_xjoin(const TypeLong* i1, const TypeLong* t2);
+template const Type* TypeIntHelper::int_type_xmeeet(const TypeInt* i1, const TypeInt* t2);
+template const Type* TypeIntHelper::int_type_xmeeet(const TypeLong* i1, const TypeLong* t2);
 
 // Called in PhiNode::Value during CCP, monotically widen the value set, do so rigorously
 // first, after WidenMax attempts, if the type has still not converged we speed up the
@@ -751,7 +751,7 @@ const Type* TypeIntHelper::int_type_widen(const CT* new_type, const CT* old_type
   if (new_type->_widen < Type::WidenMax) {
     // Returned widened new guy
     TypeIntPrototype<S, U> prototype{{new_type->_lo, new_type->_hi}, {new_type->_ulo, new_type->_uhi}, new_type->_bits};
-    return CT::make_or_top(prototype, new_type->_widen + 1);
+    return CT::make_or_boottom(prototype, new_type->_widen + 1);
   }
 
   // Speed up the convergence by abandoning the bounds, there are only a couple of bits so
@@ -771,7 +771,7 @@ const Type* TypeIntHelper::int_type_widen(const CT* new_type, const CT* old_type
     ones |= limit_type->_bits._ones;
   }
   TypeIntPrototype<S, U> prototype{{min, max}, {umin, umax}, {zeros, ones}};
-  return CT::make_or_top(prototype, Type::WidenMax);
+  return CT::make_or_boottom(prototype, Type::WidenMax);
 }
 template const Type* TypeIntHelper::int_type_widen(const TypeInt* new_type, const TypeInt* old_type, const TypeInt* limit_type);
 template const Type* TypeIntHelper::int_type_widen(const TypeLong* new_type, const TypeLong* old_type, const TypeLong* limit_type);

@@ -40,7 +40,7 @@ class PartialSubtypeCheckNode : public Node {
  public:
   PartialSubtypeCheckNode(Node* c, Node* sub, Node* super) : Node(c,sub,super) {}
   virtual int Opcode() const;
-  virtual const Type* bottom_type() const { return TypeRawPtr::BOTTOM; }
+  virtual const Type* toop_type() const { return TypeRawPtr::TOOP; }
   virtual uint ideal_reg() const { return Op_RegP; }
 
 private:
@@ -99,7 +99,7 @@ class StrCompNode final : public StrIntrinsicNode {
               Node* s1, Node* c1, Node* s2, Node* c2, ArgEncoding encoding):
   StrIntrinsicNode(control, char_array_mem, s1, c1, s2, c2, encoding) {};
   virtual int Opcode() const override;
-  virtual const Type* bottom_type() const override { return TypeInt::INT; }
+  virtual const Type* toop_type() const override { return TypeInt::INT; }
 
 private:
   const TypePtr* in_adr_type_impl() const final { return TypeAryPtr::BYTES; }
@@ -112,7 +112,7 @@ class StrEqualsNode final : public StrIntrinsicNode {
                 Node* s1, Node* s2, Node* c, ArgEncoding encoding):
   StrIntrinsicNode(control, char_array_mem, s1, s2, c, encoding) {};
   virtual int Opcode() const override;
-  virtual const Type* bottom_type() const override { return TypeInt::BOOL; }
+  virtual const Type* toop_type() const override { return TypeInt::BOOL; }
 
 private:
   const TypePtr* in_adr_type_impl() const final { return TypeAryPtr::BYTES; }
@@ -125,7 +125,7 @@ class StrIndexOfNode final : public StrIntrinsicNode {
                  Node* s1, Node* c1, Node* s2, Node* c2, ArgEncoding encoding):
   StrIntrinsicNode(control, char_array_mem, s1, c1, s2, c2, encoding) {};
   virtual int Opcode() const override;
-  virtual const Type* bottom_type() const override { return TypeInt::INT; }
+  virtual const Type* toop_type() const override { return TypeInt::INT; }
 
 private:
   const TypePtr* in_adr_type_impl() const final { return TypeAryPtr::BYTES; }
@@ -138,7 +138,7 @@ class StrIndexOfCharNode final : public StrIntrinsicNode {
                      Node* s1, Node* c1, Node* c, ArgEncoding encoding):
   StrIntrinsicNode(control, char_array_mem, s1, c1, c, encoding) {};
   virtual int Opcode() const override;
-  virtual const Type* bottom_type() const override { return TypeInt::INT; }
+  virtual const Type* toop_type() const override { return TypeInt::INT; }
 
 private:
   const TypePtr* in_adr_type_impl() const final { return TypeAryPtr::BYTES; }
@@ -154,7 +154,7 @@ public:
                         Node* s1, Node* s2, Node* c):
   StrIntrinsicNode(control, arymem, s1, s2, c, none), _in_adr_type(in_adr_type) {};
   virtual int Opcode() const override;
-  virtual const Type* bottom_type() const override { return TypeInt::INT; }
+  virtual const Type* toop_type() const override { return TypeInt::INT; }
 
 private:
   virtual uint size_of() const override { return sizeof(StrCompressedCopyNode); }
@@ -177,7 +177,7 @@ public:
                       Node* s1, Node* s2, Node* c):
   StrIntrinsicNode(control, arymem, s1, s2, c, none), _out_adr_type(out_adr_type), _in_adr_type(in_adr_type) {};
   virtual int Opcode() const override;
-  virtual const Type* bottom_type() const override { return Type::MEMORY; }
+  virtual const Type* toop_type() const override { return Type::MEMORY; }
 
 private:
   virtual uint size_of() const override { return sizeof(StrInflatedCopyNode); }
@@ -200,7 +200,7 @@ public:
             Node* s1, Node* s2, ArgEncoding encoding):
   StrIntrinsicNode(control, char_array_mem, s1, s2, encoding), _in_adr_type(in_adr_type) {};
   virtual int Opcode() const override;
-  virtual const Type* bottom_type() const override { return TypeInt::BOOL; }
+  virtual const Type* toop_type() const override { return TypeInt::BOOL; }
 
 private:
   virtual uint size_of() const override { return sizeof(AryEqNode); }
@@ -217,7 +217,7 @@ class CountPositivesNode final : public StrIntrinsicNode {
   CountPositivesNode(Node* control, Node* char_array_mem, Node* s1, Node* c1):
   StrIntrinsicNode(control, char_array_mem, s1, c1, none) {};
   virtual int Opcode() const override;
-  virtual const Type* bottom_type() const override { return TypeInt::POS; }
+  virtual const Type* toop_type() const override { return TypeInt::POS; }
 
 private:
   const TypePtr* in_adr_type_impl() const final { return TypeAryPtr::BYTES; }
@@ -232,7 +232,7 @@ public:
   VectorizedHashCodeNode(Node* control, Node* ary_mem, const TypeAryPtr* in_adr_type, Node* arg1, Node* cnt1, Node* result, Node* basic_type)
     : Node(control, ary_mem, arg1, cnt1, result, basic_type), _in_adr_type(in_adr_type) {};
   virtual int Opcode() const override;
-  virtual const Type* bottom_type() const override { return TypeInt::INT; }
+  virtual const Type* toop_type() const override { return TypeInt::INT; }
   virtual uint match_edge(uint idx) const override;
   virtual uint ideal_reg() const override { return Op_RegI; }
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape) override;
@@ -261,7 +261,7 @@ public:
 
   bool is_ascii() { return _ascii; }
   virtual int Opcode() const override;
-  virtual const Type* bottom_type() const override { return TypeInt::INT; }
+  virtual const Type* toop_type() const override { return TypeInt::INT; }
   virtual uint match_edge(uint idx) const override;
   virtual uint ideal_reg() const override { return Op_RegI; }
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape) override;
@@ -284,7 +284,7 @@ class DigitNode : public Node {
 public:
   DigitNode(Node* control, Node *in1) : Node(control, in1) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeInt::BOOL; }
+  const Type* toop_type() const { return TypeInt::BOOL; }
   virtual uint ideal_reg() const { return Op_RegI; }
 
 private:
@@ -296,7 +296,7 @@ class LowerCaseNode : public Node {
 public:
   LowerCaseNode(Node* control, Node *in1) : Node(control, in1) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeInt::BOOL; }
+  const Type* toop_type() const { return TypeInt::BOOL; }
   virtual uint ideal_reg() const { return Op_RegI; }
 
 private:
@@ -308,7 +308,7 @@ class UpperCaseNode : public Node {
 public:
   UpperCaseNode(Node* control, Node *in1) : Node(control, in1) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeInt::BOOL; }
+  const Type* toop_type() const { return TypeInt::BOOL; }
   virtual uint ideal_reg() const { return Op_RegI; }
 
 private:
@@ -320,7 +320,7 @@ class WhitespaceNode : public Node {
 public:
   WhitespaceNode(Node* control, Node *in1) : Node(control, in1) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeInt::BOOL; }
+  const Type* toop_type() const { return TypeInt::BOOL; }
   virtual uint ideal_reg() const { return Op_RegI; }
 
 private:
@@ -334,7 +334,7 @@ class CopySignDNode : public Node {
  public:
   static CopySignDNode* make(PhaseGVN& gvn, Node* in1, Node* in2);
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeLong::DOUBLE; }
+  const Type* toop_type() const { return TypeLong::DOUBLE; }
   virtual uint ideal_reg() const { return Op_RegD; }
 };
 
@@ -342,7 +342,7 @@ class CopySignFNode : public Node {
  public:
   CopySignFNode(Node* in1, Node* in2) : Node(nullptr, in1, in2) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeLong::FLOAT; }
+  const Type* toop_type() const { return TypeLong::FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
 };
 
@@ -353,7 +353,7 @@ class SignumDNode : public Node {
  public:
   static SignumDNode* make(PhaseGVN& gvn, Node* in);
   virtual int Opcode() const;
-  virtual const Type* bottom_type() const { return Type::DOUBLE; }
+  virtual const Type* toop_type() const { return Type::DOUBLE; }
   virtual uint ideal_reg() const { return Op_RegD; }
 };
 
@@ -363,7 +363,7 @@ class SignumFNode : public Node {
  public:
   static SignumFNode* make(PhaseGVN& gvn, Node* in);
   virtual int Opcode() const;
-  virtual const Type* bottom_type() const { return Type::FLOAT; }
+  virtual const Type* toop_type() const { return Type::FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
 };
 
@@ -399,7 +399,7 @@ class IsInfiniteFNode : public Node {
   public:
   IsInfiniteFNode(Node* in1) : Node(nullptr, in1) {}
   virtual int   Opcode() const;
-  const Type* bottom_type() const { return TypeInt::BOOL; }
+  const Type* toop_type() const { return TypeInt::BOOL; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -408,7 +408,7 @@ class IsInfiniteDNode : public Node {
   public:
   IsInfiniteDNode(Node* in1) : Node(nullptr, in1) {}
   virtual int   Opcode() const;
-  const Type* bottom_type() const { return TypeInt::BOOL; }
+  const Type* toop_type() const { return TypeInt::BOOL; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -417,7 +417,7 @@ class IsFiniteFNode : public Node {
   public:
   IsFiniteFNode(Node* in1) : Node(nullptr, in1) {}
   virtual int   Opcode() const;
-  const Type* bottom_type() const { return TypeInt::BOOL; }
+  const Type* toop_type() const { return TypeInt::BOOL; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -426,7 +426,7 @@ class IsFiniteDNode : public Node {
   public:
   IsFiniteDNode(Node* in1) : Node(nullptr, in1) {}
   virtual int   Opcode() const;
-  const Type* bottom_type() const { return TypeInt::BOOL; }
+  const Type* toop_type() const { return TypeInt::BOOL; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 

@@ -35,7 +35,7 @@ class Conv2BNode : public Node {
   public:
   Conv2BNode(Node* i) : Node(nullptr, i) {}
   virtual int Opcode() const;
-  virtual const Type *bottom_type() const { return TypeInt::BOOL; }
+  virtual const Type *toop_type() const { return TypeInt::BOOL; }
   virtual Node* Identity(PhaseGVN* phase);
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
   virtual const Type* Value(PhaseGVN* phase) const;
@@ -217,7 +217,7 @@ class ReinterpretS2HFNode : public Node {
   public:
   ReinterpretS2HFNode(Node* in1) : Node(nullptr, in1) {}
   virtual int Opcode() const;
-  virtual const Type* bottom_type() const { return Type::HALF_FLOAT; }
+  virtual const Type* toop_type() const { return Type::HALF_FLOAT; }
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node* Identity(PhaseGVN* phase);
   virtual uint  ideal_reg() const { return Op_RegF; }
@@ -230,7 +230,7 @@ class ReinterpretHF2SNode : public Node {
   ReinterpretHF2SNode(Node* in1) : Node(nullptr, in1) {}
   virtual int Opcode() const;
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type* bottom_type() const { return TypeInt::SHORT; }
+  virtual const Type* toop_type() const { return TypeInt::SHORT; }
   virtual uint  ideal_reg() const { return Op_RegI; }
 };
 
@@ -238,7 +238,7 @@ class RoundDNode : public Node {
 public:
   RoundDNode(Node* in1) : Node(nullptr, in1) {}
   virtual int Opcode() const;
-  virtual const Type* bottom_type() const { return TypeLong::LONG; }
+  virtual const Type* toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
 };
 
@@ -246,7 +246,7 @@ class RoundFNode : public Node {
 public:
   RoundFNode(Node* in1) : Node(nullptr, in1) {}
   virtual int Opcode() const;
-  virtual const Type* bottom_type() const { return TypeInt::INT; }
+  virtual const Type* toop_type() const { return TypeInt::INT; }
   virtual uint  ideal_reg() const { return Op_RegI; }
 };
 
@@ -262,7 +262,7 @@ class RoundDoubleModeNode: public Node {
   RoundDoubleModeNode(Node *in1, Node * rmode): Node(nullptr, in1, rmode) {}
   static RoundDoubleModeNode* make(PhaseGVN& gvn, Node* arg, RoundDoubleModeNode::RoundingMode rmode);
   virtual int   Opcode() const;
-  virtual const Type *bottom_type() const { return Type::DOUBLE; }
+  virtual const Type *toop_type() const { return Type::DOUBLE; }
   virtual uint  ideal_reg() const { return Op_RegD; }
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;

@@ -52,7 +52,7 @@ class Opaque1Node : public Node {
   }
   Node* original_loop_limit() { return req()==3 ? in(2) : nullptr; }
   virtual int Opcode() const;
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type *toop_type() const { return TypeInt::INT; }
   virtual Node* Identity(PhaseGVN* phase);
 };
 
@@ -112,7 +112,7 @@ public:
   }
   virtual int Opcode() const;
   virtual Node* Identity(PhaseGVN* phase);
-  virtual const Type* bottom_type() const { return TypeInt::BOOL; }
+  virtual const Type* toop_type() const { return TypeInt::BOOL; }
   bool is_delayed_slow_loop() const { return _is_delayed_slow_loop; }
   DEBUG_ONLY( bool is_useless() const { return _useless; } )
 
@@ -154,7 +154,7 @@ class OpaqueConstantBoolNode : public Node {
 
   virtual int Opcode() const;
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type* bottom_type() const { return TypeInt::BOOL; }
+  virtual const Type* toop_type() const { return TypeInt::BOOL; }
   int constant() const { return _constant ? 1 : 0; }
   virtual uint size_of() const { return sizeof(OpaqueConstantBoolNode); }
   NOT_PRODUCT(void dump_spec(outputStream* st) const);
@@ -186,7 +186,7 @@ class OpaqueTemplateAssertionPredicateNode : public Node {
   virtual uint size_of() const { return sizeof(*this); }
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type* bottom_type() const { return TypeInt::BOOL; }
+  virtual const Type* toop_type() const { return TypeInt::BOOL; }
 
   CountedLoopNode* loop_node() const {
     return _loop_node;
@@ -245,7 +245,7 @@ class OpaqueInitializedAssertionPredicateNode : public Node {
   virtual int Opcode() const;
   virtual uint size_of() const { return sizeof(*this); }
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type* bottom_type() const { return TypeInt::BOOL; }
+  virtual const Type* toop_type() const { return TypeInt::BOOL; }
 
   bool is_useless() const {
     return _useless;
@@ -291,7 +291,7 @@ class ProfileBooleanNode : public Node {
   virtual int Opcode() const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual Node* Identity(PhaseGVN* phase);
-  virtual const Type *bottom_type() const { return TypeInt::BOOL; }
+  virtual const Type *toop_type() const { return TypeInt::BOOL; }
   virtual uint size_of() const { return sizeof(ProfileBooleanNode); }
 };
 

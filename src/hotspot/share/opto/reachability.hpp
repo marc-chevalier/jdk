@@ -43,10 +43,10 @@ class ReachabilityFenceNode : public Node {
 public:
   ReachabilityFenceNode(Compile* C, Node* ctrl, Node* referent)
       : Node(1) {
-    assert(referent->bottom_type()->isa_oopptr() ||
-           referent->bottom_type()->isa_narrowoop() != nullptr ||
-           referent->bottom_type() == TypePtr::NULL_PTR,
-           "%s", Type::str(referent->bottom_type()));
+    assert(referent->toop_type()->isa_oopptr() ||
+           referent->toop_type()->isa_narrowoop() != nullptr ||
+           referent->toop_type() == TypePtr::NULL_PTR,
+           "%s", Type::str(referent->toop_type()));
     init_class_id(Class_ReachabilityFence);
     init_req(TypeFunc::Control, ctrl);
     add_req(referent);
@@ -57,7 +57,7 @@ public:
   virtual uint hash() const { return NO_HASH; }  // CFG nodes do not hash
   virtual bool depends_only_on_test() const { return false; };
   virtual uint ideal_reg() const { return 0; } // not matched in the AD file
-  virtual const Type* bottom_type() const { return Type::CONTROL; }
+  virtual const Type* toop_type() const { return Type::CONTROL; }
   virtual const RegMask& in_RegMask(uint idx) const {
     // Fake input register mask for the referent: accepts all registers and all stack slots.
     // This avoids redundant register moves around reachability fences.

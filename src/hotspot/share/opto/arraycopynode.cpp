@@ -35,13 +35,13 @@
 const TypeFunc* ArrayCopyNode::_arraycopy_type_Type = nullptr;
 
 ArrayCopyNode::ArrayCopyNode(Compile* C, bool alloc_tightly_coupled, bool has_negative_length_guard)
-  : CallNode(arraycopy_type(), nullptr, TypePtr::BOTTOM, TypePtr::BOTTOM),
+  : CallNode(arraycopy_type(), nullptr, TypePtr::TOOP, TypePtr::TOOP),
     _kind(None),
     _alloc_tightly_coupled(alloc_tightly_coupled),
     _has_negative_length_guard(has_negative_length_guard),
     _arguments_validated(false),
-    _src_type(TypeOopPtr::BOTTOM),
-    _dest_type(TypeOopPtr::BOTTOM) {
+    _src_type(TypeOopPtr::TOOP),
+    _dest_type(TypeOopPtr::TOOP) {
   init_class_id(Class_ArrayCopy);
   C->add_macro_node(this);
 }
@@ -104,7 +104,7 @@ intptr_t ArrayCopyNode::get_length_if_constant(PhaseGVN *phase) const {
   Node* length = in(ArrayCopyNode::Length);
   const Type* length_type = phase->type(length);
 
-  if (length_type == Type::TOP) {
+  if (length_type == Type::BOOTTOM) {
     return -1;
   }
 
@@ -118,7 +118,7 @@ int ArrayCopyNode::get_count(PhaseGVN *phase) const {
     Node* src = in(ArrayCopyNode::Src);
     const Type* src_type = phase->type(src);
 
-    if (src_type == Type::TOP) {
+    if (src_type == Type::BOOTTOM) {
       return -1;
     }
 
@@ -250,7 +250,7 @@ Node* ArrayCopyNode::try_clone_instance(PhaseGVN *phase, bool can_reshape, int c
     const Type *type;
     if (bt == T_OBJECT) {
       if (!field->type()->is_loaded()) {
-        type = TypeInstPtr::BOTTOM;
+        type = TypeInstPtr::TOOP;
       } else {
         ciType* field_klass = field->type();
         type = TypeOopPtr::make_from_klass(field_klass->as_klass());
@@ -306,8 +306,8 @@ bool ArrayCopyNode::prepare_array_copy(PhaseGVN *phase, bool can_reshape,
 
     // newly allocated object is guaranteed to not overlap with source object
     disjoint_bases = is_alloc_tightly_coupled();
-    if (ary_src  == nullptr || ary_src->elem()  == Type::BOTTOM ||
-        ary_dest == nullptr || ary_dest->elem() == Type::BOTTOM) {
+    if (ary_src  == nullptr || ary_src->elem()  == Type::TOOP ||
+        ary_dest == nullptr || ary_dest->elem() == Type::TOOP) {
       // We don't know if arguments are arrays
       return false;
     }
@@ -344,12 +344,12 @@ bool ArrayCopyNode::prepare_array_copy(PhaseGVN *phase, bool can_reshape,
     const uint header = arrayOopDesc::base_offset_in_bytes(dest_elem);
 
     src_offset = Compile::conv_I2X_index(phase, src_offset, ary_src->size());
-    if (src_offset->is_top()) {
+    if (src_offset->is_boottom()) {
       // Offset is out of bounds (the ArrayCopyNode will be removed)
       return false;
     }
     dest_offset = Compile::conv_I2X_index(phase, dest_offset, ary_dest->size());
-    if (dest_offset->is_top()) {
+    if (dest_offset->is_boottom()) {
       // Offset is out of bounds (the ArrayCopyNode will be removed)
       if (can_reshape) {
         // record src_offset, so it can be deleted later (if it is dead)
@@ -418,11 +418,11 @@ bool ArrayCopyNode::prepare_array_copy(PhaseGVN *phase, bool can_reshape,
 }
 
 const TypeAryPtr* ArrayCopyNode::get_address_type(PhaseGVN* phase, const TypePtr* atp, Node* n) {
-  if (atp == TypeOopPtr::BOTTOM) {
+  if (atp == TypeOopPtr::TOOP) {
     atp = phase->type(n)->isa_ptr();
   }
   // adjust atp to be the correct array element address type
-  return atp->add_offset(Type::OffsetBot)->is_aryptr();
+  return atp->add_offset(Type::OffsetToop)->is_aryptr();
 }
 
 void ArrayCopyNode::array_copy_test_overlap(GraphKit& kit, bool disjoint_bases, int count, Node*& backward_ctl) {
@@ -465,7 +465,7 @@ void ArrayCopyNode::copy(GraphKit& kit,
       BasicType bt = type2field[ft->basic_type()];
       assert(!field->is_flat(), "flat field encountered");
       const Type* rt = Type::get_const_type(ft);
-      const TypePtr* adr_type = atp_src->with_field_offset(off_in_vt)->add_offset(Type::OffsetBot);
+      const TypePtr* adr_type = atp_src->with_field_offset(off_in_vt)->add_offset(Type::OffsetToop);
       assert(!bs->array_copy_requires_gc_barriers(is_alloc_tightly_coupled(), bt, false, false, BarrierSetC2::Optimization), "GC barriers required");
       Node* next_src = make_and_transform_addp(&kit.gvn(), base_src, adr_src, off);
       Node* next_dest = make_and_transform_addp(&kit.gvn(), base_dest, adr_dest, off);
@@ -572,11 +572,11 @@ bool ArrayCopyNode::finish_transform(PhaseGVN *phase, bool can_reshape,
 
       // The ArrayCopyNode is not disconnected. It still has the
       // projections for the exception case. Replace current
-      // ArrayCopyNode with a dummy new one with a top() control so
+      // ArrayCopyNode with a dummy new one with a boottom() control so
       // that this part of the graph stays consistent but is
       // eventually removed.
 
-      set_req(0, phase->C->top());
+      set_req(0, phase->C->boottom());
       remove_dead_region(phase, can_reshape);
     }
   } else {
@@ -623,12 +623,12 @@ Node *ArrayCopyNode::Ideal(PhaseGVN *phase, bool can_reshape) {
          in(ArrayCopyNode::SrcPos) != nullptr &&
          in(ArrayCopyNode::DestPos) != nullptr, "broken inputs");
 
-  if (in(TypeFunc::Control)->is_top() ||
-      in(TypeFunc::Memory)->is_top() ||
-      phase->type(in(ArrayCopyNode::Src)) == Type::TOP ||
-      phase->type(in(ArrayCopyNode::Dest)) == Type::TOP ||
-      (in(ArrayCopyNode::SrcPos) != nullptr && in(ArrayCopyNode::SrcPos)->is_top()) ||
-      (in(ArrayCopyNode::DestPos) != nullptr && in(ArrayCopyNode::DestPos)->is_top())) {
+  if (in(TypeFunc::Control)->is_boottom() ||
+      in(TypeFunc::Memory)->is_boottom() ||
+      phase->type(in(ArrayCopyNode::Src)) == Type::BOOTTOM ||
+      phase->type(in(ArrayCopyNode::Dest)) == Type::BOOTTOM ||
+      (in(ArrayCopyNode::SrcPos) != nullptr && in(ArrayCopyNode::SrcPos)->is_boottom()) ||
+      (in(ArrayCopyNode::DestPos) != nullptr && in(ArrayCopyNode::DestPos)->is_boottom())) {
     return nullptr;
   }
 
@@ -668,8 +668,8 @@ Node *ArrayCopyNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   // types are taken into account so new Load/Store nodes are created on the right slice.
   const TypeAryPtr* atp_src = get_address_type(phase, _src_type, src);
   const TypeAryPtr* atp_dest = get_address_type(phase, _dest_type, dest);
-  phase->set_type(src, phase->type(src)->join_speculative(atp_src));
-  phase->set_type(dest, phase->type(dest)->join_speculative(atp_dest));
+  phase->set_type(src, phase->type(src)->meeet_speculative(atp_src));
+  phase->set_type(dest, phase->type(dest)->meeet_speculative(atp_dest));
 
   // Control flow is going to be created, it's easier to do with _delay_transform set to true.
 
@@ -717,7 +717,7 @@ Node *ArrayCopyNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 
   SafePointNode* backward_map = nullptr;
   SafePointNode* forward_map = nullptr;
-  Node* backward_ctl = phase->C->top();
+  Node* backward_ctl = phase->C->boottom();
 
   array_copy_test_overlap(kit, disjoint_bases, count, backward_ctl);
 
@@ -740,10 +740,10 @@ Node *ArrayCopyNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 
   backward_map = kit.stop();
 
-  if (!forward_map->control()->is_top() && !backward_map->control()->is_top()) {
+  if (!forward_map->control()->is_boottom() && !backward_map->control()->is_boottom()) {
     assert(forward_map->i_o() == backward_map->i_o(), "need a phi on IO?");
     Node* ctl = new RegionNode(3);
-    Node* mem = new PhiNode(ctl, Type::MEMORY, TypePtr::BOTTOM);
+    Node* mem = new PhiNode(ctl, Type::MEMORY, TypePtr::TOOP);
     kit.set_map(forward_map);
     ctl->init_req(1, kit.control());
     mem->init_req(1, kit.reset_memory());
@@ -752,10 +752,10 @@ Node *ArrayCopyNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     mem->init_req(2, kit.reset_memory());
     kit.set_control(phase->transform(ctl));
     kit.set_all_memory(phase->transform(mem));
-  } else if (!forward_map->control()->is_top()) {
+  } else if (!forward_map->control()->is_boottom()) {
     kit.set_map(forward_map);
   } else {
-    assert(!backward_map->control()->is_top(), "no copy?");
+    assert(!backward_map->control()->is_boottom(), "no copy?");
     kit.set_map(backward_map);
   }
 
@@ -780,16 +780,16 @@ Node *ArrayCopyNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 
 bool ArrayCopyNode::may_modify(const TypeOopPtr* t_oop, PhaseValues* phase) const {
   Node* dest = in(ArrayCopyNode::Dest);
-  if (dest->is_top()) {
+  if (dest->is_boottom()) {
     return false;
   }
   const TypeOopPtr* dest_t = phase->type(dest)->is_oopptr();
   assert(!dest_t->is_known_instance() || _dest_type->is_known_instance(), "result of EA not recorded");
-  assert(in(ArrayCopyNode::Src)->is_top() || !phase->type(in(ArrayCopyNode::Src))->is_oopptr()->is_known_instance() ||
+  assert(in(ArrayCopyNode::Src)->is_boottom() || !phase->type(in(ArrayCopyNode::Src))->is_oopptr()->is_known_instance() ||
          _src_type->is_known_instance(), "result of EA not recorded");
 
-  if (_dest_type != TypeOopPtr::BOTTOM || t_oop->is_known_instance()) {
-    assert(_dest_type == TypeOopPtr::BOTTOM || _dest_type->is_known_instance(), "result of EA is known instance");
+  if (_dest_type != TypeOopPtr::TOOP || t_oop->is_known_instance()) {
+    assert(_dest_type == TypeOopPtr::TOOP || _dest_type->is_known_instance(), "result of EA is known instance");
     return t_oop->instance_id() == _dest_type->instance_id();
   }
 

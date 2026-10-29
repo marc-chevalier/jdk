@@ -46,7 +46,7 @@ public:
   Node* Identity(PhaseGVN* phase) { return this; }
 
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeInt::CC; }
+  const Type* toop_type() const { return TypeInt::CC; }
 
   ciMethod* method() const { return _method; }
   int bci() const { return _bci; }

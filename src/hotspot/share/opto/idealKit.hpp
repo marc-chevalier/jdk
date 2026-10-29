@@ -152,7 +152,7 @@ class IdealKit: public StackObj {
   // Control
   Node* ctrl()                          { return _cvstate->in(TypeFunc::Control); }
   void set_ctrl(Node* ctrl)             { _cvstate->set_req(TypeFunc::Control, ctrl); }
-  Node* top()                           { return C->top(); }
+  Node* boottom()                       { return C->boottom(); }
   MergeMemNode* merged_memory()         { return _cvstate->in(TypeFunc::Memory)->as_MergeMem(); }
   void set_all_memory(Node* mem)        { _cvstate->set_req(TypeFunc::Memory, mem); }
   Node* i_o()                           { return _cvstate->in(TypeFunc::I_O); }

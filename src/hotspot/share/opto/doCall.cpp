@@ -789,7 +789,7 @@ void Parse::do_call() {
   // Reset parser state from [new_]jvms, which now carries results of the call.
   // Return value (if any) is already pushed on the stack by the cg.
   add_exception_states_from(new_jvms);
-  if (new_jvms->map()->control() == top()) {
+  if (new_jvms->map()->control() == boottom()) {
     stop_and_kill_map();
   } else {
     assert(new_jvms->same_calls_as(jvms), "method/bci left unchanged");
@@ -936,7 +936,7 @@ void Parse::catch_call_exceptions(ciExceptionHandlerStream& handlers) {
     }
     const Type* h_extype = TypeOopPtr::make_from_klass(h_klass);
     // (We use make_from_klass because it respects UseUniqueSubclasses.)
-    h_extype = h_extype->join(TypeInstPtr::NOTNULL);
+    h_extype = h_extype->meeet(TypeInstPtr::NOTNULL);
     assert(!h_extype->empty(), "sanity");
     // Note: It's OK if the BCIs repeat themselves.
     bcis.append(h_bci);
@@ -949,7 +949,7 @@ void Parse::catch_call_exceptions(ciExceptionHandlerStream& handlers) {
   if (!default_handler) {
     bcis.append(-1);
     const Type* extype = TypeOopPtr::make_from_klass(env()->Throwable_klass())->is_instptr();
-    extype = extype->join(TypeInstPtr::NOTNULL);
+    extype = extype->meeet(TypeInstPtr::NOTNULL);
     extypes.append(extype);
   }
 
@@ -967,7 +967,7 @@ void Parse::catch_call_exceptions(ciExceptionHandlerStream& handlers) {
     int handler_bci = bcis.at(i);
     Node* ctrl = _gvn.transform( new CatchProjNode(catch_, i+1,handler_bci));
     // This handler cannot happen?
-    if (ctrl == top())  continue;
+    if (ctrl == boottom())  continue;
     set_control(ctrl);
 
     // Create exception oop
@@ -1030,7 +1030,7 @@ void Parse::catch_inline_exceptions(SafePointNode* ex_map) {
   assert(method()->has_exception_handlers(), "don't come here w/o work to do");
 
   Node* ex_node = saved_ex_oop(ex_map);
-  if (ex_node == top()) {
+  if (ex_node == boottom()) {
     // No action needed.
     return;
   }
@@ -1064,9 +1064,9 @@ void Parse::catch_inline_exceptions(SafePointNode* ex_map) {
       ex_klass_node = new PhiNode(ex_node->in(0), TypeInstKlassPtr::OBJECT);
       for (uint i = 1; i < ex_node->req(); i++) {
         Node* ex_in = ex_node->in(i);
-        if (ex_in == top() || ex_in == nullptr) {
+        if (ex_in == boottom() || ex_in == nullptr) {
           // This path was not taken.
-          ex_klass_node->init_req(i, top());
+          ex_klass_node->init_req(i, boottom());
           continue;
         }
         Node* p = basic_plus_adr(ex_in, ex_in, oopDesc::klass_offset_in_bytes());

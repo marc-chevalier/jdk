@@ -49,8 +49,8 @@ static int count_trailing_zeros_long(jlong l) {
 //------------------------------Value------------------------------------------
 const Type* CountLeadingZerosINode::Value(PhaseGVN* phase) const {
   const Type* t = phase->type(in(1));
-  if (t == Type::TOP) {
-    return Type::TOP;
+  if (t == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
   // To minimize `count_leading_zeros(x)`, we should make the highest 1 bit in x
@@ -78,8 +78,8 @@ const Type* CountLeadingZerosINode::Value(PhaseGVN* phase) const {
 //------------------------------Value------------------------------------------
 const Type* CountLeadingZerosLNode::Value(PhaseGVN* phase) const {
   const Type* t = phase->type(in(1));
-  if (t == Type::TOP) {
-    return Type::TOP;
+  if (t == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
   // The proof of correctness is same as the above comments
@@ -93,8 +93,8 @@ const Type* CountLeadingZerosLNode::Value(PhaseGVN* phase) const {
 //------------------------------Value------------------------------------------
 const Type* CountTrailingZerosINode::Value(PhaseGVN* phase) const {
   const Type* t = phase->type(in(1));
-  if (t == Type::TOP) {
-    return Type::TOP;
+  if (t == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
   // To minimize `count_trailing_zeros(x)`, we should make the lowest 1 bit in x
@@ -122,8 +122,8 @@ const Type* CountTrailingZerosINode::Value(PhaseGVN* phase) const {
 //------------------------------Value------------------------------------------
 const Type* CountTrailingZerosLNode::Value(PhaseGVN* phase) const {
   const Type* t = phase->type(in(1));
-  if (t == Type::TOP) {
-    return Type::TOP;
+  if (t == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
 
   // The proof of correctness is same as the above comments
@@ -155,8 +155,8 @@ const Type* CountTrailingZerosLNode::Value(PhaseGVN* phase) const {
 //       are already reflected in the KnownBits information, see TypeInt / TypeLong definitions.
 const Type* PopCountINode::Value(PhaseGVN* phase) const {
   const Type* t = phase->type(in(1));
-  if (t == Type::TOP) {
-    return Type::TOP;
+  if (t == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
   const TypeInt* tint = t->is_int();
   KnownBits<juint> bits = tint->_bits;
@@ -166,8 +166,8 @@ const Type* PopCountINode::Value(PhaseGVN* phase) const {
 
 const Type* PopCountLNode::Value(PhaseGVN* phase) const {
   const Type* t = phase->type(in(1));
-  if (t == Type::TOP) {
-    return Type::TOP;
+  if (t == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
   const TypeLong* tlong = t->is_long();
   KnownBits<julong> bits = tlong->_bits;

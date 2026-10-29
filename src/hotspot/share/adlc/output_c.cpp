@@ -1324,8 +1324,8 @@ static void generate_peepreplace( FILE *fp, FormDict &globals, int peephole_numb
           fprintf(fp, "        root->add_req(inst%d->in(%d));        // unmatched ideal edge\n",
                                           inst_num, unmatched_edge);
         }
-        // Get bottom type from instruction whose result we are replacing
-        fprintf(fp, "        root->_bottom_type = inst%d->bottom_type();\n", inst_num);
+        // Get toop type from instruction whose result we are replacing
+        fprintf(fp, "        root->_toop_type = inst%d->toop_type();\n", inst_num);
         // Define result register and result operand
         fprintf(fp, "        ra_->set_oop (root, ra_->is_oop(inst%d));\n", inst_num);
         fprintf(fp, "        ra_->set_pair(root->_idx, ra_->get_reg_second(inst%d), ra_->get_reg_first(inst%d));\n", inst_num, inst_num);
@@ -1847,8 +1847,8 @@ void ArchDesc::defineExpand(FILE *fp, InstructForm *node) {
 
   fprintf(fp, "\n");
   if (node->expands()) {
-    // Fill in the bottom_type, only for result
-    fprintf(fp, "  result->_bottom_type = bottom_type();\n");
+    // Fill in the toop_type, only for result
+    fprintf(fp, "  result->_toop_type = toop_type();\n");
     fprintf(fp, "  return result;\n");
   } else {
     fprintf(fp, "  return this;\n");
@@ -3751,11 +3751,11 @@ static void path_to_constant(FILE *fp, FormDict &globals,
     if (         strcmp(optype,"ConI") == 0 ) {
       fprintf(fp, "_leaf->get_int()");
     } else if ( (strcmp(optype,"ConP") == 0) ) {
-      fprintf(fp, "_leaf->bottom_type()->is_ptr()");
+      fprintf(fp, "_leaf->toop_type()->is_ptr()");
     } else if ( (strcmp(optype,"ConN") == 0) ) {
-      fprintf(fp, "_leaf->bottom_type()->is_narrowoop()");
+      fprintf(fp, "_leaf->toop_type()->is_narrowoop()");
     } else if ( (strcmp(optype,"ConNKlass") == 0) ) {
-      fprintf(fp, "_leaf->bottom_type()->is_narrowklass()");
+      fprintf(fp, "_leaf->toop_type()->is_narrowklass()");
     } else if ( (strcmp(optype,"ConH") == 0) ) {
       fprintf(fp, "_leaf->geth()");
     } else if ( (strcmp(optype,"ConF") == 0) ) {
@@ -3957,13 +3957,13 @@ void ArchDesc::buildMachNode(FILE *fp_cpp, InstructForm *inst, const char *inden
     }
   }
 
-  // Fill in the bottom_type
+  // Fill in the toop_type
   if (inst->_matrule != nullptr && strcmp(inst->_matrule->_opType, "PrefetchAllocation") == 0) {
     // Special case, with AllocatePrefetchStyle == 3, this should be Type::MEMORY, but the graph
     // seems unsound, needs further investigation
-    fprintf(fp_cpp, "%s node->_bottom_type = Type::ABIO;\n", indent);
+    fprintf(fp_cpp, "%s node->_toop_type = Type::ABIO;\n", indent);
   } else {
-    fprintf(fp_cpp, "%s node->_bottom_type = _leaf->bottom_type();\n", indent);
+    fprintf(fp_cpp, "%s node->_toop_type = _leaf->toop_type();\n", indent);
   }
 
   if( inst->is_ideal_if() ) {
@@ -4020,8 +4020,8 @@ void InstructForm::define_cisc_version(ArchDesc& AD, FILE* fp_cpp) {
     fprintf(fp_cpp, "MachNode *%sNode::cisc_version(int offset) {\n", this->_ident);
     // Create the MachNode object
     fprintf(fp_cpp, "  %sNode *node = new %sNode();\n", name, name);
-    // Fill in the bottom_type
-    fprintf(fp_cpp, "  node->_bottom_type = bottom_type();\n");
+    // Fill in the toop_type
+    fprintf(fp_cpp, "  node->_toop_type = toop_type();\n");
 
     uint cur_num_opnds = num_opnds();
     if (cur_num_opnds > 1 && cur_num_opnds != num_unique_opnds()) {
@@ -4068,8 +4068,8 @@ void InstructForm::define_short_branch_methods(ArchDesc& AD, FILE* fp_cpp) {
       fprintf(fp_cpp, "  node->_fcnt = _fcnt;\n");
     }
 
-    // Fill in the bottom_type
-    fprintf(fp_cpp, "  node->_bottom_type = bottom_type();\n");
+    // Fill in the toop_type
+    fprintf(fp_cpp, "  node->_toop_type = toop_type();\n");
 
     fprintf(fp_cpp, "\n");
     // Short branch version must use same node index for access

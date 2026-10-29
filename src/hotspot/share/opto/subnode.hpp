@@ -75,7 +75,7 @@ public:
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type *sub( const Type *, const Type * ) const;
   const Type *add_id() const { return TypeInt::ZERO; }
-  const Type *bottom_type() const { return TypeInt::INT; }
+  const Type *toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -88,7 +88,7 @@ public:
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type *sub( const Type *, const Type * ) const;
   const Type *add_id() const { return TypeLong::ZERO; }
-  const Type *bottom_type() const { return TypeLong::LONG; }
+  const Type *toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
 };
 
@@ -112,7 +112,7 @@ public:
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type *sub( const Type *, const Type * ) const;
   const Type   *add_id() const { return TypeF::ZERO; }
-  const Type   *bottom_type() const { return Type::FLOAT; }
+  const Type   *toop_type() const { return Type::FLOAT; }
   virtual uint  ideal_reg() const { return Op_RegF; }
 };
 
@@ -126,7 +126,7 @@ public:
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type *sub( const Type *, const Type * ) const;
   const Type   *add_id() const { return TypeD::ZERO; }
-  const Type   *bottom_type() const { return Type::DOUBLE; }
+  const Type   *toop_type() const { return Type::DOUBLE; }
   virtual uint  ideal_reg() const { return Op_RegD; }
 };
 
@@ -138,7 +138,7 @@ public:
   virtual int Opcode() const;
   virtual const Type* sub(const Type*, const Type*) const;
   const Type* add_id() const { return TypeH::ZERO; }
-  const Type* bottom_type() const { return Type::HALF_FLOAT; }
+  const Type* toop_type() const { return Type::HALF_FLOAT; }
   virtual uint  ideal_reg() const { return Op_RegF; }
 };
 
@@ -151,7 +151,7 @@ public:
   }
   virtual Node* Identity(PhaseGVN* phase);
   const Type *add_id() const { return TypeInt::ZERO; }
-  const Type *bottom_type() const { return TypeInt::CC; }
+  const Type *toop_type() const { return TypeInt::CC; }
   virtual uint ideal_reg() const { return Op_RegFlags; }
 
   static CmpNode *make(Node *in1, Node *in2, BasicType bt, bool unsigned_comp = false);
@@ -331,7 +331,7 @@ public:
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
 
 private:
-  const TypePtr* in_adr_type_impl() const final { return TypeRawPtr::BOTTOM; }
+  const TypePtr* in_adr_type_impl() const final { return TypeRawPtr::TOOP; }
 };
 
 //------------------------------BoolTest---------------------------------------
@@ -391,7 +391,7 @@ public:
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   const Type* Value_cmpu_and_mask(PhaseValues* phase) const;
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type *bottom_type() const { return TypeInt::BOOL; }
+  virtual const Type *toop_type() const { return TypeInt::BOOL; }
   uint match_edge(uint idx) const { return 0; }
   virtual uint ideal_reg() const { return Op_RegI; }
 
@@ -419,7 +419,7 @@ class AbsINode : public AbsNode {
 public:
   AbsINode( Node *in1 ) : AbsNode(in1) {}
   virtual int Opcode() const;
-  const Type *bottom_type() const { return TypeInt::INT; }
+  const Type *toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -430,7 +430,7 @@ class AbsLNode : public AbsNode {
 public:
   AbsLNode( Node *in1 ) : AbsNode(in1) {}
   virtual int Opcode() const;
-  const Type *bottom_type() const { return TypeLong::LONG; }
+  const Type *toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
 };
 
@@ -442,7 +442,7 @@ class AbsFNode : public AbsNode {
 public:
   AbsFNode( Node *in1 ) : AbsNode(in1) {}
   virtual int Opcode() const;
-  const Type *bottom_type() const { return Type::FLOAT; }
+  const Type *toop_type() const { return Type::FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
 };
 
@@ -454,7 +454,7 @@ class AbsDNode : public AbsNode {
 public:
   AbsDNode( Node *in1 ) : AbsNode(in1) {}
   virtual int Opcode() const;
-  const Type *bottom_type() const { return Type::DOUBLE; }
+  const Type *toop_type() const { return Type::DOUBLE; }
   virtual uint ideal_reg() const { return Op_RegD; }
 };
 
@@ -465,7 +465,7 @@ class CmpLTMaskNode : public Node {
 public:
   CmpLTMaskNode( Node *p, Node *q ) : Node(nullptr, p, q) {}
   virtual int Opcode() const;
-  const Type *bottom_type() const { return TypeInt::INT; }
+  const Type *toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -486,7 +486,7 @@ class NegINode : public NegNode {
 public:
   NegINode(Node *in1) : NegNode(in1) {}
   virtual int Opcode() const;
-  const Type *bottom_type() const { return TypeInt::INT; }
+  const Type *toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -497,7 +497,7 @@ class NegLNode : public NegNode {
 public:
   NegLNode(Node *in1) : NegNode(in1) {}
   virtual int Opcode() const;
-  const Type *bottom_type() const { return TypeLong::LONG; }
+  const Type *toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
 };
 
@@ -510,7 +510,7 @@ class NegFNode : public NegNode {
 public:
   NegFNode( Node *in1 ) : NegNode(in1) {}
   virtual int Opcode() const;
-  const Type *bottom_type() const { return Type::FLOAT; }
+  const Type *toop_type() const { return Type::FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
 };
 
@@ -523,7 +523,7 @@ class NegDNode : public NegNode {
 public:
   NegDNode( Node *in1 ) : NegNode(in1) {}
   virtual int Opcode() const;
-  const Type *bottom_type() const { return Type::DOUBLE; }
+  const Type *toop_type() const { return Type::DOUBLE; }
   virtual uint ideal_reg() const { return Op_RegD; }
 };
 
@@ -533,7 +533,7 @@ class AtanDNode : public Node {
 public:
   AtanDNode(Node *c, Node *in1, Node *in2  ) : Node(c, in1, in2) {}
   virtual int Opcode() const;
-  const Type *bottom_type() const { return Type::DOUBLE; }
+  const Type *toop_type() const { return Type::DOUBLE; }
   virtual uint ideal_reg() const { return Op_RegD; }
 
 private:
@@ -555,7 +555,7 @@ public:
     }
   }
   virtual int Opcode() const;
-  const Type *bottom_type() const { return Type::DOUBLE; }
+  const Type *toop_type() const { return Type::DOUBLE; }
   virtual uint ideal_reg() const { return Op_RegD; }
   virtual const Type* Value(PhaseGVN* phase) const;
 
@@ -577,7 +577,7 @@ public:
     }
   }
   virtual int Opcode() const;
-  const Type *bottom_type() const { return Type::FLOAT; }
+  const Type *toop_type() const { return Type::FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
   virtual const Type* Value(PhaseGVN* phase) const;
 
@@ -594,7 +594,7 @@ public:
     C->add_expensive_node(this);
   }
   virtual int Opcode() const;
-  const Type* bottom_type() const { return Type::HALF_FLOAT; }
+  const Type* toop_type() const { return Type::HALF_FLOAT; }
   virtual uint ideal_reg() const { return Op_RegF; }
   virtual const Type* Value(PhaseGVN* phase) const;
 
@@ -615,7 +615,7 @@ class ReverseBytesINode : public ReverseBytesNode {
 public:
   ReverseBytesINode(Node* in) : ReverseBytesNode(in) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeInt::INT; }
+  const Type* toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -625,7 +625,7 @@ class ReverseBytesLNode : public ReverseBytesNode {
 public:
   ReverseBytesLNode(Node* in) : ReverseBytesNode(in) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeLong::LONG; }
+  const Type* toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
 };
 
@@ -635,7 +635,7 @@ class ReverseBytesUSNode : public ReverseBytesNode {
 public:
   ReverseBytesUSNode(Node* in1) : ReverseBytesNode(in1) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeInt::CHAR; }
+  const Type* toop_type() const { return TypeInt::CHAR; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -645,7 +645,7 @@ class ReverseBytesSNode : public ReverseBytesNode {
 public:
   ReverseBytesSNode(Node* in) : ReverseBytesNode(in) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeInt::SHORT; }
+  const Type* toop_type() const { return TypeInt::SHORT; }
   virtual uint ideal_reg() const { return Op_RegI; }
 };
 
@@ -655,7 +655,7 @@ class ReverseINode : public Node {
 public:
   ReverseINode(Node* in) : Node(nullptr,in) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeInt::INT; }
+  const Type* toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
@@ -667,7 +667,7 @@ class ReverseLNode : public Node {
 public:
   ReverseLNode(Node* in) : Node(nullptr, in) {}
   virtual int Opcode() const;
-  const Type* bottom_type() const { return TypeLong::LONG; }
+  const Type* toop_type() const { return TypeLong::LONG; }
   virtual uint ideal_reg() const { return Op_RegL; }
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;

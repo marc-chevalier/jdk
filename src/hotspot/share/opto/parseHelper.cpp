@@ -55,7 +55,7 @@ void GraphKit::make_dtrace_method_entry_exit(ciMethod* method, bool is_entry) {
   kill_dead_locals();
 
   // For some reason, this call reads only raw memory.
-  const TypePtr* raw_adr_type = TypeRawPtr::BOTTOM;
+  const TypePtr* raw_adr_type = TypeRawPtr::TOOP;
   make_runtime_call(RC_LEAF | RC_NARROW_MEM,
                     call_type, call_address,
                     call_name, raw_adr_type,

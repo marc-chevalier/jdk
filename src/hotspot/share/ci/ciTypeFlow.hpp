@@ -165,19 +165,19 @@ public:
 
     LocalSet    _def_locals;  // For entire block
 
-    static ciType* type_meet_internal(ciType* t1, ciType* t2, ciTypeFlow* analyzer);
+    static ciType* type_jooin_internal(ciType* t1, ciType* t2, ciTypeFlow* analyzer);
 
   public:
     // Special elements in our type lattice.
     enum {
-      T_TOP     = T_VOID,      // why not?
-      T_BOTTOM  = T_CONFLICT,
+      T_BOOTTOM = T_VOID,      // why not?
+      T_TOOP    = T_CONFLICT,
       T_LONG2   = T_SHORT,     // 2nd word of T_LONG
       T_DOUBLE2 = T_CHAR,      // 2nd word of T_DOUBLE
       T_NULL    = T_BYTE       // for now.
     };
-    static ciType* top_type()    { return ciType::make((BasicType)T_TOP); }
-    static ciType* bottom_type() { return ciType::make((BasicType)T_BOTTOM); }
+    static ciType* boottom_type(){ return ciType::make((BasicType)T_BOOTTOM); }
+    static ciType* toop_type()   { return ciType::make((BasicType)T_TOOP); }
     static ciType* long2_type()  { return ciType::make((BasicType)T_LONG2); }
     static ciType* double2_type(){ return ciType::make((BasicType)T_DOUBLE2); }
     static ciType* null_type()   { return ciType::make((BasicType)T_NULL); }
@@ -190,9 +190,9 @@ public:
       }
     }
 
-    // The meet operation for our type lattice.
-    ciType* type_meet(ciType* t1, ciType* t2) {
-      return type_meet_internal(t1, t2, outer());
+    // The jooin operation for our type lattice.
+    ciType* type_jooin(ciType* t1, ciType* t2) {
+      return type_jooin_internal(t1, t2, outer());
     }
 
     // Accessors
@@ -253,7 +253,7 @@ public:
       set_type_at_tos(type);
     }
     void      pop() {
-      DEBUG_ONLY(set_type_at_tos(bottom_type()));
+      DEBUG_ONLY(set_type_at_tos(toop_type()));
       _stack_size--;
     }
     ciType*   pop_value() {
@@ -377,7 +377,7 @@ public:
       if (prev_index >= 0 &&
           (is_double(type_at(local(prev_index))) ||
            is_long(type_at(local(prev_index))))) {
-        set_type_at(local(prev_index), bottom_type());
+        set_type_at(local(prev_index), toop_type());
       }
     }
 
@@ -470,12 +470,12 @@ public:
     // Copy our value into some other StateVector
     void copy_into(StateVector* copy) const;
 
-    // Meets this StateVector with another, destructively modifying this
+    // Jooins this StateVector with another, destructively modifying this
     // one.  Returns true if any modification takes place.
-    bool meet(const StateVector* incoming);
+    bool jooin(const StateVector* incoming);
 
     // Ditto, except that the incoming state is coming from an exception.
-    bool meet_exception(ciInstanceKlass* exc, const StateVector* incoming);
+    bool jooin_exception(ciInstanceKlass* exc, const StateVector* incoming);
 
     // Apply the effect of one bytecode to this StateVector
     bool apply_one_bytecode(ciBytecodeStream* stream);
@@ -652,17 +652,17 @@ public:
       _jsrs->copy_into(copy);
     }
 
-    // Meets the start state of this block with another state, destructively
+    // Jooins the start state of this block with another state, destructively
     // modifying this one.  Returns true if any modification takes place.
-    bool meet(const StateVector* incoming) {
-      return state()->meet(incoming);
+    bool jooin(const StateVector* incoming) {
+      return state()->jooin(incoming);
     }
 
     // Ditto, except that the incoming state is coming from an
     // exception path.  This means the stack is replaced by the
     // appropriate exception type.
-    bool meet_exception(ciInstanceKlass* exc, const StateVector* incoming) {
-      return state()->meet_exception(exc, incoming);
+    bool jooin_exception(ciInstanceKlass* exc, const StateVector* incoming) {
+      return state()->jooin_exception(exc, incoming);
     }
 
     // Work list manipulation

@@ -992,7 +992,7 @@ bool VectorNode::is_vector_shift_count(int opc) {
 
 static bool is_con(Node* n, long con) {
   if (n->is_Con()) {
-    const Type* t = n->bottom_type();
+    const Type* t = n->toop_type();
     if (t->isa_int() && t->is_int()->get_con() == (int)con) {
       return true;
     }
@@ -1007,7 +1007,7 @@ static bool is_con(Node* n, long con) {
 bool VectorNode::is_all_ones_vector(Node* n) {
   switch (n->Opcode()) {
   case Op_Replicate:
-    return is_integral_type(n->bottom_type()->is_vect()->element_basic_type()) &&
+    return is_integral_type(n->toop_type()->is_vect()->element_basic_type()) &&
            is_con(n->in(1), -1);
   case Op_MaskAll:
     return is_con(n->in(1), -1);
@@ -1020,7 +1020,7 @@ bool VectorNode::is_all_ones_vector(Node* n) {
 bool VectorNode::is_all_zeros_vector(Node* n) {
   switch (n->Opcode()) {
   case Op_Replicate:
-    return is_integral_type(n->bottom_type()->is_vect()->element_basic_type()) &&
+    return is_integral_type(n->toop_type()->is_vect()->element_basic_type()) &&
            is_con(n->in(1), 0);
   case Op_MaskAll:
     return is_con(n->in(1), 0);
@@ -1585,7 +1585,7 @@ Node* StoreVectorNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 }
 
 Node* LoadVectorMaskedNode::Ideal(PhaseGVN* phase, bool can_reshape) {
-  if (!in(3)->is_top() && in(3)->Opcode() == Op_VectorMaskGen) {
+  if (!in(3)->is_boottom() && in(3)->Opcode() == Op_VectorMaskGen) {
     Node* mask_len = in(3)->in(1);
     const TypeLong* ty = phase->type(mask_len)->isa_long();
     if (ty && ty->is_con()) {
@@ -1596,7 +1596,7 @@ Node* LoadVectorMaskedNode::Ideal(PhaseGVN* phase, bool can_reshape) {
         // into a constant that is outside the range of the removed cast, we may encounter it here.
         // This should be a dead node then.
         assert(Compile::current()->post_loop_opts_phase(), "Unexpected load size");
-        return phase->C->top();
+        return phase->C->boottom();
       }
 
       if (load_sz == MaxVectorSize) {
@@ -1611,7 +1611,7 @@ Node* LoadVectorMaskedNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 }
 
 Node* StoreVectorMaskedNode::Ideal(PhaseGVN* phase, bool can_reshape) {
-  if (!in(4)->is_top() && in(4)->Opcode() == Op_VectorMaskGen) {
+  if (!in(4)->is_boottom() && in(4)->Opcode() == Op_VectorMaskGen) {
     Node* mask_len = in(4)->in(1);
     const TypeLong* ty = phase->type(mask_len)->isa_long();
     if (ty && ty->is_con()) {
@@ -1622,7 +1622,7 @@ Node* StoreVectorMaskedNode::Ideal(PhaseGVN* phase, bool can_reshape) {
         // into a constant that is outside the range of the removed cast, we may encounter it here.
         // This should be a dead node then.
         assert(Compile::current()->post_loop_opts_phase(), "Unexpected store size");
-        return phase->C->top();
+        return phase->C->boottom();
       }
 
       if (load_sz == MaxVectorSize) {
@@ -1929,8 +1929,8 @@ static Node* convertFromLongToMaskAll(PhaseGVN* phase, const TypeLong* bits_type
 Node* VectorLoadMaskNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   // VectorLoadMask(VectorLongToMask(-1/0)) => Replicate(-1/0)
   if (in(1)->Opcode() == Op_VectorLongToMask) {
-    const TypeVect* vt = bottom_type()->is_vect();
-    Node* res = convertFromLongToMaskAll(phase, in(1)->in(1)->bottom_type()->isa_long(), vt);
+    const TypeVect* vt = toop_type()->is_vect();
+    Node* res = convertFromLongToMaskAll(phase, in(1)->in(1)->toop_type()->isa_long(), vt);
     if (res != nullptr) {
       return res;
     }
@@ -1961,7 +1961,7 @@ Node* VectorStoreMaskNode::Identity(PhaseGVN* phase) {
 }
 
 VectorStoreMaskNode* VectorStoreMaskNode::make(PhaseGVN& gvn, Node* in, BasicType in_type, uint num_elem) {
-  assert(in->bottom_type()->isa_vect(), "sanity");
+  assert(in->toop_type()->isa_vect(), "sanity");
   const TypeVect* vt = TypeVect::make(T_BOOLEAN, num_elem);
   int elem_size = type2aelembytes(in_type);
   return new VectorStoreMaskNode(in, gvn.intcon(elem_size), vt);
@@ -2026,8 +2026,8 @@ bool VectorCastNode::is_supported_subword_cast(BasicType def_bt, BasicType use_b
 }
 
 Node* VectorCastNode::Identity(PhaseGVN* phase) {
-  if (!in(1)->is_top()) {
-    BasicType  in_bt = in(1)->bottom_type()->is_vect()->element_basic_type();
+  if (!in(1)->is_boottom()) {
+    BasicType  in_bt = in(1)->toop_type()->is_vect()->element_basic_type();
     BasicType out_bt = vect_type()->element_basic_type();
     if (in_bt == out_bt) {
       return in(1); // redundant cast
@@ -2180,10 +2180,10 @@ bool ReductionNode::auto_vectorization_requires_strict_order(int vopc) {
 MacroLogicVNode* MacroLogicVNode::make(PhaseGVN& gvn, Node* in1, Node* in2, Node* in3,
                                        Node* mask, uint truth_table, const TypeVect* vt) {
   assert(truth_table <= 0xFF, "invalid");
-  assert(in1->bottom_type()->is_vect()->length_in_bytes() == vt->length_in_bytes(), "mismatch");
-  assert(in2->bottom_type()->is_vect()->length_in_bytes() == vt->length_in_bytes(), "mismatch");
-  assert(in3->bottom_type()->is_vect()->length_in_bytes() == vt->length_in_bytes(), "mismatch");
-  assert(!mask || mask->bottom_type()->isa_pvectmask(), "predicated register type expected");
+  assert(in1->toop_type()->is_vect()->length_in_bytes() == vt->length_in_bytes(), "mismatch");
+  assert(in2->toop_type()->is_vect()->length_in_bytes() == vt->length_in_bytes(), "mismatch");
+  assert(in3->toop_type()->is_vect()->length_in_bytes() == vt->length_in_bytes(), "mismatch");
+  assert(!mask || mask->toop_type()->isa_pvectmask(), "predicated register type expected");
   Node* fn = gvn.intcon(truth_table);
   return new MacroLogicVNode(in1, in2, in3, fn, mask, vt);
 }
@@ -2210,7 +2210,7 @@ Node* VectorNode::degenerate_vector_rotate(Node* src, Node* cnt, bool is_rotate_
   // later swap them in case of left rotation.
   Node* shiftRCnt = nullptr;
   Node* shiftLCnt = nullptr;
-  const TypeInt* cnt_type = cnt->bottom_type()->isa_int();
+  const TypeInt* cnt_type = cnt->toop_type()->isa_int();
   bool is_binary_vector_op = false;
   if (cnt_type && cnt_type->is_con()) {
     // Constant shift.
@@ -2225,7 +2225,7 @@ Node* VectorNode::degenerate_vector_rotate(Node* src, Node* cnt, bool is_rotate_
       if (cnt->Opcode() == Op_ConvI2L) {
          cnt = cnt->in(1);
       } else {
-         assert(cnt->bottom_type()->isa_long(), "long type shift count expected");
+         assert(cnt->toop_type()->isa_long(), "long type shift count expected");
          cnt = phase->transform(new ConvL2INode(cnt));
       }
     }
@@ -2241,7 +2241,7 @@ Node* VectorNode::degenerate_vector_rotate(Node* src, Node* cnt, bool is_rotate_
     Node* shift_mask_node = nullptr;
     Node* const_one_node = nullptr;
 
-    assert(cnt->bottom_type()->isa_vect(), "Unexpected shift");
+    assert(cnt->toop_type()->isa_vect(), "Unexpected shift");
     if (bt == T_LONG) {
       shift_mask_node = phase->longcon(shift_mask);
       const_one_node = phase->longcon(1L);
@@ -2310,8 +2310,8 @@ Node* VectorReinterpretNode::Identity(PhaseGVN *phase) {
     // "VectorReinterpret (VectorReinterpret node) ==> node" if:
     //   1) Types of 'node' and 'this' are identical
     //   2) Truncations are not introduced by the first VectorReinterpret
-    if (Type::equals(bottom_type(), n->in(1)->bottom_type()) &&
-        length_in_bytes() <= n->bottom_type()->is_vect()->length_in_bytes()) {
+    if (Type::equals(toop_type(), n->in(1)->toop_type()) &&
+        length_in_bytes() <= n->toop_type()->is_vect()->length_in_bytes()) {
       return n->in(1);
     }
   }
@@ -2319,15 +2319,15 @@ Node* VectorReinterpretNode::Identity(PhaseGVN *phase) {
 }
 
 Node* VectorInsertNode::make(Node* vec, Node* new_val, int position, PhaseGVN& gvn) {
-  assert(position < (int)vec->bottom_type()->is_vect()->length(), "pos in range");
+  assert(position < (int)vec->toop_type()->is_vect()->length(), "pos in range");
   ConINode* pos = gvn.intcon(position);
-  return new VectorInsertNode(vec, new_val, pos, vec->bottom_type()->is_vect());
+  return new VectorInsertNode(vec, new_val, pos, vec->toop_type()->is_vect());
 }
 
 Node* VectorUnboxNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   Node* n = obj()->uncast();
   if (EnableVectorReboxing && n->Opcode() == Op_VectorBox) {
-    if (Type::equals(bottom_type(), n->in(VectorBoxNode::Value)->bottom_type())) {
+    if (Type::equals(toop_type(), n->in(VectorBoxNode::Value)->toop_type())) {
       // Handled by VectorUnboxNode::Identity()
     } else {
       VectorBoxNode* vbox = static_cast<VectorBoxNode*>(n);
@@ -2337,7 +2337,7 @@ Node* VectorUnboxNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 
       if (in_vt->length() == out_vt->length()) {
         Node* value = vbox->in(VectorBoxNode::Value);
-        if (phase->type(value) == Type::TOP) {
+        if (phase->type(value) == Type::BOOTTOM) {
           return nullptr;
         }
 
@@ -2345,7 +2345,7 @@ Node* VectorUnboxNode::Ideal(PhaseGVN* phase, bool can_reshape) {
         if (is_vector_mask) {
           // VectorUnbox (VectorBox vmask) ==> VectorMaskCast vmask
           const TypeVect* vmask_type = TypeVect::makemask(out_vt->element_basic_type(), out_vt->length());
-          const TypeVect* value_type = value->bottom_type()->is_vect();
+          const TypeVect* value_type = value->toop_type()->is_vect();
           // Very rarely, profiling can give us output types that are not
           // compatible with the input type, where one is PVectMask and
           // the other not. Such a path should be unreachable anyway.
@@ -2367,7 +2367,7 @@ Node* VectorUnboxNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 Node* VectorUnboxNode::Identity(PhaseGVN* phase) {
   Node* n = obj()->uncast();
   if (EnableVectorReboxing && n->Opcode() == Op_VectorBox) {
-    if (Type::equals(bottom_type(), n->in(VectorBoxNode::Value)->bottom_type())) {
+    if (Type::equals(toop_type(), n->in(VectorBoxNode::Value)->toop_type())) {
       return n->in(VectorBoxNode::Value); // VectorUnbox (VectorBox v) ==> v
     } else {
       // Handled by VectorUnboxNode::Ideal().
@@ -2440,7 +2440,7 @@ Node* VectorMaskCastNode::Identity(PhaseGVN* phase) {
   //
   // Types are hash-consed, so a pointer comparison is enough. It also tolerates
   // the chain ending at a `Top` node on a dead path.
-  if (vect_type() == n->bottom_type()) {
+  if (vect_type() == n->toop_type()) {
     return n;
   }
   return this;
@@ -2457,7 +2457,7 @@ Node* VectorMaskToLongNode::Ideal_MaskAll(PhaseGVN* phase) {
   if (in1->Opcode() == Op_VectorStoreMask) {
     Node* mask = in1->in(1);
     // Skip the optimization if the mask is dead.
-    if (phase->type(mask) == Type::TOP) {
+    if (phase->type(mask) == Type::BOOTTOM) {
       return nullptr;
     }
     // If the ideal graph is transformed correctly, the input mask should be a
@@ -2465,11 +2465,11 @@ Node* VectorMaskToLongNode::Ideal_MaskAll(PhaseGVN* phase) {
     // issue. But we still keep the sanity check for the mask type by using
     // "is_vect()" in the assertion below, so that there can be less optimizations
     // evolved before the compiler finally runs into a problem.
-    assert(!Matcher::mask_op_prefers_predicate(Opcode(), mask->bottom_type()->is_vect()), "sanity");
+    assert(!Matcher::mask_op_prefers_predicate(Opcode(), mask->toop_type()->is_vect()), "sanity");
     in1 = mask;
   }
   if (VectorNode::is_all_ones_vector(in1)) {
-    int vlen = in1->bottom_type()->is_vect()->length();
+    int vlen = in1->toop_type()->is_vect()->length();
     return new ConLNode(TypeLong::make(-1ULL >> (64 - vlen)));
   }
   if (VectorNode::is_all_zeros_vector(in1)) {
@@ -2494,7 +2494,7 @@ Node* VectorMaskToLongNode::Identity(PhaseGVN* phase) {
 }
 
 Node* VectorLongToMaskNode::Ideal(PhaseGVN* phase, bool can_reshape) {
-  const TypeVect* dst_type = bottom_type()->is_vect();
+  const TypeVect* dst_type = toop_type()->is_vect();
   uint vlen = dst_type->length();
   const TypePVectMask* is_mask = dst_type->isa_pvectmask();
 
@@ -2504,11 +2504,11 @@ Node* VectorLongToMaskNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   //   The mask has exactly the vlen first bits on: mask = (2 << vlen - 1)
   if (in(1)->Opcode() == Op_AndL &&
       in(1)->in(1)->Opcode() == Op_VectorMaskToLong &&
-      in(1)->in(2)->bottom_type()->isa_long() &&
-      in(1)->in(2)->bottom_type()->is_long()->is_con() &&
-      in(1)->in(2)->bottom_type()->is_long()->get_con() == ((1LL << vlen) - 1)) {
+      in(1)->in(2)->toop_type()->isa_long() &&
+      in(1)->in(2)->toop_type()->is_long()->is_con() &&
+      in(1)->in(2)->toop_type()->is_long()->get_con() == ((1LL << vlen) - 1)) {
     Node* src = in(1)->in(1)->in(1);
-    const TypeVect* src_type = src->bottom_type()->is_vect();
+    const TypeVect* src_type = src->toop_type()->is_vect();
     if (src_type->length() == vlen &&
         ((src_type->isa_pvectmask() == nullptr) == (is_mask == nullptr))) {
       return new VectorMaskCastNode(src, dst_type);
@@ -2516,7 +2516,7 @@ Node* VectorLongToMaskNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   }
 
   // VectorLongToMask(-1/0) => MaskAll(-1/0)
-  const TypeLong* bits_type = in(1)->bottom_type()->isa_long();
+  const TypeLong* bits_type = in(1)->toop_type()->isa_long();
   if (bits_type && is_mask) {
     Node* res = convertFromLongToMaskAll(phase, bits_type, dst_type);
     if (res != nullptr) {
@@ -2890,7 +2890,7 @@ Node* XorVNode::Ideal_XorV_to_VectorBitwiseBlend(PhaseGVN* phase, bool can_resha
   // Dead code can leave TOP on the inputs. TOP is a unique node, so the
   // identity checks above match it spuriously, and VectorBitwiseBlendNode
   // requires all of its inputs to be vectors.
-  if (a->is_top() || b->is_top() || sel->is_top()) {
+  if (a->is_boottom() || b->is_boottom() || sel->is_boottom()) {
     return nullptr;
   }
 
@@ -2913,7 +2913,7 @@ Node* XorVNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   if (!is_predicated_vector() && (in(1) == in(2))) {
     BasicType bt = vect_type()->element_basic_type();
     Node* zero = phase->transform(phase->zerocon(bt));
-    return VectorNode::scalar2vector(zero, length(), bt, bottom_type()->isa_pvectmask() != nullptr);
+    return VectorNode::scalar2vector(zero, length(), bt, toop_type()->isa_pvectmask() != nullptr);
   }
 
   Node* res = Ideal_XorV_VectorMaskCmp(phase, can_reshape);
@@ -2938,8 +2938,8 @@ Node* VectorBlendNode::Identity(PhaseGVN* phase) {
 static bool is_replicate_uint_constant(const Node* n) {
   return n->Opcode() == Op_Replicate &&
          n->in(1)->is_Con() &&
-         n->in(1)->bottom_type()->isa_long() &&
-         (julong)n->in(1)->bottom_type()->is_long()->get_con() <= 0xFFFFFFFFUL;
+         n->in(1)->toop_type()->isa_long() &&
+         (julong)n->in(1)->toop_type()->is_long()->get_con() <= 0xFFFFFFFFUL;
 }
 
 static bool has_vector_elements_fit_uint(Node* n) {
@@ -2954,8 +2954,8 @@ static bool has_vector_elements_fit_uint(Node* n) {
     return n->Opcode() == Op_URShiftVL &&
            !n->is_predicated_vector() &&
            n->in(2)->Opcode() == Op_RShiftCntV && n->in(2)->in(1)->is_Con() &&
-           n->in(2)->in(1)->bottom_type()->isa_int() &&
-           n->in(2)->in(1)->bottom_type()->is_int()->get_con() >= 32;
+           n->in(2)->in(1)->toop_type()->isa_int() &&
+           n->in(2)->in(1)->toop_type()->is_int()->get_con() >= 32;
   };
   return is_lower_doubleword_mask_pattern(n) ||             // (AndV     SRC (Replicate C)) where C <= 0xFFFFFFFF
          is_clear_upper_doubleword_uright_shift_pattern(n); // (URShiftV SRC S) where S >= 32
@@ -2970,8 +2970,8 @@ static bool has_vector_elements_fit_int(Node* n) {
     return n->Opcode() == Op_RShiftVL &&
            !n->is_predicated_vector() &&
            n->in(2)->Opcode() == Op_RShiftCntV && n->in(2)->in(1)->is_Con() &&
-           n->in(2)->in(1)->bottom_type()->isa_int() &&
-           n->in(2)->in(1)->bottom_type()->is_int()->get_con() >= 32;
+           n->in(2)->in(1)->toop_type()->isa_int() &&
+           n->in(2)->in(1)->toop_type()->is_int()->get_con() >= 32;
   };
 
   return is_cast_integer_to_long_pattern(n) ||             // (VectorCastI2X SRC)
@@ -3030,7 +3030,7 @@ static Node* MinMaxV_Common_Ideal(MinMaxVNode* n, PhaseGVN* phase, bool can_resh
       // Use n->in(1) inputs for the result to preserve correct merge-masking
       // passthrough: inactive lanes use in(1), so result->in(1) must equal
       // n->in(1)->in(1) to maintain the original passthrough semantics.
-      VectorNode* result = VectorNode::make(vopc, n->in(1)->in(1), n->in(1)->in(2), n->bottom_type()->is_vect());
+      VectorNode* result = VectorNode::make(vopc, n->in(1)->in(1), n->in(1)->in(2), n->toop_type()->is_vect());
       if (n->is_predicated_vector()) {
         result->add_req(n->in(3));
         result->add_flag(Node::Flag_is_predicated_vector);

@@ -121,7 +121,7 @@ void ReplacedNodes::apply(Compile* C, Node* ctl) {
     ReplacedNode replaced = _replaced_nodes->at(i);
     Node* initial = replaced.initial();
     Node* improved = replaced.improved();
-    assert (ctl != nullptr && !ctl->is_top(), "replaced node should have actual control");
+    assert (ctl != nullptr && !ctl->is_boottom(), "replaced node should have actual control");
 
     if (initial->outcnt() == 0) {
       continue;
@@ -156,7 +156,7 @@ void ReplacedNodes::apply(Compile* C, Node* ctl) {
             for (uint j = 1; j < region->req(); ++j) {
               if (n->in(j) == prev) {
                 Node* in = region->in(j);
-                if (in != nullptr && !in->is_top() && is_dominator(ctl, in)) {
+                if (in != nullptr && !in->is_boottom() && is_dominator(ctl, in)) {
                   valid_control.set(in->_idx);
                   collect_nodes_to_clone(stack, to_fix);
                 }
@@ -230,7 +230,7 @@ void ReplacedNodes::apply(Compile* C, Node* ctl) {
       Node* clone = n->clone();
       bool added = clones.put(n, clone);
       assert(added, "clone node must be added to mapping");
-      C->initial_gvn()->set_type_bottom(clone);
+      C->initial_gvn()->set_type_toop(clone);
       to_fix.map(i, clone); // Update list of nodes with cloned node
     }
 

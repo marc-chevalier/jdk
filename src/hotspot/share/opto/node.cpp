@@ -588,16 +588,16 @@ Node *Node::clone() const {
 
 //---------------------------setup_is_top--------------------------------------
 // Call this when changing the top node, to reassert the invariants
-// required by Node::is_top.  See Compile::set_cached_top_node.
-void Node::setup_is_top() {
-  if (this == (Node*)Compile::current()->top()) {
+// required by Node::is_boottom.  See Compile::set_cached_top_node.
+void Node::setup_is_boottom() {
+  if (this == (Node*)Compile::current()->boottom()) {
     // This node has just become top.  Kill its out array.
     _outcnt = _outmax = 0;
     _out = nullptr;                           // marker value for top
-    assert(is_top(), "must be top");
+    assert(is_boottom(), "must be top");
   } else {
     if (_out == nullptr)  _out = NO_OUT_ARRAY;
-    assert(!is_top(), "must not be top");
+    assert(!is_boottom(), "must not be top");
   }
 }
 
@@ -736,7 +736,7 @@ void Node::grow(uint len) {
 //-----------------------------out_grow----------------------------------------
 // Grow the input array, making space for more edges
 void Node::out_grow(uint len) {
-  assert(!is_top(), "cannot grow a top node's out array");
+  assert(!is_boottom(), "cannot grow a top node's out array");
   resize_array(_out, _outmax, len, false);
 }
 
@@ -744,7 +744,7 @@ void Node::out_grow(uint len) {
 //------------------------------is_dead----------------------------------------
 bool Node::is_dead() const {
   // Mach and pinch point nodes may look like dead.
-  if (is_top() || is_Mach() || (Opcode() == Op_Node && _outcnt > 0) || this == Compile::current()->dead_path()) {
+  if (is_boottom() || is_Mach() || (Opcode() == Op_Node && _outcnt > 0) || this == Compile::current()->dead_path()) {
     return false;
   }
   for (uint i = 0; i < _max; i++) {
@@ -781,7 +781,7 @@ bool Node::is_reachable_from_root() const {
 //------------------------------is_unreachable---------------------------------
 bool Node::is_unreachable(PhaseIterGVN &igvn) const {
   assert(!is_Mach(), "doesn't work with MachNodes");
-  return outcnt() == 0 || igvn.type(this) == Type::TOP || (in(0) != nullptr && in(0)->is_top());
+  return outcnt() == 0 || igvn.type(this) == Type::BOOTTOM || (in(0) != nullptr && in(0)->is_boottom());
 }
 
 //------------------------------add_req----------------------------------------
@@ -837,7 +837,7 @@ void Node::add_req_batch( Node *n, uint m ) {
   }
 
   // Insert multiple out edges on the node.
-  if (n != nullptr && !n->is_top()) {
+  if (n != nullptr && !n->is_boottom()) {
     for(uint i=0; i<m; i++ ) {
       n->add_out((Node *)this);
     }
@@ -1132,12 +1132,12 @@ uint Node::size(PhaseRegAlloc *ra_) const { return 0; }
 const Node *Node::is_block_proj() const { return nullptr; }
 
 // Minimum guaranteed type
-const Type *Node::bottom_type() const { return Type::BOTTOM; }
+const Type *Node::toop_type() const { return Type::TOOP; }
 
 
-//------------------------------raise_bottom_type------------------------------
+//------------------------------raise_toop_type------------------------------
 // Get the worst-case Type output for this Node.
-void Node::raise_bottom_type(const Type* new_type) {
+void Node::raise_toop_type(const Type* new_type) {
   if (is_Type()) {
     TypeNode *n = this->as_Type();
     if (VerifyAliases) {
@@ -1194,7 +1194,7 @@ const TypePtr* Node::out_adr_type() const {
 
   // For some reasons, Raw can be used as Bot (see GraphKit::set_output_for_allocation for
   // example), so be lenient here
-  if (res != nullptr && in_type != TypePtr::BOTTOM && in_type != TypeRawPtr::BOTTOM && res != in_type) {
+  if (res != nullptr && in_type != TypePtr::TOOP && in_type != TypeRawPtr::TOOP && res != in_type) {
     stringStream ss;
     ss.print(", out: ");
     res->dump_on(&ss);
@@ -1236,7 +1236,7 @@ Node* Node::Identity(PhaseGVN* phase) {
 //------------------------------Value------------------------------------------
 // Compute a new Type for a node using the Type of the inputs.
 const Type* Node::Value(PhaseGVN* phase) const {
-  return bottom_type();         // Default to worst-case Type
+  return toop_type();         // Default to worst-case Type
 }
 
 //------------------------------Ideal------------------------------------------
@@ -1357,7 +1357,7 @@ Node* Node::find_exact_control(Node* ctrl) {
   if (ctrl != nullptr && ctrl->is_CatchProj()) {
     if (ctrl->as_CatchProj()->_con == CatchProjNode::fall_through_index)
       ctrl = ctrl->in(0);
-    if (ctrl != nullptr && !ctrl->is_top())
+    if (ctrl != nullptr && !ctrl->is_boottom())
       ctrl = ctrl->in(0);
   }
 
@@ -1393,7 +1393,7 @@ Node::DomResult Node::dominates(Node* sub, Node_List<Node>& nlist) {
   // will either exit through the loop head, or give up.
   // (If we get confused, break out and return a conservative 'false'.)
   while (sub != nullptr) {
-    if (sub->is_top()) {
+    if (sub->is_boottom()) {
       // Conservative answer for dead code.
       return DomResult::EncounteredDeadCode;
     }
@@ -1462,7 +1462,7 @@ Node::DomResult Node::dominates(Node* sub, Node_List<Node>& nlist) {
       uint skip = region_was_visited_before ? 1 : 0;
       for (uint i = 1; i < sub->req(); i++) {
         Node* in = sub->in(i);
-        if (in != nullptr && !in->is_top() && in != sub) {
+        if (in != nullptr && !in->is_boottom() && in != sub) {
           if (skip == 0) {
             up = in;
             break;
@@ -1505,7 +1505,7 @@ static void kill_dead_code( Node *dead, PhaseIterGVN *igvn ) {
   Node_List<Node> nstack;
   VectorSet dead_set; // notify uses only once
 
-  Node *top = igvn->C->top();
+  Node *top = igvn->C->boottom();
   nstack.push(dead);
   bool has_irreducible_loop = igvn->C->has_irreducible_loop();
 
@@ -1542,7 +1542,7 @@ static void kill_dead_code( Node *dead, PhaseIterGVN *igvn ) {
             Node* in = use->in(j);
             if (in == dead) {         // Turn all dead inputs into TOP
               use->set_req(j, top);
-            } else if (in != nullptr && !in->is_top()) {
+            } else if (in != nullptr && !in->is_boottom()) {
               dead_use = false;
             }
           }
@@ -1562,11 +1562,11 @@ static void kill_dead_code( Node *dead, PhaseIterGVN *igvn ) {
       // Done with outputs.
       igvn->hash_delete(dead);
       igvn->_worklist.remove(dead);
-      igvn->set_type(dead, Type::TOP);
+      igvn->set_type(dead, Type::BOOTTOM);
       // Kill all inputs to the dead guy
       for (uint i=0; i < dead->req(); i++) {
         Node *n = dead->in(i);      // Get input to dead guy
-        if (n != nullptr && !n->is_top()) { // Input is valid?
+        if (n != nullptr && !n->is_boottom()) { // Input is valid?
           dead->set_req(i, top);    // Smash input away
           if (n->outcnt() == 0) {   // Input also goes dead?
             if (!n->is_Con())
@@ -1596,7 +1596,7 @@ bool Node::remove_dead_region(PhaseGVN *phase, bool can_reshape) {
   if( !n ) return false;
   // Lost control into this guy?  I.e., it became unreachable?
   // Aggressively kill all unreachable code.
-  if (can_reshape && n->is_top()) {
+  if (can_reshape && n->is_boottom()) {
     kill_dead_code(this, phase->is_IterGVN());
     return false; // Node is dead.
   }
@@ -1639,7 +1639,7 @@ bool Node::needs_anti_dependence_check() const {
   if (req() < 2 || (_flags & Flag_needs_anti_dependence_check) == 0) {
     return false;
   }
-  return in(1)->bottom_type()->has_memory();
+  return in(1)->toop_type()->has_memory();
 }
 
 // Get an integer constant from a ConNode (or CastIINode).
@@ -1649,7 +1649,7 @@ const TypeInt* Node::find_int_type() const {
     return this->as_Type()->type()->isa_int();
   } else if (this->is_Con()) {
     assert(is_Mach(), "should be ConNode(TypeNode) or else a MachNode");
-    return this->bottom_type()->isa_int();
+    return this->toop_type()->isa_int();
   }
   return nullptr;
 }
@@ -1659,7 +1659,7 @@ const TypeInteger* Node::find_integer_type(BasicType bt) const {
     return this->as_Type()->type()->isa_integer(bt);
   } else if (this->is_Con()) {
     assert(is_Mach(), "should be ConNode(TypeNode) or else a MachNode");
-    return this->bottom_type()->isa_integer(bt);
+    return this->toop_type()->isa_integer(bt);
   }
   return nullptr;
 }
@@ -1684,7 +1684,7 @@ const TypeLong* Node::find_long_type() const {
     return this->as_Type()->type()->isa_long();
   } else if (this->is_Con()) {
     assert(is_Mach(), "should be ConNode(TypeNode) or else a MachNode");
-    return this->bottom_type()->isa_long();
+    return this->toop_type()->isa_long();
   }
   return nullptr;
 }
@@ -1694,7 +1694,7 @@ const TypeLong* Node::find_long_type() const {
  * Return a ptr type for nodes which should have it.
  */
 const TypePtr* Node::get_ptr_type() const {
-  const TypePtr* tp = this->bottom_type()->make_ptr();
+  const TypePtr* tp = this->toop_type()->make_ptr();
 #ifdef ASSERT
   if (tp == nullptr) {
     this->dump(1);
@@ -1944,7 +1944,7 @@ private:
     // Check if the filter accepts the node. Go by the type categories, but also all CFG nodes
     // are considered to have control.
     bool accepts(const Node* n) {
-      const Type* t = n->bottom_type();
+      const Type* t = n->toop_type();
       return ( _data    &&  t->has_category(Type::Category::Data)                    ) ||
              ( _memory  &&  t->has_category(Type::Category::Memory)                  ) ||
              ( _mixed   &&  t->has_category(Type::Category::Mixed)                   ) ||
@@ -2381,7 +2381,7 @@ void PrintBFS::DumpConfigColored::pre_dump(outputStream* st, const Node* n) {
     return;
   }
 
-  const Type* t = n->bottom_type();
+  const Type* t = n->toop_type();
   switch (t->category()) {
     case Type::Category::Data:
       st->print("\u001b[34m");
@@ -2702,7 +2702,7 @@ void Node::dump(const char* suffix, bool mark, outputStream* st, DumpConfig* dc)
   }
 #endif
 
-  const Type *t = bottom_type();
+  const Type *t = toop_type();
 
   if (t != nullptr && (t->isa_instptr() || t->isa_instklassptr())) {
     const TypeInstPtr  *toop = t->isa_instptr();
@@ -2842,17 +2842,17 @@ void Node::verify(int verify_depth, VectorSet& visited, Node_List<Node>& worklis
   for (uint list_index = 0; list_index < worklist.size(); list_index++) {
     Node* n = worklist[list_index];
 
-    if (n->is_Con() && n->bottom_type() == Type::TOP) {
-      if (C->cached_top_node() == nullptr) {
-        C->set_cached_top_node((Node*)n);
+    if (n->is_Con() && n->toop_type() == Type::BOOTTOM) {
+      if (C->cached_boottom_node() == nullptr) {
+        C->set_cached_boottom_node((Node*)n);
       }
-      assert(C->cached_top_node() == n, "TOP node must be unique");
+      assert(C->cached_boottom_node() == n, "TOP node must be unique");
     }
 
     uint in_len = n->len();
     for (uint i = 0; i < in_len; i++) {
       Node* x = n->_in[i];
-      if (!x || x->is_top()) {
+      if (!x || x->is_boottom()) {
         continue;
       }
 
@@ -3286,7 +3286,7 @@ uint TypeNode::hash() const {
 bool TypeNode::cmp(const Node& n) const {
   return Type::equals(_type, n.as_Type()->_type);
 }
-const Type* TypeNode::bottom_type() const { return _type; }
+const Type* TypeNode::toop_type() const { return _type; }
 const Type* TypeNode::Value(PhaseGVN* phase) const { return _type; }
 
 //------------------------------ideal_reg--------------------------------------
@@ -3296,7 +3296,7 @@ uint TypeNode::ideal_reg() const {
 
 void Node::make_path_dead(PhaseIterGVN* igvn, PhaseIdealLoop* loop, Node* ctrl_use, uint j, const char* phase_str) {
   Node* c = ctrl_use->in(j);
-  Node* top = igvn->C->top();
+  Node* top = igvn->C->boottom();
   if (c != top) {
     igvn->replace_input_of(ctrl_use, j, top);
     create_halt_path(igvn, c, loop, phase_str);
@@ -3326,7 +3326,7 @@ void Node::make_paths_from_here_dead(PhaseIterGVN* igvn, PhaseIdealLoop* loop, c
         make_path_dead(igvn, loop, u, 0, phase_str);
       } else if (u->is_Phi()) {
         Node* r = u->in(0);
-        assert(r->is_Region() || r->is_top(), "unexpected Phi's control");
+        assert(r->is_Region() || r->is_boottom(), "unexpected Phi's control");
         if (r->is_Region()) {
           for (uint j = 1; j < u->req(); ++j) {
             if (u->in(j) == n && r->in(j) != nullptr) {

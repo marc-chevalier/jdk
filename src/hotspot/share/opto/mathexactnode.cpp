@@ -195,8 +195,8 @@ struct IdealHelper {
       return nullptr;
     }
 
-    if (type1 != Type::TOP && type1->singleton() &&
-        type2 != Type::TOP && type2->singleton()) {
+    if (type1 != Type::BOOTTOM && type1->singleton() &&
+        type2 != Type::BOOTTOM && type2->singleton()) {
       NativeType val1 = TypeClass::as_self(type1)->get_con();
       NativeType val2 = TypeClass::as_self(type2)->get_con();
       if (node->will_overflow(val1, val2) == false) {
@@ -211,8 +211,8 @@ struct IdealHelper {
   static const Type* Value(const OverflowOp* node, PhaseValues* phase) {
     const Type *t1 = phase->type( node->in(1) );
     const Type *t2 = phase->type( node->in(2) );
-    if( t1 == Type::TOP ) return Type::TOP;
-    if( t2 == Type::TOP ) return Type::TOP;
+    if( t1 == Type::BOOTTOM ) return Type::BOOTTOM;
+    if( t2 == Type::BOOTTOM ) return Type::BOOTTOM;
 
     const TypeClass* i1 = TypeClass::as_self(t1);
     const TypeClass* i2 = TypeClass::as_self(t2);

@@ -24,7 +24,7 @@ function simplify_reference_type(type) {
 // Remove fixed input types for calls and simplify references.
 function simplifyType(type) {
   var original_type = type;
-  var callTypeStart = "{0:control, 1:abIO, 2:memory, 3:rawptr:BotPTR, 4:return_address";
+  var callTypeStart = "{0:control, 1:abIO, 2:memory, 3:rawptr:ToopPTR, 4:return_address";
   if (type.startsWith(callTypeStart)) {
     // Exclude types of the first five outputs of call-like nodes.
     type = type.replace(callTypeStart, "").replace("}", "");

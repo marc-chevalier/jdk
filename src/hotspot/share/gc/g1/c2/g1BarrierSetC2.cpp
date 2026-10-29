@@ -76,7 +76,7 @@ bool G1BarrierSetC2::g1_can_remove_pre_barrier(GraphKit* kit,
   Node* base = AddPNode::Ideal_base_and_offset(adr, phase, offset);
   AllocateNode* alloc = AllocateNode::Ideal_allocation(base);
 
-  if (offset == Type::OffsetBot) {
+  if (offset == Type::OffsetToop) {
     return false; // Cannot unalias unless there are precise offsets.
   }
   if (alloc == nullptr) {
@@ -99,7 +99,7 @@ bool G1BarrierSetC2::g1_can_remove_pre_barrier(GraphKit* kit,
         // We have found a store with same base and offset as ours.
         break;
       }
-      if (st_offset != offset && st_offset != Type::OffsetBot) {
+      if (st_offset != offset && st_offset != Type::OffsetToop) {
         const int MAX_STORE = BytesPerLong;
         if (st_offset >= offset + size_in_bytes ||
             st_offset <= offset - MAX_STORE ||
@@ -176,7 +176,7 @@ bool G1BarrierSetC2::g1_can_remove_post_barrier(GraphKit* kit,
   Node*         base   = AddPNode::Ideal_base_and_offset(adr, phase, offset);
   AllocateNode* alloc  = AllocateNode::Ideal_allocation(base);
 
-  if (offset == Type::OffsetBot) {
+  if (offset == Type::OffsetToop) {
     return false; // Cannot unalias unless there are precise offsets.
   }
   if (alloc == nullptr) {
@@ -234,11 +234,11 @@ static void refine_barrier_by_new_val_type(const Node* n) {
   MemNode* store = n->as_Mem();
   const Node* newval = n->in(MemNode::ValueIn);
   assert(newval != nullptr, "");
-  const Type* newval_bottom = newval->bottom_type();
-  TypePtr::PTR newval_type = newval_bottom->make_ptr()->ptr();
+  const Type* newval_toop = newval->toop_type();
+  TypePtr::PTR newval_type = newval_toop->make_ptr()->ptr();
   uint8_t barrier_data = store->barrier_data();
-  if (!newval_bottom->isa_oopptr() &&
-      !newval_bottom->isa_narrowoop() &&
+  if (!newval_toop->isa_oopptr() &&
+      !newval_toop->isa_narrowoop() &&
       newval_type != TypePtr::Null) {
     // newval is neither an OOP nor null, so there is no barrier to refine.
     assert(barrier_data == 0, "non-OOP stores should have no barrier data");
@@ -477,7 +477,7 @@ int G1BarrierSetC2::get_store_barrier(C2Access& access) const {
   Node* ctl = kit->control();
   Node* adr = access.addr().node();
   uint adr_idx = kit->C->get_alias_index(access.addr().type());
-  assert(adr_idx != Compile::AliasIdxTop, "use other store_to_memory factory");
+  assert(adr_idx != Compile::AliasIdxBoot, "use other store_to_memory factory");
 
   bool can_remove_pre_barrier = g1_can_remove_pre_barrier(kit, &kit->gvn(), adr, access.type(), adr_idx);
 

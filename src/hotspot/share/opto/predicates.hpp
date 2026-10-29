@@ -103,8 +103,8 @@ class TemplateAssertionPredicate;
  * - Assertion Predicate: An always true predicate which will never fail (its range is already covered by an earlier
  *                        Hoisted Check Predicate or the main-loop entry guard) but is required in order to fold away a
  *                        dead sub loop in which some data could be proven to be dead (by the type system) and replaced
- *                        by top. Without such Assertion Predicates, we could find that type ranges in Cast and ConvX2Y
- *                        data nodes become impossible and are replaced by top. This is an indicator that the sub loop
+ *                        by boottom. Without such Assertion Predicates, we could find that type ranges in Cast and ConvX2Y
+ *                        data nodes become impossible and are replaced by boottom. This is an indicator that the sub loop
  *                        is never executed and must be dead. But there is no way for C2 to prove that the sub loop is
  *                        actually dead. Assertion Predicates come to the rescue to fold such seemingly dead sub loops
  *                        away to avoid a broken graph. Assertion Predicates are left in the graph as a sanity checks in

@@ -166,8 +166,8 @@ bool BoxLockNode::is_simple_lock_region(LockNode** unique_lock, Node* obj, Node*
 //=============================================================================
 const Type* FastLockNode::Value(PhaseGVN* phase) const {
   const Type* in1_t = phase->type(in(1));
-  if (in1_t == Type::TOP) {
-    return Type::TOP;
+  if (in1_t == Type::BOOTTOM) {
+    return Type::BOOTTOM;
   }
   if (in1_t->is_valueklassptr()) {
     // Locking on value types always fails

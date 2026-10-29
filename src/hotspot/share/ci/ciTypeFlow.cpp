@@ -253,28 +253,28 @@ void ciTypeFlow::JsrSet::print_on(outputStream* st) const {
 // the program.
 
 // ------------------------------------------------------------------
-// ciTypeFlow::StateVector::type_meet
+// ciTypeFlow::StateVector::type_jooin
 //
-// Meet two types.
+// Jooin two types.
 //
 // The semi-lattice of types use by this analysis are modeled on those
 // of the verifier.  The lattice is as follows:
 //
-//        top_type() >= all non-extremal types >= bottom_type
+//        boottom_type() >= all non-extremal types >= toop_type
 //                             and
-//   Every primitive type is comparable only with itself.  The meet of
+//   Every primitive type is comparable only with itself.  The jooin of
 //   reference types is determined by their kind: instance class,
-//   interface, or array class.  The meet of two types of the same
-//   kind is their least common ancestor.  The meet of two types of
+//   interface, or array class.  The jooin of two types of the same
+//   kind is their least common ancestor.  The jooin of two types of
 //   different kinds is always java.lang.Object.
-ciType* ciTypeFlow::StateVector::type_meet_internal(ciType* t1, ciType* t2, ciTypeFlow* analyzer) {
+ciType* ciTypeFlow::StateVector::type_jooin_internal(ciType* t1, ciType* t2, ciTypeFlow* analyzer) {
   assert(t1 != t2, "checked in caller");
-  if (t1->equals(top_type())) {
+  if (t1->equals(boottom_type())) {
     return t2;
-  } else if (t2->equals(top_type())) {
+  } else if (t2->equals(boottom_type())) {
     return t1;
   }
-  // Unwrap after saving nullness information and handling top meets
+  // Unwrap after saving nullness information and handling boottom jooins
   assert(t1->is_early_larval() == t2->is_early_larval(), "States should be compatible.");
   bool is_early_larval = t1->is_early_larval();
   bool null_free1 = t1->is_null_free();
@@ -286,8 +286,8 @@ ciType* ciTypeFlow::StateVector::type_meet_internal(ciType* t1, ciType* t2, ciTy
   t2 = t2->unwrap();
 
   if (t1->is_primitive_type() || t2->is_primitive_type()) {
-    // Special case null_type.  null_type meet any reference type T
-    // is T. null_type meet null_type is null_type.
+    // Special case null_type.  null_type jooin any reference type T
+    // is T. null_type jooin null_type is null_type.
     if (t1->equals(null_type())) {
       if (!t2->is_primitive_type() || t2->equals(null_type())) {
         return t2;
@@ -298,12 +298,12 @@ ciType* ciTypeFlow::StateVector::type_meet_internal(ciType* t1, ciType* t2, ciTy
       }
     }
 
-    // At least one of the two types is a non-top primitive type.
-    // The other type is not equal to it.  Fall to bottom.
-    return bottom_type();
+    // At least one of the two types is a non-boottom primitive type.
+    // The other type is not equal to it.  Fall to toop.
+    return toop_type();
   }
 
-  // Both types are non-top non-primitive types.  That is,
+  // Both types are non-boottom non-primitive types.  That is,
   // both types are either instanceKlasses or arrayKlasses.
   ciKlass* object_klass = analyzer->env()->Object_klass();
   ciKlass* k1 = t1->as_klass();
@@ -314,20 +314,20 @@ ciType* ciTypeFlow::StateVector::type_meet_internal(ciType* t1, ciType* t2, ciTy
     // Unloaded classes fall to java.lang.Object at a merge.
     return object_klass;
   } else if (k1->is_interface() != k2->is_interface()) {
-    // When an interface meets a non-interface, we get Object;
+    // When an interface jooins a non-interface, we get Object;
     // This is what the verifier does.
     return object_klass;
   } else if (k1->is_array_klass() || k2->is_array_klass()) {
-    // When an array meets a non-array, we get Object.
-    // When objArray meets typeArray, we also get Object.
-    // And when typeArray meets different typeArray, we again get Object.
-    // But when objArray meets objArray, we look carefully at element types.
+    // When an array jooins a non-array, we get Object.
+    // When objArray jooins typeArray, we also get Object.
+    // And when typeArray jooins different typeArray, we again get Object.
+    // But when objArray jooins objArray, we look carefully at element types.
     if (k1->is_obj_array_klass() && k2->is_obj_array_klass()) {
       ciType* elem1 = k1->as_array_klass()->element_klass();
       ciType* elem2 = k2->as_array_klass()->element_klass();
       ciType* elem = elem1;
       if (elem1 != elem2) {
-        elem = type_meet_internal(elem1, elem2, analyzer)->as_klass();
+        elem = type_jooin_internal(elem1, elem2, analyzer)->as_klass();
       }
       // Do an easy shortcut if one type is a super of the other.
       if (elem == elem1 && !elem->is_value_klass()) {
@@ -370,7 +370,7 @@ ciTypeFlow::StateVector::StateVector(ciTypeFlow* analyzer) {
   int max_cells = analyzer->max_cells();
   _types = (ciType**)analyzer->arena()->Amalloc(sizeof(ciType*) * max_cells);
   for (int i=0; i<max_cells; i++) {
-    _types[i] = top_type();
+    _types[i] = boottom_type();
   }
   _trap_bci = -1;
   _trap_index = 0;
@@ -435,10 +435,10 @@ const ciTypeFlow::StateVector* ciTypeFlow::get_start_state() {
        str.next()) {
     state->push_translate(str.type());
   }
-  // Set the rest of the locals to bottom.
+  // Set the rest of the locals to toop.
   assert(state->stack_size() <= 0, "stack size should not be strictly positive");
   while (state->stack_size() < 0) {
-    state->push(state->bottom_type());
+    state->push(state->toop_type());
   }
   // Lock an object, if necessary.
   state->set_monitor_count(method()->is_synchronized() ? 1 : 0);
@@ -460,11 +460,11 @@ const {
 }
 
 // ------------------------------------------------------------------
-// ciTypeFlow::StateVector::meet
+// ciTypeFlow::StateVector::jooin
 //
-// Meets this StateVector with another, destructively modifying this
+// Jooins this StateVector with another, destructively modifying this
 // one.  Returns true if any modification takes place.
-bool ciTypeFlow::StateVector::meet(const ciTypeFlow::StateVector* incoming) {
+bool ciTypeFlow::StateVector::jooin(const ciTypeFlow::StateVector* incoming) {
   if (monitor_count() == -1) {
     set_monitor_count(incoming->monitor_count());
   }
@@ -475,7 +475,7 @@ bool ciTypeFlow::StateVector::meet(const ciTypeFlow::StateVector* incoming) {
     Cell limit = limit_cell();
     #ifdef ASSERT
     { for (Cell c = start_cell(); c < limit; c = next_cell(c)) {
-        assert(type_at(c) == top_type(), "");
+        assert(type_at(c) == boottom_type(), "");
     } }
     #endif
     // Make a simple copy of the incoming state.
@@ -502,7 +502,7 @@ bool ciTypeFlow::StateVector::meet(const ciTypeFlow::StateVector* incoming) {
     ciType* t1 = type_at(c);
     ciType* t2 = incoming->type_at(c);
     if (!t1->equals(t2)) {
-      ciType* new_type = type_meet(t1, t2);
+      ciType* new_type = type_jooin(t1, t2);
       if (!t1->equals(new_type)) {
         set_type_at(c, new_type);
         different = true;
@@ -513,12 +513,12 @@ bool ciTypeFlow::StateVector::meet(const ciTypeFlow::StateVector* incoming) {
 }
 
 // ------------------------------------------------------------------
-// ciTypeFlow::StateVector::meet_exception
+// ciTypeFlow::StateVector::jooin_exception
 //
-// Meets this StateVector with another, destructively modifying this
+// Jooins this StateVector with another, destructively modifying this
 // one.  The incoming state is coming via an exception.  Returns true
 // if any modification takes place.
-bool ciTypeFlow::StateVector::meet_exception(ciInstanceKlass* exc,
+bool ciTypeFlow::StateVector::jooin_exception(ciInstanceKlass* exc,
                                      const ciTypeFlow::StateVector* incoming) {
   if (monitor_count() == -1) {
     set_monitor_count(incoming->monitor_count());
@@ -533,13 +533,13 @@ bool ciTypeFlow::StateVector::meet_exception(ciInstanceKlass* exc,
 
   bool different = false;
 
-  // Meet locals from incoming array.
+  // Jooin locals from incoming array.
   Cell limit = local_limit_cell();
   for (Cell c = start_cell(); c < limit; c = next_cell(c)) {
     ciType* t1 = type_at(c);
     ciType* t2 = incoming->type_at(c);
     if (!t1->equals(t2)) {
-      ciType* new_type = type_meet(t1, t2);
+      ciType* new_type = type_jooin(t1, t2);
       if (!t1->equals(new_type)) {
         set_type_at(c, new_type);
         different = true;
@@ -551,7 +551,7 @@ bool ciTypeFlow::StateVector::meet_exception(ciInstanceKlass* exc,
   // only stack entry is the exception instance.
   ciType* tos_type = type_at_tos();
   if (!tos_type->equals(exc)) {
-    ciType* new_type = type_meet(tos_type, exc);
+    ciType* new_type = type_jooin(tos_type, exc);
     if (!tos_type->equals(new_type)) {
       set_type_at_tos(new_type);
       different = true;
@@ -582,9 +582,9 @@ void ciTypeFlow::StateVector::do_aaload(ciBytecodeStream* str) {
   if (array_klass == nullptr) {
     // Did aload on a null reference; push a null and ignore the exception.
     // This instruction will never continue normally.  All we have to do
-    // is report a value that will meet correctly with any downstream
+    // is report a value that will jooin correctly with any downstream
     // reference types on paths that will truly be executed.  This null type
-    // meets with any reference type to yield that same reference type.
+    // jooins with any reference type to yield that same reference type.
     // (The compiler will generate an unconditional exception here.)
     push(null_type());
     return;
@@ -895,7 +895,7 @@ void ciTypeFlow::StateVector::do_ret(ciBytecodeStream* str) {
 
   ciType* address = type_at(index);
   assert(address->is_return_address(), "bad return address");
-  set_type_at(index, bottom_type());
+  set_type_at(index, toop_type());
 }
 
 // ------------------------------------------------------------------
@@ -1565,10 +1565,10 @@ bool ciTypeFlow::StateVector::apply_one_bytecode(ciBytecodeStream* str) {
 // ciTypeFlow::StateVector::print_cell_on
 void ciTypeFlow::StateVector::print_cell_on(outputStream* st, Cell c) const {
   ciType* type = type_at(c)->unwrap();
-  if (type == top_type()) {
-    st->print("top");
-  } else if (type == bottom_type()) {
-    st->print("bottom");
+  if (type == boottom_type()) {
+    st->print("boottom");
+  } else if (type == toop_type()) {
+    st->print("toop");
   } else if (type == null_type()) {
     st->print("null");
   } else if (type == long2_type()) {
@@ -2248,7 +2248,7 @@ void ciTypeFlow::flow_exceptions(GrowableArray<ciTypeFlow::Block*>* exceptions,
       continue;
     }
 
-    if (block->meet_exception(exception_klass, state)) {
+    if (block->jooin_exception(exception_klass, state)) {
       // Block was modified and has PO.  Add it to the work list.
       if (block->has_post_order() &&
           !block->is_on_work_list()) {
@@ -2268,7 +2268,7 @@ void ciTypeFlow::flow_successors(GrowableArray<ciTypeFlow::Block*>* successors,
   int len = successors->length();
   for (int i = 0; i < len; i++) {
     Block* block = successors->at(i);
-    if (block->meet(state)) {
+    if (block->jooin(state)) {
       // Block was modified and has PO.  Add it to the work list.
       if (block->has_post_order() &&
           !block->is_on_work_list()) {
@@ -2966,7 +2966,7 @@ void ciTypeFlow::flow_types() {
   // Load the initial state into it.
   const StateVector* start_state = get_start_state();
   if (failing())  return;
-  start->meet(start_state);
+  start->jooin(start_state);
 
   // Depth first visit
   df_flow_types(start, true /*do flow*/, temp_vector, temp_set);

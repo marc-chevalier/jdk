@@ -105,7 +105,7 @@ class GraphKit : public Phase {
 
   // Handy well-known nodes:
   Node*         null()          const { return zerocon(T_OBJECT); }
-  Node*         top()           const { return C->top(); }
+  Node*         boottom()       const { return C->boottom(); }
   RootNode*     root()          const { return C->root(); }
 
   // Create or find a constant node
@@ -197,7 +197,7 @@ class GraphKit : public Phase {
   // Stop, but first smash the map's inputs to null, to mark it dead.
   void stop_and_kill_map();
 
-  // Tell if _map is null, or control is top.
+  // Tell if _map is null, or control is bottom.
   bool stopped();
 
   // Tell if this method or any caller method has exception handlers.
@@ -327,11 +327,11 @@ class GraphKit : public Phase {
   Node* basic_plus_adr(Node* base, Node* ptr, Node* offset);
 
   Node* off_heap_plus_addr(Node* ptr, intptr_t offset) {
-    return basic_plus_adr(top(), ptr, MakeConX(offset));
+    return basic_plus_adr(boottom(), ptr, MakeConX(offset));
   }
 
   Node* off_heap_plus_addr(Node* ptr, Node* offset) {
-    return basic_plus_adr(top(), ptr, offset);
+    return basic_plus_adr(boottom(), ptr, offset);
   }
 
   // Some convenient shortcuts for common nodes
@@ -402,13 +402,13 @@ class GraphKit : public Phase {
     return null_check(argument(0));
   }
   Node* zero_check_int(Node* value) {
-    assert(value->bottom_type()->basic_type() == T_INT,
-           "wrong type: %s", type2name(value->bottom_type()->basic_type()));
+    assert(value->toop_type()->basic_type() == T_INT,
+           "wrong type: %s", type2name(value->toop_type()->basic_type()));
     return null_check_common(value, T_INT);
   }
   Node* zero_check_long(Node* value) {
-    assert(value->bottom_type()->basic_type() == T_LONG,
-           "wrong type: %s", type2name(value->bottom_type()->basic_type()));
+    assert(value->toop_type()->basic_type() == T_LONG,
+           "wrong type: %s", type2name(value->toop_type()->basic_type()));
     return null_check_common(value, T_LONG);
   }
   // Throw an uncommon trap if a given value is __not__ null.
@@ -422,7 +422,7 @@ class GraphKit : public Phase {
 
   // Null check oop.  Return null-path control into (*null_control).
   // Return a cast-not-null node which depends on the not-null control.
-  // If never_see_null, use an uncommon trap (*null_control sees a top).
+  // If never_see_null, use an uncommon trap (*null_control sees a boottom).
   // The cast is not valid along the null path; keep a copy of the original.
   // If safe_for_replace, then we can replace the value with the cast
   // in the parsing map (the cast is guaranteed to dominate the map)
@@ -482,25 +482,25 @@ class GraphKit : public Phase {
 
   void push_pair(Node* ldval) {
     push(ldval);
-    push(top());  // the halfword is merely a placeholder
+    push(boottom());  // the halfword is merely a placeholder
   }
   void push_pair_local(int i) {
     // longs are stored in locals in "push" order
     push(  local(i+0) );  // the real value
-    assert(local(i+1) == top(), "");
-    push(top());  // halfword placeholder
+    assert(local(i+1) == boottom(), "");
+    push(boottom());  // halfword placeholder
   }
   Node* pop_pair() {
     // the second half is pushed last & popped first; it contains exactly nothing
     Node* halfword = pop();
-    assert(halfword == top(), "");
+    assert(halfword == boottom(), "");
     // the long bits are pushed first & popped last:
     return pop();
   }
   void set_pair_local(int i, Node* lval) {
     // longs are stored in locals as a value/half pair (like doubles)
     set_local(i+0, lval);
-    set_local(i+1, top());
+    set_local(i+1, boottom());
   }
 
   // Push the node, which may be zero, one, or two words.
@@ -515,7 +515,7 @@ class GraphKit : public Phase {
     int n_size = type2size[n_type];
     if      (n_size == 1)  return pop();
     else if (n_size == 2)  return pop_pair();
-    else                   return C->top();
+    else                   return C->boottom();
   }
 
   Node* control()               const { return map_not_null()->control(); }
