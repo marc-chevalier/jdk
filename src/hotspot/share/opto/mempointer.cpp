@@ -475,9 +475,9 @@ MemPointer::Base MemPointer::Base::make(Node* pointer, const GrowableArray<MemPo
   AddPNode* adr = pointer->isa_AddP();
   if (adr == nullptr) { return Base(); }
 
-  // Non-TOP base -> object.
+  // Non-BOOTTOM base -> object.
   Node* maybe_object_base = adr->in(AddPNode::Base);
-  bool is_object_base = !maybe_object_base->is_top();
+  bool is_object_base = !maybe_object_base->is_boottom();
 
   Node* base = find_base(is_object_base ? maybe_object_base : nullptr, summands);
 

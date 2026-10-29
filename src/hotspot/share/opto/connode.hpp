@@ -165,9 +165,9 @@ public:
 class ThreadLocalNode : public Node {
 public:
     ThreadLocalNode( ) : Node((Node*)Compile::current()->root()) {}
-    virtual int Opcode() const;
-    virtual const Type *bottom_type() const { return TypeRawPtr::BOTTOM;}
-    virtual uint ideal_reg() const { return Op_RegP; }
+    int Opcode() const override;
+    const Type* toop_type() const override { return TypeRawPtr::TOOP;}
+    uint ideal_reg() const override { return Op_RegP; }
 };
 
 

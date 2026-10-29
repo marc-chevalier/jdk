@@ -736,7 +736,7 @@ static const TypeFunc* make_complete_monitor_enter_Type() {
   // create input type (domain)
   const Type **fields = TypeTuple::fields(2);
   fields[TypeFunc::Parms+0] = TypeInstPtr::NOTNULL;  // Object to be Locked
-  fields[TypeFunc::Parms+1] = TypeRawPtr::BOTTOM;   // Address of stack location for lock
+  fields[TypeFunc::Parms+1] = TypeRawPtr::TOOP;   // Address of stack location for lock
   const TypeTuple *domain = TypeTuple::make(TypeFunc::Parms+2,fields);
 
   // create result type (range)
@@ -753,8 +753,8 @@ static const TypeFunc* make_complete_monitor_exit_Type() {
   // create input type (domain)
   const Type **fields = TypeTuple::fields(3);
   fields[TypeFunc::Parms+0] = TypeInstPtr::NOTNULL;  // Object to be Locked
-  fields[TypeFunc::Parms+1] = TypeRawPtr::BOTTOM;    // Address of stack location for lock - BasicLock
-  fields[TypeFunc::Parms+2] = TypeRawPtr::BOTTOM;    // Thread pointer (Self)
+  fields[TypeFunc::Parms+1] = TypeRawPtr::TOOP;    // Address of stack location for lock - BasicLock
+  fields[TypeFunc::Parms+2] = TypeRawPtr::TOOP;    // Thread pointer (Self)
   const TypeTuple *domain = TypeTuple::make(TypeFunc::Parms+3, fields);
 
   // create result type (range)
@@ -908,7 +908,7 @@ static const TypeFunc* make_jfr_write_checkpoint_Type() {
 
   // create result type (range)
   fields = TypeTuple::fields(1);
-  fields[TypeFunc::Parms] = TypeInstPtr::BOTTOM;
+  fields[TypeFunc::Parms] = TypeInstPtr::TOOP;
   const TypeTuple *range = TypeTuple::make(TypeFunc::Parms + 1, fields);
   return TypeFunc::make(domain, range);
 }
@@ -1873,7 +1873,7 @@ static const TypeFunc* make_intpoly_square_25519_Type() {
 static const TypeFunc* make_osr_end_Type() {
   // create input type (domain)
   const Type **fields = TypeTuple::fields(1);
-  fields[TypeFunc::Parms+0] = TypeRawPtr::BOTTOM; // OSR temp buf
+  fields[TypeFunc::Parms+0] = TypeRawPtr::TOOP; // OSR temp buf
   const TypeTuple *domain = TypeTuple::make(TypeFunc::Parms+1, fields);
 
   // create result type
@@ -1886,7 +1886,7 @@ static const TypeFunc* make_osr_end_Type() {
 
 #ifndef PRODUCT
 static void debug_print_convert_type(const Type** fields, int* argp, Node *parm) {
-  const BasicType bt = parm->bottom_type()->basic_type();
+  const BasicType bt = parm->toop_type()->basic_type();
   fields[(*argp)++] = Type::get_const_basic_type(bt);
   if (bt == T_LONG || bt == T_DOUBLE) {
     fields[(*argp)++] = Type::HALF;
@@ -1895,7 +1895,7 @@ static void debug_print_convert_type(const Type** fields, int* argp, Node *parm)
 
 static void update_arg_cnt(const Node* parm, int* arg_cnt) {
   (*arg_cnt)++;
-  const BasicType bt = parm->bottom_type()->basic_type();
+  const BasicType bt = parm->toop_type()->basic_type();
   if (bt == T_LONG || bt == T_DOUBLE) {
     (*arg_cnt)++;
   }
@@ -2240,8 +2240,8 @@ static const TypeFunc* make_register_finalizer_Type() {
 static const TypeFunc* make_dtrace_method_entry_exit_Type() {
   // create input type (domain)
   const Type **fields = TypeTuple::fields(2);
-  fields[TypeFunc::Parms+0] = TypeRawPtr::BOTTOM; // Thread-local storage
-  fields[TypeFunc::Parms+1] = TypeMetadataPtr::BOTTOM;  // Method*;    Method we are entering
+  fields[TypeFunc::Parms+0] = TypeRawPtr::TOOP; // Thread-local storage
+  fields[TypeFunc::Parms+1] = TypeMetadataPtr::TOOP;  // Method*;    Method we are entering
   const TypeTuple *domain = TypeTuple::make(TypeFunc::Parms+2,fields);
 
   // create result type (range)
@@ -2255,7 +2255,7 @@ static const TypeFunc* make_dtrace_method_entry_exit_Type() {
 static const TypeFunc* make_dtrace_object_alloc_Type() {
   // create input type (domain)
   const Type **fields = TypeTuple::fields(2);
-  fields[TypeFunc::Parms+0] = TypeRawPtr::BOTTOM; // Thread-local storage
+  fields[TypeFunc::Parms+0] = TypeRawPtr::TOOP; // Thread-local storage
   fields[TypeFunc::Parms+1] = TypeInstPtr::NOTNULL;  // oop;    newly allocated object
 
   const TypeTuple *domain = TypeTuple::make(TypeFunc::Parms+2,fields);
@@ -2464,7 +2464,7 @@ const TypeFunc *OptoRuntime::store_value_type_fields_Type() {
   // We don't know the number of returned values and their
   // types. Assume all registers available to the return convention
   // are used.
-  fields[TypeFunc::Parms] = TypePtr::BOTTOM;
+  fields[TypeFunc::Parms] = TypePtr::TOOP;
   uint i = 1;
   for (; i < SharedRuntime::java_return_convention_max_int; i++) {
     fields[TypeFunc::Parms+i] = TypeInt::INT;
@@ -2477,7 +2477,7 @@ const TypeFunc *OptoRuntime::store_value_type_fields_Type() {
 
   // create result type (range)
   fields = TypeTuple::fields(1);
-  fields[TypeFunc::Parms+0] = TypeInstPtr::BOTTOM;
+  fields[TypeFunc::Parms+0] = TypeInstPtr::TOOP;
 
   const TypeTuple *range = TypeTuple::make(TypeFunc::Parms+1,fields);
 
@@ -2491,8 +2491,8 @@ const TypeFunc *OptoRuntime::pack_value_type_Type() {
   // We don't know the number of returned values and their
   // types. Assume all registers available to the return convention
   // are used.
-  fields[TypeFunc::Parms] = TypeRawPtr::BOTTOM;
-  fields[TypeFunc::Parms+1] = TypeRawPtr::BOTTOM;
+  fields[TypeFunc::Parms] = TypeRawPtr::TOOP;
+  fields[TypeFunc::Parms+1] = TypeRawPtr::TOOP;
   uint i = 2;
   for (; i < SharedRuntime::java_return_convention_max_int+1; i++) {
     fields[TypeFunc::Parms+i] = TypeInt::INT;
@@ -2530,7 +2530,7 @@ const TypeFunc* OptoRuntime::load_unknown_value_Type() {
 
   // create result type (range)
   fields = TypeTuple::fields(1);
-  fields[TypeFunc::Parms] = TypeInstPtr::BOTTOM;
+  fields[TypeFunc::Parms] = TypeInstPtr::TOOP;
 
   const TypeTuple* range = TypeTuple::make(TypeFunc::Parms+1, fields);
 

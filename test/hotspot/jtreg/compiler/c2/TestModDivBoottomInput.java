@@ -27,12 +27,12 @@
  * @bug 8283451
  * @summary C2: assert(_base == Long) failed: Not a Long
  * @run main/othervm -XX:+UnlockDiagnosticVMOptions -XX:+StressLCM -XX:+StressGCM -XX:+StressCCP -XX:+StressIGVN
- *                   -Xcomp -XX:CompileOnly=TestModDivTopInput::* -XX:-TieredCompilation -XX:StressSeed=87628618 TestModDivTopInput
+ *                   -Xcomp -XX:CompileOnly=${test.main.class}::* -XX:-TieredCompilation -XX:StressSeed=87628618 ${test.main.class}
  * @run main/othervm -XX:+UnlockDiagnosticVMOptions -XX:+StressLCM -XX:+StressGCM -XX:+StressCCP -XX:+StressIGVN
- *                   -Xcomp -XX:CompileOnly=TestModDivTopInput::* -XX:-TieredCompilation TestModDivTopInput
+ *                   -Xcomp -XX:CompileOnly=${test.main.class}::* -XX:-TieredCompilation ${test.main.class}
  */
 
-public class TestModDivTopInput {
+public class TestModDivBoottomInput {
 
     public static final int N = 400;
 
@@ -64,7 +64,7 @@ public class TestModDivTopInput {
     }
 
     public static void main(String[] strArr) {
-        TestModDivTopInput _instance = new TestModDivTopInput();
+        TestModDivBoottomInput _instance = new TestModDivBoottomInput();
         for (int i = 0; i < 10; i++ ) {
             _instance.mainTest(strArr);
         }

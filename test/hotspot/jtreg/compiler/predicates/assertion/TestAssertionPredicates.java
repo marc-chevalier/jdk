@@ -2181,7 +2181,7 @@ public class TestAssertionPredicates {
 
             // 3)  Loop Predication will hoist the range check out of the loop together with a Template Assertion Predicate.
             // 15) After pre/main/post: the CastII for the array index get the new iv type [-1..-32767] and is replaced by
-            //     top. Data dies but there is no Intialized Assertion Predicate above the main loop and we are left with
+            //     boottom. Data dies but there is no Intialized Assertion Predicate above the main loop and we are left with
             //     a broken graph. We assert when running with -XX:+AbortVMOnCompilationFailure due to a malformed graph.
             int arrLoad = iArr[i];
             if (arrLoad == i) {

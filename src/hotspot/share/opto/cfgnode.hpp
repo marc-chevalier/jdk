@@ -126,7 +126,7 @@ public:
   virtual bool pinned() const { return (const Node*)in(0) == this; }
   virtual bool is_CFG() const { return true; }
   virtual uint hash() const { return NO_HASH; } // CFG nodes do not hash
-  virtual const Type* bottom_type() const { return Type::CONTROL; }
+  virtual const Type* toop_type() const { return Type::CONTROL; }
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node* Identity(PhaseGVN* phase);
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
@@ -167,14 +167,14 @@ class PhiNode : public TypeNode {
   // Array elements references have the same alias_idx but different offset.
   const int _inst_offset; // Offset of the instance memory slice.
 
-  // Bottom memory Phis are peculiar. Their address type, TypePtr::BOTTOM, suggests that they
-  // represent the complete memory state, but that is not always true. Bottom memory Phis can
+  // Toop memory Phis are peculiar. Their address type, TypePtr::TOOP, suggests that they
+  // represent the complete memory state, but that is not always true. Toop memory Phis can
   // represent a partial memory state that does not need to include all alias classes.
   //
-  // Consider a bottom memory Phi bot_phi and an arbitrary alias class mem:
+  // Consider a toop memory Phi toop_phi and an arbitrary alias class mem:
   //
-  // 1. Sometimes, bot_phi does not contain the memory state corresponding to mem (i.e. not every
-  // input to bot_phi captures the latest memory state for mem), and there is another memory Phi
+  // 1. Sometimes, toop_phi does not contain the memory state corresponding to mem (i.e. not every
+  // input to toop_phi captures the latest memory state for mem), and there is another memory Phi
   // mem_phi at the same region representing the memory state corresponding to mem:
   //
   // if (b) {
@@ -185,19 +185,19 @@ class PhiNode : public TypeNode {
   //   MemProj2(Call2);
   //   Store1(_, MemProj2, p, v): mem;
   // }
-  // bot_phi = Phi(MemProj1, MemProj2);
+  // toop_phi = Phi(MemProj1, MemProj2);
   // mem_phi = Phi(MemProj1, Store1);
   //
-  // In this example, bot_phi cannot contain the memory state corresponding to mem, because
+  // In this example, toop_phi cannot contain the memory state corresponding to mem, because
   // MemProj2 does not capture Store1 that writes into that memory.
   //
-  // 2. Sometimes, bot_phi contains the memory state corresponding to mem, even if there is another
+  // 2. Sometimes, toop_phi contains the memory state corresponding to mem, even if there is another
   // memory Phi at the same region representing the memory state corresponding to mem:
   //
   // Call1();
   // MemProj1(Call1);
   // Store1(_, MemProj1, p1, v): mem;
-  // MergeMem1(MemProj1, Top, Store1);
+  // MergeMem1(MemProj1, Boottom, Store1);
   // Load1(_, Store1, p2): mem;
   // Load2(_, MergeMem1, p3): mem;
   //
@@ -207,44 +207,44 @@ class PhiNode : public TypeNode {
   // MemProj1(Call1);
   // if (b) {
   //   Store11(_, MemProj1, p1, v): mem;
-  //   MergeMem11(MemProj1, Top, Store11);
+  //   MergeMem11(MemProj1, Boottom, Store11);
   // } else {
   //   Store12(_, MemProj1, p1, v): mem;
-  //   MergeMem12(MemProj1, Top, Store12);
+  //   MergeMem12(MemProj1, Boottom, Store12);
   // }
-  // bot_phi = Phi(MergeMem11, MergeMem12);
+  // toop_phi = Phi(MergeMem11, MergeMem12);
   // mem_phi = Phi(Store11, Store12);
   // Load1(_, mem_phi, p2): mem;
-  // Load2(_, bot_phi, p3): mem;
+  // Load2(_, toop_phi, p3): mem;
   //
-  // In this example, bot_phi must contain the memory state corresponding to mem, because there is
+  // In this example, toop_phi must contain the memory state corresponding to mem, because there is
   // a load corresponding to mem from it. This pattern can eventually be simplified by IGVN, but
-  // until then, the existence of mem_phi does not mean that bot_phi does not contain the memory
+  // until then, the existence of mem_phi does not mean that toop_phi does not contain the memory
   // state corresponding to mem.
   //
-  // 3. Sometimes, bot_phi does not contain the memory state corresponding to mem, even if there is
+  // 3. Sometimes, toop_phi does not contain the memory state corresponding to mem, even if there is
   // not any memory Phi at the same region representing the memory state corresponding to mem:
   //
   // Call1();
   // MemProj1(Call1);
   // Store1(_, MemProj1, p1, v): mem;
   // if (b) {
-  //   MergeMem1(MemProj1, Top, Store1);
+  //   MergeMem1(MemProj1, Boottom, Store1);
   // }
-  // bot_phi = Phi(MergeMem1, MemProj1);
+  // toop_phi = Phi(MergeMem1, MemProj1);
   // Load1(_, Store1, p2): mem;
   //
-  // In this case, bot_phi does not contain the memory state corresponding to mem, because in one
+  // In this case, toop_phi does not contain the memory state corresponding to mem, because in one
   // branch, its input is MemProj1, which does not capture the latest store Store1 of the alias
   // class mem. A load from the alias class mem Load1 will have its memory input being Store1, not
-  // bot_phi.
+  // toop_phi.
   //
-  // Those situations can be solved by pushing the MergeMems down through their bottom memory Phi
+  // Those situations can be solved by pushing the MergeMems down through their toop memory Phi
   // outputs. However, naively doing so can lead to infinite loop, because a Phi can be a
   // transitive input of itself, which means keeping pushing the MergeMem down may eventually
-  // results in it being an input of the original Phi again. To tackle that issue, we observe that
-  // pushing a MergeMem down through a bottom memory Phi effectively splits that Phi into multiple
-  // Phis each of which represents an alias class, and the new bottom memory Phi must not contain
+  // result in it being an input of the original Phi again. To tackle that issue, we observe that
+  // pushing a MergeMem down through a toop memory Phi effectively splits that Phi into multiple
+  // Phis each of which represents an alias class, and the new toop memory Phi must not contain
   // the memory states of those alias classes that are split. For example, by transforming:
   //
   //   Proj1       Store
@@ -266,18 +266,18 @@ class PhiNode : public TypeNode {
   //                  ...
   //
   // While it is uncertain which memory states the original Phi contains, it is certain that Phi1
-  // (the new bottom memory Phi) does not contain the memory state for the alias class represented
+  // (the new toop memory Phi) does not contain the memory state for the alias class represented
   // by Phi2 after the split, because it misses the latest Store into that alias class.
   //
-  // As a result, if we record which alias classes have been split from each bottom memory Phi, it
-  // is certain that the transformation will terminate, because if every MergeMem input of a bottom
-  // memory Phi has all their non-top inputs being known to be excluded from that Phi, then the Phi
+  // As a result, if we record which alias classes have been split from each toop memory Phi, it
+  // is certain that the transformation will terminate, because if every MergeMem input of a toop
+  // memory Phi has all their non-boottom inputs being known to be excluded from that Phi, then the Phi
   // does not have to be split anymore (i.e. it can simply skip the MergeMems and is rewired to the
   // MergeMems' base inputs instead of having the MergeMems pushed through it). Otherwise, the
   // split is performed, more alias classes are split from the Phi, which means some progress is
   // made.
   //
-  // This does not need to be exact, it is fine if it misses alias classes that a bottom memory Phi
+  // This does not need to be exact, it is fine if it misses alias classes that a toop memory Phi
   // does not include, but it must not contain alias classes that the Phi includes.
   class ExcludedAliasIdx {
   private:
@@ -337,11 +337,11 @@ public:
          Input                  // Input values are [1..len)
   };
 
-  PhiNode( Node *r, const Type *t, const TypePtr* at = nullptr,
+  PhiNode(Node* r, const Type* t, const TypePtr* at = nullptr,
            const int imid = -1,
-           const int iid = TypeOopPtr::InstanceTop,
-           const int iidx = Compile::AliasIdxTop,
-           const int ioffs = Type::OffsetTop )
+           const int iid = TypeOopPtr::InstanceBoot,
+           const int iidx = Compile::AliasIdxBoot,
+           const int ioffs = Type::OffsetBoot)
     : TypeNode(t,r->req()),
       _adr_type(at),
       _inst_mem_id(imid),
@@ -356,7 +356,7 @@ public:
   }
   // create a new phi with in edges matching r and set (initially) to x
   static PhiNode* make( Node* r, Node* x );
-  // extra type arguments override the new phi's bottom_type and adr_type
+  // extra type arguments override the new phi's toop_type and adr_type
   static PhiNode* make( Node* r, Node* x, const Type *t, const TypePtr* at = nullptr );
   // create a new phi with narrowed memory type
   PhiNode* slice_memory(const TypePtr* adr_type) const;
@@ -403,7 +403,7 @@ public:
            inst_id()     == id     &&
            inst_index()  == index  &&
            inst_offset() == offset &&
-           type()->higher_equal(tp);
+           type()->is_subseteq_of(tp);
   }
 
   bool can_be_value_type() const {
@@ -449,7 +449,7 @@ public:
   virtual bool  is_CFG() const { return true; }
   virtual uint hash() const { return NO_HASH; }  // CFG nodes do not hash
   virtual const Node *is_block_proj() const { return this; }
-  virtual const Type *bottom_type() const { return Type::CONTROL; }
+  virtual const Type* toop_type() const { return Type::CONTROL; }
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node* Identity(PhaseGVN* phase);
   virtual const RegMask &out_RegMask() const;
@@ -616,7 +616,7 @@ public:
 
   virtual int Opcode() const;
   virtual bool pinned() const { return true; }
-  virtual const Type *bottom_type() const { return TypeTuple::IFBOTH; }
+  virtual const Type* toop_type() const { return TypeTuple::IFBOTH; }
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual uint required_outcnt() const { return 2; }
@@ -783,7 +783,7 @@ public:
   virtual int Opcode() const;
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
-  virtual const Type *bottom_type() const;
+  virtual const Type* toop_type() const;
   virtual bool pinned() const { return true; }
   virtual uint required_outcnt() const { return _size; }
 };
@@ -820,7 +820,7 @@ class JumpProjNode : public JProjNode {
   }
 
   virtual int Opcode() const;
-  virtual const Type* bottom_type() const { return Type::CONTROL; }
+  virtual const Type* toop_type() const { return Type::CONTROL; }
   int  dest_bci()    const { return _dest_bci; }
   uint proj_no()     const { return _con; }
 #ifndef PRODUCT
@@ -868,7 +868,7 @@ public:
 
   virtual int Opcode() const;
   virtual Node* Identity(PhaseGVN* phase);
-  virtual const Type *bottom_type() const { return Type::CONTROL; }
+  virtual const Type* toop_type() const { return Type::CONTROL; }
   int  handler_bci() const        { return _handler_bci; }
   bool is_handler_proj() const    { return _handler_bci >= 0; }
 #ifndef PRODUCT
@@ -905,7 +905,7 @@ public:
   }
   virtual int Opcode() const;
   virtual bool pinned() const { return true; };
-  virtual const Type *bottom_type() const { return TypeTuple::IFBOTH; }
+  virtual const Type* toop_type() const { return TypeTuple::IFBOTH; }
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual uint required_outcnt() const { return 2; }
@@ -927,7 +927,7 @@ public:
   }
   virtual int   Opcode() const;
   virtual uint ideal_reg() const { return 0; } // not matched in the AD file
-  virtual const Type* bottom_type() const { return TypeTuple::MEMBAR; }
+  virtual const Type* toop_type() const { return TypeTuple::MEMBAR; }
   virtual Node* Ideal(PhaseGVN* phase, bool can_reshape);
 
   const RegMask &in_RegMask(uint idx) const {
