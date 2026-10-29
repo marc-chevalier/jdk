@@ -1702,8 +1702,7 @@ Node* GraphKit::make_load(Node* ctl, Node* adr, const Type* t, BasicType bt,
                           uint8_t barrier_data) {
   int adr_idx = C->get_alias_index(_gvn.type(adr)->isa_ptr());
   assert(adr_idx != Compile::AliasIdxTop, "use other make_load factory" );
-  const TypePtr* adr_type = nullptr; // debug-mode-only argument
-  DEBUG_ONLY(adr_type = C->get_adr_type(adr_idx));
+  const TypePtr* adr_type = C->get_adr_type(adr_idx);
   Node* mem = memory(adr_idx);
   Node* ld = LoadNode::make(_gvn, ctl, mem, adr, adr_type, t, bt, mo, control_dependency, require_atomic_access, unaligned, mismatched, unsafe, barrier_data);
   ld = _gvn.transform(ld);
@@ -1744,7 +1743,6 @@ Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt,
   Node* mem;
   if (unsound_address) {
     mem = reset_memory();
-    set_all_memory(mem);
     adr_type = TypePtr::BOTTOM;
   } else {
     mem = memory(adr_idx);

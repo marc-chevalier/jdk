@@ -91,30 +91,15 @@ void MemNode::validate_in_adr_type() const {
   if (!Compile::current()->do_aliasing()) return;
   if (is_unsound_address_access()) {
     assert(_adr_type != nullptr, "give me a valid adr_type!");
-    return;
-  }
-  const TypePtr* from_input = in_adr_type_from_inputs();
-  const TypePtr* from_ctor = in_adr_type();
-  if (from_input != from_ctor) {
-    stringStream ss;
-#ifdef PRODUCT
-    ss.print("incompatible adr_type");
-#else
-    ss.print("incompatible adr_type: given at construction=");
-    if (from_ctor != nullptr) {
-      from_ctor->dump_on(&ss);
-    } else {
-      ss.print("nullptr");
+
+    // This one is only true for now. If we can speak about set of slices more precisely, that will not be true anymore.
+    if (!(_adr_type == TypePtr::BOTTOM || _adr_type == TypeRawPtr::BOTTOM)) {
+      stringStream ss;
+      _adr_type->dump_on(&ss);
+      assert(_adr_type == TypePtr::BOTTOM || _adr_type == TypeRawPtr::BOTTOM, "unexpected adr_type: %s", ss.as_string());
     }
-    ss.print(" != computed from inputs=");
-    if (from_input != nullptr) {
-      from_input->dump_on(&ss);
-    } else {
-      ss.print("nullptr");
-    }
-#endif
-    assert(from_input == from_ctor, "%s", ss.as_string());
   }
+  const TypePtr* _ = in_adr_type_from_inputs();
 }
 #endif
 
@@ -133,10 +118,7 @@ void MemNode::dump_spec(outputStream *st) const {
     // node is dead
     return;
   }
-#ifndef ASSERT
-  // fake the missing field
-  const TypePtr* _adr_type = in(Address)->bottom_type()->isa_ptr();
-#endif
+
   dump_adr_type(_adr_type, st);
 
   Compile* C = Compile::current();
@@ -514,8 +496,14 @@ Node *MemNode::Ideal_common(PhaseGVN *phase, bool can_reshape) {
   }
 
   Node *address = in(MemNode::Address);
-  const Type* t_adr = in_adr_type();
-  if (t_adr == nullptr || t_adr == Type::TOP) return NodeSentinel; // caller will return null
+  const Type* address_type = phase->type(address);
+  if (address_type == nullptr || address_type == Type::TOP) return NodeSentinel; // caller will return null
+
+  // For sound-address accesses, the type of the address might be more precise than in_adr_type that is based on bottom_type.
+  const Type* t_adr =
+      is_unsound_address_access()
+        ? in_adr_type()
+        : address_type;
 
   if (can_reshape && is_unsafe_access() && (t_adr == TypePtr::NULL_PTR)) {
     // Unsafe off-heap access with zero address. Remove access and other control users
@@ -537,7 +525,7 @@ Node *MemNode::Ideal_common(PhaseGVN *phase, bool can_reshape) {
 
   if (can_reshape && igvn != nullptr &&
       (igvn->_worklist.member(address) ||
-       (igvn->_worklist.size() > 0 && t_adr != in_adr_type())) ) {
+       (igvn->_worklist.size() > 0 && !is_unsound_address_access() && t_adr != in_adr_type()))) {
     // The address's base and type may change when the address is processed.
     // Delay this mem node transformation until the address is processed.
     igvn->_worklist.push(this);
@@ -548,7 +536,7 @@ Node *MemNode::Ideal_common(PhaseGVN *phase, bool can_reshape) {
   // should be folded later
   if (t_adr->base() == Type::AnyPtr) {
     if (is_unsound_address_access()) {
-      // We have an access whose warning you that the address type is not a sound
+      // We have an access that is warning you that the address type is not a sound
       // approximation of what memory can be touched (and in doubt, can be everything).
       // Doesn't mean the node is bad/dead/... But we can't do anything with it here. The
       // caller may try.
@@ -5285,9 +5273,9 @@ bool is_memory_slice_used_before_the_write(StoreNode* st, PhaseGVN* phase, Node*
   Unique_Node_List<Node> mems;
   mems.push(mem_proj_from_init);
   for (uint next = 0; next < mems.size(); ++next) {
-    Node *m  = mems.at(next);
+    Node* m  = mems.at(next);
     for (DUIterator_Fast jmax, j = m->fast_outs(jmax); j < jmax; j++) {
-      Node *n = m->fast_out(j);
+      Node* n = m->fast_out(j);
       if (n->outcnt() == 0) {
         continue;
       }
@@ -5303,7 +5291,7 @@ bool is_memory_slice_used_before_the_write(StoreNode* st, PhaseGVN* phase, Node*
         if (
           (alias_idx == Compile::AliasIdxBot && n->as_MergeMem()->base_memory() == m) ||
           (alias_idx != Compile::AliasIdxBot && n->as_MergeMem()->memory_at(alias_idx) == m)
-        ){
+        ) {
           // We can hit a MergeMemNode (that will likely go away
           // later) that is a direct use of the memory state
           // following the InitializeNode on the same slice as the
@@ -5329,6 +5317,10 @@ bool is_memory_slice_used_before_the_write(StoreNode* st, PhaseGVN* phase, Node*
               if (base->is_Phi()) {
                 // In rare case, base may be a PhiNode and it may read
                 // the same memory slice between InitializeNode and store.
+                return true;
+              }
+              if (alias_idx == Compile::AliasIdxRaw && !base->is_AddP()) {
+                // Something weird happen to the raw memory, let's just give up. Whatever...
                 return true;
               }
               assert(base->is_AddP(), "should be addp but is %s", base->Name());
@@ -5371,14 +5363,6 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
   if (st->is_unsound_address_access()) {
     if (!mem->is_MergeMem()) return FAIL;
 
-    const TypePtr* in_adr_type = st->in_adr_type_from_inputs();
-    if (!in_adr_type->isa_instptr()) return FAIL;
-    const TypeInstPtr* in_adr_type_ptr = in_adr_type->is_instptr();
-    ciInstanceKlass* ik = in_adr_type_ptr->instance_klass();
-    int start = in_adr_type_ptr->offset();
-    if (start == Type::OffsetBot || start == Type::OffsetTop) return FAIL;
-    int stop = start + st->memory_size();
-
     auto slice_comes_from_init = [&](uint idx) -> bool {
       if (idx >= mem->req()) return false;
       Node* proj = mem->in(idx);
@@ -5388,44 +5372,77 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
       return true;
     };
 
-    auto slice_comes_from_init_if_meaningful = [&](uint idx, int field_start, int field_size) -> bool {
+    auto slice_is_meaningful = [&](int store_start, int store_stop, int field_start, int field_size) -> bool {
       int field_stop = field_start + field_size;
-      if (field_start >= stop || start >= field_stop) {
-        return true;
-      }
-      return slice_comes_from_init(idx);
+      return field_start < store_stop && store_start < field_stop;
     };
 
-    if (!slice_comes_from_init(Compile::AliasIdxRaw)) return FAIL;
-
-    int mark_idx = phase->C->get_alias_index(in_adr_type->with_offset(oopDesc::mark_offset_in_bytes()));
-    if (!slice_comes_from_init_if_meaningful(mark_idx, oopDesc::mark_offset_in_bytes(), sizeof(markWord))) {
+    if (!slice_comes_from_init(Compile::AliasIdxRaw)) {
       return FAIL;
     }
+    int store_size = st->memory_size();
+    const TypePtr* in_adr_type = st->in_adr_type_from_inputs();
+    if (const TypeInstPtr* in_adr_type_inst_ptr = in_adr_type->isa_instptr(); in_adr_type_inst_ptr != nullptr) {
+      ciInstanceKlass* ik = in_adr_type_inst_ptr->instance_klass();
+      int store_start = in_adr_type_inst_ptr->offset();
+      if (store_start == Type::OffsetBot || store_start == Type::OffsetTop) {
+        return FAIL;
+      }
+      int store_stop = store_start + store_size;
 
-    int klass_idx = phase->C->get_alias_index(in_adr_type->with_offset(oopDesc::klass_offset_in_bytes()));
-    if (!slice_comes_from_init_if_meaningful(klass_idx, oopDesc::klass_offset_in_bytes(), sizeof(narrowKlass))) {
+      for (int i = 0, len = ik->nof_nonstatic_fields(); i < len; i++) {
+        ciField* field = ik->nonstatic_field_at(i);
+        int field_start = field->offset_in_bytes();
+        int field_size = type2aelembytes(field->layout_type());
+        if (slice_is_meaningful(store_start, store_stop, field_start, field_size)) {
+          int fieldidx = phase->C->alias_type(field)->index();
+          if (!slice_comes_from_init(fieldidx)) {
+            return FAIL;
+          }
+        }
+      }
+    } else if (const TypeAryPtr* in_adr_type_ary_ptr = in_adr_type->isa_aryptr(); in_adr_type_ary_ptr != nullptr) {
+      assert(in_adr_type_ary_ptr->is_flat(), "StoreLSpecial to an array must be to a flat array");
+      if (!in_adr_type_ary_ptr->klass_is_exact()) {
+        return FAIL;
+      }
+
+      int store_start = in_adr_type_ary_ptr->field_offset().get();
+      if (store_start == Type::OffsetBot || store_start == Type::OffsetTop) {
+        return FAIL;
+      }
+      int elem_size = in_adr_type_ary_ptr->flat_elem_size();
+      if (store_start < 0 || store_size > elem_size || store_start + store_size > elem_size) {
+        return FAIL;
+      }
+      int store_stop = store_start + store_size;
+
+      ciFlatArrayKlass* array_klass = in_adr_type_ary_ptr->exact_klass()->as_flat_array_klass();
+      ciValueKlass* elem_klass = array_klass->element_klass()->as_value_klass();
+      const TypeAryPtr* elem_adr_type = in_adr_type_ary_ptr->with_offset(Type::OffsetBot);
+
+      for (int i = 0; i < elem_klass->nof_nonstatic_fields(); i++) {
+        ciField* field = elem_klass->nonstatic_field_at(i);
+        int field_start = field->offset_in_bytes() - elem_klass->payload_offset();
+        int field_size = type2aelembytes(field->layout_type());
+        if (slice_is_meaningful(store_start, store_stop, field_start, field_size)) {
+          int field_idx = phase->C->get_alias_index(elem_adr_type->with_field_offset(field_start));
+          if (!slice_comes_from_init(field_idx)) {
+            return FAIL;
+          }
+        }
+      }
+      if (!array_klass->is_elem_null_free()) {
+        int null_marker_offset = elem_klass->null_marker_offset_in_payload();
+        if (slice_is_meaningful(store_start, store_stop, null_marker_offset, type2aelembytes(T_BOOLEAN))) {
+          int null_marker_idx = phase->C->get_alias_index(elem_adr_type->with_field_offset(null_marker_offset));
+          if (!slice_comes_from_init(null_marker_idx)) {
+            return FAIL;
+          }
+        }
+      }
+    } else {
       return FAIL;
-    }
-
-    int tracking_limit = TrackedInitializationLimit * HeapWordSize;
-    if (stop > tracking_limit) {
-      if (!slice_comes_from_init(Compile::AliasIdxBot)) {
-        return FAIL;
-      }
-    }
-    for (int i = 0, len = ik->nof_nonstatic_fields(); i < len; i++) {
-      ciField* field = ik->nonstatic_field_at(i);
-      if (field->offset_in_bytes() >= tracking_limit) {
-        continue;
-      }
-
-      int field_start = field->offset_in_bytes();
-      int field_size = type2aelembytes(field->layout_type());
-      int fieldidx = phase->C->alias_type(field)->index();
-      if (!slice_comes_from_init_if_meaningful(fieldidx, field_start, field_size)) {
-        return FAIL;
-      }
     }
   } else {
     if (!(mem->is_Proj() && mem->in(0) == this))
@@ -5437,7 +5454,7 @@ intptr_t InitializeNode::can_capture_store(StoreNode* st, PhaseGVN* phase, bool 
   }
 
   BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
-  if ((st->Opcode() == Op_StoreP || st->Opcode() == Op_StoreN) &&
+  if ((st->Opcode() == Op_StoreP || st->Opcode() == Op_StoreN || st->Opcode() == Op_StoreLSpecial) &&
       !bs->can_initialize_object(st)) {
     return FAIL;
   }

@@ -1896,7 +1896,7 @@ void Matcher::combine_adr_type(const Node* n, MachNode* mach) const {
   }
 
   if (const StoreNode* store_node = n->isa_Store(); store_node != nullptr) {
-    mach->_unsound_address_from_input = store_node->is_unsound_address_access();
+    mach->_unsound_address_from_input = mach->_unsound_address_from_input || store_node->is_unsound_address_access();
   }
 }
 

@@ -300,6 +300,10 @@ private:
   bool _unsound_address_from_input;
 
 public:
+  [[nodiscard]] bool unsound_address_from_input() const {
+    return _unsound_address_from_input;
+  }
+
   // The GC might require some barrier metadata for machine code emission.
   uint8_t _barrier;
 

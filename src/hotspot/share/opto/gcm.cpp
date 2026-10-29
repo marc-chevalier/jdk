@@ -904,8 +904,15 @@ Block* PhaseCFG::raise_above_anti_dependences(Block* LCA, Node* load, const bool
     // Compute the alias index. If the use_mem_state has an alias index
     // different from the load's, it is not anti-dependent. Wide MemBar's
     // are anti-dependent with everything (except immutable memories).
+    const Node* use_mem_state_unbarriered = use_mem_state;
+    while (use_mem_state_unbarriered->is_MemBar()) {
+      use_mem_state_unbarriered = use_mem_state_unbarriered->in(TypeFunc::Memory);
+    }
+    bool unsound_address = use_mem_state_unbarriered->is_Mach() && use_mem_state_unbarriered->as_Mach()->unsound_address_from_input();
     const TypePtr* adr_type = use_mem_state->out_adr_type();
-    if (!C->can_alias(adr_type, load_alias_idx))  continue;
+    if (!unsound_address && !C->can_alias(adr_type, load_alias_idx)) {
+      continue;
+    }
 
     // Most slow-path runtime calls do NOT modify Java memory, but
     // they can block and so write Raw memory.
