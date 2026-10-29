@@ -24,7 +24,7 @@
 /**
  * @test
  * @bug 8391418
- * @summary VectorMaskCastNode::Identity must handle the TOP input during IGVN
+ * @summary VectorMaskCastNode::Identity must handle the BOOTTOM input during IGVN
  * @requires vm.compiler2.enabled
  * @modules jdk.incubator.vector
  *
@@ -44,7 +44,7 @@ import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorSpecies;
 
-public class TestVectorMaskCastTopInput {
+public class TestVectorMaskCastBoottomInput {
     static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_256;
 
     public static void main(String[] args) {
@@ -63,7 +63,7 @@ public class TestVectorMaskCastTopInput {
         }
 
         // This store is always out of bounds: C2 kills this path, leaving the
-        // VectorMaskCastNode that feeds the store's mask with a TOP input.
+        // VectorMaskCastNode that feeds the store's mask with a BOOTTOM input.
         try {
             vector.intoMemorySegment(segment, -1, ByteOrder.BIG_ENDIAN, vectorMask);
         } catch (IndexOutOfBoundsException e) {

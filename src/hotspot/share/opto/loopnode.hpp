@@ -154,8 +154,8 @@ public:
   virtual int Opcode() const;
   bool can_be_counted_loop(PhaseValues* phase) const {
     return req() == 3 && in(0) != nullptr &&
-      in(1) != nullptr && phase->type(in(1)) != Type::TOP &&
-      in(2) != nullptr && phase->type(in(2)) != Type::TOP;
+      in(1) != nullptr && phase->type(in(1)) != Type::BOOTTOM &&
+      in(2) != nullptr && phase->type(in(2)) != Type::BOOTTOM;
   }
   bool is_valid_counted_loop(BasicType bt) const;
 #ifndef PRODUCT
@@ -577,7 +577,7 @@ class LoopLimitNode : public Node {
     C->add_macro_node(this);
   }
   virtual int Opcode() const;
-  virtual const Type *bottom_type() const { return TypeInt::INT; }
+  virtual const Type* toop_type() const { return TypeInt::INT; }
   virtual uint ideal_reg() const { return Op_RegI; }
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
@@ -643,7 +643,7 @@ public:
 
   // The head-tail backedge defines the loop.
   // If a loop has multiple backedges, this is addressed during cleanup where
-  // we peel off the multiple backedges,  merging all edges at the bottom and
+  // we peel off the multiple backedges,  merging all edges at the toop and
   // ensuring that one proper backedge flow into the loop.
   Node *_head;                  // Head of loop
   Node *_tail;                  // Tail of loop
@@ -813,7 +813,7 @@ public:
 
   bool is_root() { return _parent == nullptr; }
   // A proper/reducible loop w/o any (occasional) dead back-edge.
-  bool is_loop() { return !_irreducible && !tail()->is_top(); }
+  bool is_loop() { return !_irreducible && !tail()->is_boottom(); }
   bool is_counted()   { return is_loop() && _head->is_CountedLoop(); }
   bool is_innermost() { return is_loop() && _child == nullptr; }
 
@@ -1181,7 +1181,7 @@ public:
   }
 
   void remove_dead_data_node(Node* dead) {
-    assert(dead->outcnt() == 0 && !dead->is_top(), "must be dead");
+    assert(dead->outcnt() == 0 && !dead->is_boottom(), "must be dead");
     assert(!dead->is_CFG(), "not a data node");
     Node* c = get_ctrl(dead);
     IdealLoopTree* lpt = get_loop(c);
