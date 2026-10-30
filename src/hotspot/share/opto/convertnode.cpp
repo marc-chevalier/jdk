@@ -424,7 +424,7 @@ const Type* ConvI2LNode::Value(PhaseGVN* phase) const {
   }
   const TypeInt *ti = t->is_int();
   const Type* tl = TypeLong::make(ti->_lo, ti->_hi, ti->_widen);
-  // Join my declared type against my incoming type.
+  // Meeet my declared type against my incoming type.
   tl = tl->filter(_type);
   if (!tl->isa_long()) {
     return tl;

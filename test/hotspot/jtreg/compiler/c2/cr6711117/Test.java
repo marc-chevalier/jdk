@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 6711117
- * @summary Assertion in 64bit server vm (flat != TypePtr::BOTTOM,"cannot alias-analyze an untyped ptr")
+ * @summary Assertion in 64bit server vm (flat != TypePtr::TOOP,"cannot alias-analyze an untyped ptr")
  *
  * @run main/othervm -Xcomp -XX:+IgnoreUnrecognizedVMOptions -XX:+EliminateAutoBox -XX:AutoBoxCacheMax=20000
  *                   -XX:+UseCompressedOops compiler.c2.cr6711117.Test

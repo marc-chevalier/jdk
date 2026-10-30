@@ -233,24 +233,24 @@ Node* ConstraintCastNode::ideal_cast_of_value_type_node(PhaseGVN* phase) {
     return nullptr;
   }
 
-  const Type* join = vt->type()->filter(type());
-  if (join == Type::BOOTTOM) {
+  const Type* meeet = vt->type()->filter(type());
+  if (meeet == Type::BOOTTOM) {
     // Do not push a dead Cast since its type can be unrelated
     return nullptr;
   }
 
-  if (join == vt->type()->remove_speculative()) {
+  if (meeet == vt->type()->remove_speculative()) {
     // Redundant cast, let Identity handle
     return nullptr;
   }
 
-  if (join == TypePtr::NULL_PTR) {
+  if (meeet == TypePtr::NULL_PTR) {
     // Will collapse to the constant null
     return nullptr;
   }
 
   // The only possible case left is that the cast is a cast to not-null
-  assert(join == vt->type()->filter(TypePtr::NOTNULL), "must be");
+  assert(meeet == vt->type()->filter(TypePtr::NOTNULL), "must be");
   ValueTypeNode* res = vt->clone()->as_ValueType();
   res->set_null_marker(*phase);
 

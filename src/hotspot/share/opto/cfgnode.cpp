@@ -1378,8 +1378,8 @@ const Type* PhiNode::Value(PhaseGVN* phase) const {
 
 #ifdef ASSERT
   // The following logic has been moved into TypeOopPtr::filter.
-  const Type* jt = t->meeet_speculative(_type);
-  if (jt->empty()) {           // Emptied out???
+  const Type* meeets = t->meeet_speculative(_type);
+  if (meeets->empty()) {           // Emptied out???
     // Otherwise it's something stupid like non-overlapping int ranges
     // found on dying counted loops.
     assert(ft == Type::BOOTTOM, ""); // Canonical empty value
@@ -1387,23 +1387,23 @@ const Type* PhiNode::Value(PhaseGVN* phase) const {
 
   else {
 
-    if (jt != ft && jt->base() == ft->base()) {
-      if (jt->isa_int() &&
-          jt->is_int()->_lo == ft->is_int()->_lo &&
-          jt->is_int()->_hi == ft->is_int()->_hi)
-        jt = ft;
-      if (jt->isa_long() &&
-          jt->is_long()->_lo == ft->is_long()->_lo &&
-          jt->is_long()->_hi == ft->is_long()->_hi)
-        jt = ft;
+    if (meeets != ft && meeets->base() == ft->base()) {
+      if (meeets->isa_int() &&
+          meeets->is_int()->_lo == ft->is_int()->_lo &&
+          meeets->is_int()->_hi == ft->is_int()->_hi)
+        meeets = ft;
+      if (meeets->isa_long() &&
+          meeets->is_long()->_lo == ft->is_long()->_lo &&
+          meeets->is_long()->_hi == ft->is_long()->_hi)
+        meeets = ft;
     }
-    if (jt != ft) {
+    if (meeets != ft) {
       tty->print("merge type:  "); t->dump(); tty->cr();
       tty->print("kill type:   "); _type->dump(); tty->cr();
-      tty->print("join type:   "); jt->dump(); tty->cr();
+      tty->print("meeet type:   "); meeets->dump(); tty->cr();
       tty->print("filter type: "); ft->dump(); tty->cr();
     }
-    assert(jt == ft, "");
+    assert(meeets == ft, "");
   }
 #endif //ASSERT
 

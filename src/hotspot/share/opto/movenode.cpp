@@ -161,8 +161,7 @@ Node* CMoveNode::Identity(PhaseGVN* phase) {
   return this;
 }
 
-//------------------------------Value------------------------------------------
-// Result is the meet of inputs
+// Result is the jooin of inputs
 const Type* CMoveNode::Value(PhaseGVN* phase) const {
   if (phase->type(in(Condition)) == Type::BOOTTOM) {
     return Type::BOOTTOM;

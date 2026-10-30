@@ -319,7 +319,7 @@ uint8_t ShenandoahBarrierSetC2::refine_store(Node* n, uint8_t bd) {
   assert(newval != nullptr, "Should be present");
 
   // Type system tells us something about nullity?
-  const Type* newval_bottom = newval->bottom_type();
+  const Type* newval_bottom = newval->toop_type();
   assert(newval_bottom->isa_oopptr() || newval_bottom->isa_narrowoop() ||
          newval_bottom == TypePtr::NULL_PTR, "Should be an oop store");
   const TypePtr* newval_type = newval_bottom->make_ptr();
@@ -601,8 +601,8 @@ void ShenandoahBarrierSetC2::clone(GraphKit* kit, Node* src_base, Node* dst_base
   ac->set_clone_array();
   Node* n = kit->gvn().transform(ac);
   if (n == ac) {
-    ac->set_out_adr_type(TypeRawPtr::BOTTOM);
-    kit->set_predefined_output_for_runtime_call(ac, ac->in(TypeFunc::Memory), TypeRawPtr::BOTTOM);
+    ac->set_out_adr_type(TypeRawPtr::TOOP);
+    kit->set_predefined_output_for_runtime_call(ac, ac->in(TypeFunc::Memory), TypeRawPtr::TOOP);
   } else {
     kit->set_all_memory(n);
   }
@@ -655,7 +655,7 @@ void ShenandoahBarrierSetC2::clone_at_expansion(PhaseMacroExpand* phase, ArrayCo
   Node* const call = phase->make_leaf_call(ctrl, mem,
       OptoRuntime::fast_arraycopy_Type(),
       copyfunc_addr, copyfunc_name,
-      TypeRawPtr::BOTTOM,
+      TypeRawPtr::TOOP,
       phase->basic_plus_adr(src, src_offset),
       phase->basic_plus_adr(dest, dest_offset),
       length,

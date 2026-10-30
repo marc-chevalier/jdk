@@ -221,7 +221,7 @@ public class ExpressionFuzzer {
         ));
 
         // At the beginning of the compiled and reference test methods we receive the arguments,
-        // which have their full bottom_type (e.g. TypeInt: int). We now constrain the ranges and
+        // which have their full toop_type (e.g. TypeInt: int). We now constrain the ranges and
         // bits, for the types that allow it.
         //
         // To ensure that both the compiled and reference method use the same constraint, we put
@@ -314,7 +314,7 @@ public class ExpressionFuzzer {
                 @DontInline
                 public static Object ${primitiveConTest}_compiled(#methodArgumentsWithTypes) {
                 """,
-                // The arguments now have the bottom_type. Constrain the ranges and bits.
+                // The arguments now have the toop_type. Constrain the ranges and bits.
                 methodArguments.stream().map(ma -> constrainArgumentTemplate.asToken(ma.name)).toList(),
                 // Generate the body with the expression, and calling the checksum.
                 bodyTemplate.asToken(expression, expressionArguments, $("checksum")),

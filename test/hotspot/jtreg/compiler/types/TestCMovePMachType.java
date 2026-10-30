@@ -25,7 +25,7 @@ package compiler.types;
 /*
  * @test
  * @bug 8379667
- * @summary C2 crashes due to deep recursion in cmovP_regNode::bottom_type
+ * @summary C2 crashes due to deep recursion in cmovP_regNode::toop_type
  * @run main/othervm -Xbatch -XX:CompileCommand=memlimit,${test.main.class}::test,50M~crash ${test.main.class}
  */
 public class TestCMovePMachType {
@@ -71,7 +71,7 @@ public class TestCMovePMachType {
     }
 
     // This method is compiled into a giant chain of CMovePs, which leads to a deep recursion when
-    // invoking Node::bottom_type on the corresponding MachNodes
+    // invoking Node::toop_type on the corresponding MachNodes
     private static int test(A p1, B p2, boolean b1, boolean b2) {
         P p = b1 ? p1 : p2;
         p = b2 ? p : p2;

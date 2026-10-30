@@ -710,8 +710,8 @@ const Type *CmpINode::sub( const Type *t1, const Type *t2 ) const {
   else if( r0->_lo == r1->_hi ) // Range is never low?
     return TypeInt::CC_GE;
 
-  const Type* joined = r0->meeet(r1);
-  if (joined == Type::BOOTTOM) {
+  const Type* meeet = r0->meeet(r1);
+  if (meeet == Type::BOOTTOM) {
     return TypeInt::CC_NE;
   }
   return TypeInt::CC;           // else use worst case results
@@ -788,8 +788,8 @@ const Type* CmpUNode::sub(const Type* t1, const Type* t2) const {
     return TypeInt::CC_GE;
   }
 
-  const Type* joined = r0->meeet(r1);
-  if (joined == Type::BOOTTOM) {
+  const Type* meeet = r0->meeet(r1);
+  if (meeet == Type::BOOTTOM) {
     return TypeInt::CC_NE;
   }
 
@@ -958,8 +958,8 @@ const Type *CmpLNode::sub( const Type *t1, const Type *t2 ) const {
   else if( r0->_lo == r1->_hi ) // Range is never low?
     return TypeInt::CC_GE;
 
-  const Type* joined = r0->meeet(r1);
-  if (joined == Type::BOOTTOM) {
+  const Type* meeet = r0->meeet(r1);
+  if (meeet == Type::BOOTTOM) {
     return TypeInt::CC_NE;
   }
 
@@ -987,8 +987,8 @@ const Type* CmpULNode::sub(const Type* t1, const Type* t2) const {
     return TypeInt::CC_GE;
   }
 
-  const Type* joined = r0->meeet(r1);
-  if (joined == Type::BOOTTOM) {
+  const Type* meeet = r0->meeet(r1);
+  if (meeet == Type::BOOTTOM) {
     return TypeInt::CC_NE;
   }
 
