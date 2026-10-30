@@ -314,7 +314,7 @@ uint G1BarrierSetC2::estimated_barrier_size(const Node* node) const {
   uint nodes = 0;
   uint factor = 1;
   if (node->Opcode() == Op_StoreLSpecial && !node->in(StoreLSpecialNode::SecondOop)->is_top()) {
-    // assigning two oops with make two barriers sets
+    // assigning two oops will make two barrier sets
     factor = 2;
   }
   if ((barrier_data & G1C2BarrierPre) != 0) {

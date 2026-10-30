@@ -48,7 +48,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
 
     public static void main(String[] args) {
         TestFramework framework = new TestFramework();
-        Scenario[] scenarios = new Scenario[2*2];
+        Scenario[] scenarios = new Scenario[2 * 2];
         int scenarioIndex = 0;
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 2; j++) {
@@ -178,7 +178,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return t;
     }
 
-    @Run(test={"test1"})
+    @Run(test = {"test1"})
     public void test1_verifier() {
         MyValue v = new MyValue(new Object());
         Holder h = test1(42, v);
@@ -197,7 +197,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return t;
     }
 
-    @Run(test={"test1_no_capture"})
+    @Run(test = {"test1_no_capture"})
     public void test1_no_capture_verifier() {
         MyValue v = new MyValue(new Object());
         Holder t = new Holder();
@@ -221,7 +221,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return t;
     }
 
-    @Run(test={"test2"})
+    @Run(test = {"test2"})
     public void test2_verifier() {
         Holder h = test2(42);
         Asserts.assertEQ(h.i, 42);
@@ -241,7 +241,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return t;
     }
 
-    @Run(test={"test3"})
+    @Run(test = {"test3"})
     public void test3_verifier() {
         Holder h = test3(42);
         Asserts.assertEQ(h.i, 42);
@@ -259,7 +259,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test={"test4"})
+    @Run(test = {"test4"})
     public void test4_verifier() {
         MyValueWithTwoOops v = new MyValueWithTwoOops(new Object(), new Object());
         HolderWithTwoOops h = new HolderWithTwoOops();
@@ -279,7 +279,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test={"test5"})
+    @Run(test = {"test5"})
     public void test5_verifier() {
         HolderWithTwoOops h = new HolderWithTwoOops();
         HolderWithTwoOops h2 = test5(h);
@@ -299,7 +299,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test={"test6"})
+    @Run(test = {"test6"})
     public void test6_verifier() {
         HolderWithTwoOops h = new HolderWithTwoOops();
         HolderWithTwoOops h2 = test6(h);
@@ -319,7 +319,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test={"test7"})
+    @Run(test = {"test7"})
     public void test7_verifier() {
         HolderWithTwoOops h = new HolderWithTwoOops();
         HolderWithTwoOops h2 = test7(h);
@@ -339,7 +339,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test={"test8"})
+    @Run(test = {"test8"})
     public void test8_verifier() {
         HolderWithTwoOops h = new HolderWithTwoOops();
         HolderWithTwoOops h2 = test8(h);
@@ -359,7 +359,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test={"test9_non_null"})
+    @Run(test = {"test9_non_null"})
     public void test9_non_null_verifier() {
         HolderWithOopsFirst h = new HolderWithOopsFirst();
         HolderWithOopsFirst h2 = test9_non_null(h);
@@ -379,7 +379,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test={"test9_maybe_null"})
+    @Run(test = {"test9_maybe_null"})
     public void test9_maybe_null_verifier() {
         HolderWithOopsFirst h = new HolderWithOopsFirst();
         {
@@ -407,7 +407,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test={"test10_non_null"})
+    @Run(test = {"test10_non_null"})
     public void test10_non_null_verifier() {
         HolderWithOopsSecond h = new HolderWithOopsSecond();
         HolderWithOopsSecond h2 = test10_non_null(h);
@@ -427,7 +427,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test={"test10_maybe_null"})
+    @Run(test = {"test10_maybe_null"})
     public void test10_maybe_null_verifier() {
         HolderWithOopsSecond h = new HolderWithOopsSecond();
         {
@@ -456,7 +456,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test={"test11"})
+    @Run(test = {"test11"})
     public void test11_verifier() {
         MyValueWithTwoOops v = new MyValueWithTwoOops(new Object(), new Object());
         HolderWithTwoOops h = test11(v);
@@ -479,7 +479,7 @@ public class TestG1BarrierCapturedStoreLSpecial {
         return h;
     }
 
-    @Run(test = "test12")
+    @Run(test = {"test12"})
     public void test12_verifier() {
         Object first = new Object();
         Object second = new Object();

@@ -3820,11 +3820,11 @@ StoreNode* MergePrimitiveStores::make_merged_store(const Node_List<const StoreNo
   //     - either there is one field per element, so we are touching only one slice
   //     - there are multiple fields per element, and individual stores must already be unsound
   //   } => either way, merged store is as sound as individual ones
-  // - fields of an object. The only way we would merge that is that if they use and produce the same memory. Since a
+  // - fields of an object. The only way we would merge that is when they use and produce the same memory. Since a
   //   store to a field must affect a memory that contains at least the slice of this field, and different fields have
   //   different slices, the stores must have the same memory if they use something containing both slices: that is
   //   the whole, wide memory. Which means we have already unsound accesses. This happens if we are merging two stores
-  //   saving neighboring flatten fields of the same size.
+  //   saving neighboring flattened fields of the same size.
   //
   //   Overall, we are creating an unsound store, only if the original stores are also unsound.
   if (_store->is_unsound_address_access()) {
@@ -5324,12 +5324,12 @@ bool is_memory_slice_used_before_the_write(StoreNode* st, PhaseGVN* phase, Node*
               assert(!n->is_Store(), "2 stores to same slice on same control?");
               Node* base = other_adr;
               if (base->is_Phi()) {
-                // In rare case, base may be a PhiNode and it may read
+                // In rare cases, base may be a PhiNode and it may read
                 // the same memory slice between InitializeNode and store.
                 return true;
               }
               if (alias_idx == Compile::AliasIdxRaw && !base->is_AddP()) {
-                // Something weird happen to the raw memory, let's just give up. Whatever...
+                // Something weird is happening to the raw memory, let's just give up. Whatever...
                 return true;
               }
               assert(base->is_AddP(), "should be addp but is %s", base->Name());

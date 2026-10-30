@@ -43,7 +43,7 @@ import jdk.test.lib.Asserts;
 public class TestStoreLSpecialCapture {
     public static void main(String[] args) {
         TestFramework framework = new TestFramework();
-        Scenario[] scenarios = new Scenario[2*2];
+        Scenario[] scenarios = new Scenario[2 * 2];
         int scenarioIndex = 0;
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 2; j++) {
@@ -94,7 +94,7 @@ public class TestStoreLSpecialCapture {
         return t;
     }
 
-    @Run(test={"test1"})
+    @Run(test = {"test1"})
     public void test1_verifier() {
         MyValue v = new MyValue(new Object());
         Holder h = test1(42, v);
@@ -137,7 +137,7 @@ public class TestStoreLSpecialCapture {
         return h;
     }
 
-    @Run(test={"test2"})
+    @Run(test = {"test2"})
     public void test2_verifier() {
         MyValueWithTwoOops v = new MyValueWithTwoOops(new Object(), new Object());
         HolderWithTwoOops h = new HolderWithTwoOops();
@@ -161,7 +161,7 @@ public class TestStoreLSpecialCapture {
         return h;
     }
 
-    @Run(test={"test3"})
+    @Run(test = {"test3"})
     public void test3_verifier() {
         MyValueWithTwoOops v = new MyValueWithTwoOops(new Object(), new Object());
         HolderWithTwoOops h = test3(v);
@@ -179,7 +179,7 @@ public class TestStoreLSpecialCapture {
         return new HolderWithTwoOops(new MyValueWithTwoOops(first, second));
     }
 
-    @Run(test = "test4")
+    @Run(test = {"test4"})
     public void test4_verifier() {
         Object first = new Object();
         Object second = new Object();
@@ -203,7 +203,7 @@ public class TestStoreLSpecialCapture {
         return array;
     }
 
-    @Run(test = "test5")
+    @Run(test = {"test5"})
     public void test5_verifier() {
         MyValue v = new MyValue(new Object());
         MyValue[] a = test5(v);

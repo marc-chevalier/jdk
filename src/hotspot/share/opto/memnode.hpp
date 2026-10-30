@@ -67,24 +67,24 @@ public:
                  unset          // The memory ordering is not set (used for testing)
   } MemOrd;
 protected:
-  MemNode( Node *c0, Node *c1, Node *c2, const TypePtr* at ) :
-      Node(c0,c1,c2),
+  MemNode(Node* c0, Node* c1, Node* c2, const TypePtr* at) :
+      Node(c0, c1, c2),
       _unaligned_access(false),
       _mismatched_access(false),
       _unsafe_access(false),
-      _barrier_data(0) {
+      _barrier_data(0),
+      _adr_type(at) {
     init_class_id(Class_Mem);
-    _adr_type=at;
     validate_in_adr_type();
   }
-  MemNode( Node *c0, Node *c1, Node *c2, const TypePtr* at, Node *c3 ) :
-      Node(c0,c1,c2,c3),
+  MemNode(Node* c0, Node* c1, Node* c2, const TypePtr* at, Node* c3) :
+      Node(c0, c1, c2, c3),
       _unaligned_access(false),
       _mismatched_access(false),
       _unsafe_access(false),
-      _barrier_data(0) {
+      _barrier_data(0),
+      _adr_type(at) {
     init_class_id(Class_Mem);
-    _adr_type=at;
     validate_in_adr_type();
   }
 

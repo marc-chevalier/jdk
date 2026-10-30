@@ -1721,10 +1721,11 @@ Node* GraphKit::make_load(Node* ctl, Node* adr, const Type* t, BasicType bt,
   return ld;
 }
 
-Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt, MemNode::MemOrd mo) {
+Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node* val, BasicType bt, MemNode::MemOrd mo) {
   return store_to_memory(ctl, adr, val, bt, mo, false, false, false, false, false, false, 0);
 }
-Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt,
+
+Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node* val, BasicType bt,
                                 MemNode::MemOrd mo,
                                 bool require_atomic_access,
                                 bool unaligned,
@@ -1776,7 +1777,6 @@ Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt,
 
   return st;
 }
-
 
 Node* GraphKit::access_store_at(Node* obj,
                                 Node* adr,
