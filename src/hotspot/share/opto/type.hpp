@@ -2356,7 +2356,11 @@ inline double Type::getd() const {
 }
 
 inline const TypeInteger *Type::is_integer(BasicType bt) const {
-  assert((bt == T_INT && _base == Int) || (bt == T_LONG && _base == Long), "Not an Int");
+  if (!((bt == T_INT && _base == Int) || (bt == T_LONG && _base == Long))) {
+    stringStream ss;
+    dump_on(&ss);
+    assert((bt == T_INT && _base == Int) || (bt == T_LONG && _base == Long), "Not an Int bt=%d, _base=%d, this=%s", bt, _base, ss.as_string());
+  }
   return (TypeInteger*)this;
 }
 
