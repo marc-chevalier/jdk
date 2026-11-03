@@ -344,15 +344,15 @@ bool Peephole::lea_remove_redundant(Block* block, int block_index, PhaseCFG* cfg
   cfg_->map_node_to_block(proj, nullptr);
 
   // Rewire the base of all leas currently depending on the decode we are removing.
-  // Use boottom() rather than a real value: leaP* emission does not consult Base, and the
+  // Use bottom() rather than a real value: leaP* emission does not consult Base, and the
   // unused MachProj of decode confirms the derived oops produced by these leaP*s are
   // not consumed by any OopMap. Avoiding a real input here also avoids creating a
   // register conflict that would later be flagged by verify_good_schedule.
-  Node* boottom = Compile::current()->boottom();
+  Node* bottom = Compile::current()->bottom();
   for (DUIterator_Fast imax, i = decode->fast_outs(imax); i < imax; i++) {
     Node* dependant_lea = decode->fast_out(i);
     if (dependant_lea->is_Mach() && dependant_lea->as_Mach()->ideal_Opcode() == Op_AddP) {
-      dependant_lea->set_req(AddPNode::Base, boottom);
+      dependant_lea->set_req(AddPNode::Base, bottom);
       // This deleted something in the out array, hence adjust i, imax.
       --i;
       --imax;

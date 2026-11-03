@@ -24,14 +24,14 @@
 /*
  * @test
  * @bug 8075587
- * @summary jooin of 2 constant arrays results in toop
+ * @summary join of 2 constant arrays results in top
  *
  * @run main/othervm ${test.main.class}
  */
 
 package compiler.types;
 
-public class TestJooinExactConstantArrays {
+public class TestJoinExactConstantArrays {
     public abstract static class NumbersHolder {
         public Number[] getNumbers() {
             return null;

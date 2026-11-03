@@ -95,7 +95,7 @@ public class TestJumpTable {
             ...
         } else {
             ...
-            CastII(i-5, 0..45)              <- Replaced by BOOTTOM because i-5 range is -15..-1 but still considered reachable by C2 although it is dead code
+            CastII(i-5, 0..45)              <- Replaced by BOTTOM because i-5 range is -15..-1 but still considered reachable by C2 although it is dead code
             ...
         }
     */
@@ -125,7 +125,7 @@ public class TestJumpTable {
                 // Fall through
             } else {
                 ...
-                CastII(i-1, 0..4)           <- Replaced by BOOTTOM because i-1 range is -21..-1 but still considered reachable by C2 although it is dead code
+                CastII(i-1, 0..4)           <- Replaced by BOTTOM because i-1 range is -21..-1 but still considered reachable by C2 although it is dead code
                 ...
             }
         } else {
@@ -155,7 +155,7 @@ public class TestJumpTable {
         if (i != 0) {
             // i: -20..-1
             if (i u< 101) {                 <- This is always false but not folded by C2 because CmpU is not handled
-                CastII(i-1, 0..49)          <- Replaced by BOOTTOM because i-1 range is -21..-1 but still considered reachable by C2 although it is dead code
+                CastII(i-1, 0..49)          <- Replaced by BOTTOM because i-1 range is -21..-1 but still considered reachable by C2 although it is dead code
             } else {
                 ...
             }
@@ -186,7 +186,7 @@ public class TestJumpTable {
         if (i != 20) {
             // i: 0..19
             if ((i-20) u< 281) {            <- This is always false but not folded by C2 because the two ifs compare different values
-                CastII(i-21, 0..49)         <- Replaced by BOOTTOM because i-21 range is -21..-1 but still considered reachable by C2 although it is dead code
+                CastII(i-21, 0..49)         <- Replaced by BOTTOM because i-21 range is -21..-1 but still considered reachable by C2 although it is dead code
             } else {
                 ...
             }
@@ -217,7 +217,7 @@ public class TestJumpTable {
         if ((i+10) != 30) {
             // i: 0..19
             if ((i-20) u< 271) {            <- This is always false but not folded by C2 because the two ifs compare different values
-                CastII(i-21, 0..4)          <- Replaced by BOOTTOM because i-21 range is -21..-1 but still considered reachable by C2 although it is dead code
+                CastII(i-21, 0..4)          <- Replaced by BOTTOM because i-21 range is -21..-1 but still considered reachable by C2 although it is dead code
             } else {
                 ...
             }

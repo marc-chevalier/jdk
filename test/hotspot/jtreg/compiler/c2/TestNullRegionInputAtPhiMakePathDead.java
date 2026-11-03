@@ -60,7 +60,7 @@ public class TestNullRegionInputAtPhiMakePathDead {
             for (i21 = i19; i21 < 90; i21++) {
                 if (b2) {
                 } else {
-                    // CastII of b2 to false added here becomes boottom during igvn. It's used by a Phi
+                    // CastII of b2 to false added here becomes bottom during igvn. It's used by a Phi
                     // at a Region that merges paths from the switch and if. Some of those paths are
                     // found unreachable at parse time but added to the Region anyway.
                     switch ((((i21 >>> 1) % 4) * 5) + 115) {

@@ -26,7 +26,7 @@
  * @test
  * @key stress randomness
  * @bug 8342809
- * @summary Test that a boottom input into an IfTrue of an Assertion Predicate is properly handled during IGVN.
+ * @summary Test that a bottom input into an IfTrue of an Assertion Predicate is properly handled during IGVN.
  * @requires vm.compiler2.enabled
  * @run main/othervm -XX:CompileCommand=compileonly,${test.main.class}::test -XX:-TieredCompilation
  *                   -Xcomp -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN -XX:StressSeed=1073486978
@@ -37,7 +37,7 @@
 
 package compiler.predicates;
 
-public class TestBoottomIntoIfTrue {
+public class TestBottomIntoIfTrue {
     static int iFld;
 
     public static void main(String[] strArr) {

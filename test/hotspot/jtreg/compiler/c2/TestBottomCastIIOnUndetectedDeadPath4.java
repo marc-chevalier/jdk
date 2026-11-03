@@ -46,7 +46,7 @@
 
 package compiler.c2;
 
-public class TestBoottomCastIIOnUndetectedDeadPath4 {
+public class TestBottomCastIIOnUndetectedDeadPath4 {
 
     static boolean bFld;
     static int iArrFld[];
