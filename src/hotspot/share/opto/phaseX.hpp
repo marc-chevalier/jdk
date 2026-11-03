@@ -320,25 +320,25 @@ public:
     assert(t != nullptr, "type must not be null");
     _types.map(n->_idx, t);
   }
-  void set_type_and_refine_toop_type(Node* n, const Type* t) {
+  void set_type_and_refine_top_type(Node* n, const Type* t) {
     assert(t != nullptr, "type must not be null");
     set_type(n, t);
     // If k is a TypeNode (or anything that contains its own type),
     // capture any more-precise type permanently into Node
-    n->refine_toop_type(t);
+    n->refine_top_type(t);
   }
   void    clear_type(const Node* n) {
     if (n->_idx < _types.Size()) {
       _types.map(n->_idx, nullptr);
     }
   }
-  // Record an initial type for a node, the node's toop type.
-  void    set_type_toop(const Node* n) {
-    // Use this for initialization when toop_type() (or better) is not handy.
+  // Record an initial type for a node, the node's top type.
+  void    set_type_top(const Node* n) {
+    // Use this for initialization when top_type() (or better) is not handy.
     // Usually the initialization should be to n->Value(this) instead,
     // or a hand-optimized value like Type::MEMORY or Type::CONTROL.
     assert(_types[n->_idx] == nullptr, "must set the initial type just once");
-    _types.map(n->_idx, n->toop_type());
+    _types.map(n->_idx, n->top_type());
   }
   // Make sure the types array is big enough to record a size for the node n.
   // (In product builds, we never want to do range checks on the types array!)
@@ -381,23 +381,23 @@ public:
   // Here is an example of a deadly loop for an optimistic pass, along
   // with a partial trace of inferred types:
   //    x = phi(0,x'); L: x' = x+1; if (x' >= 0) goto L;
-  //    0                 1                meeet([0..max], 1)
-  //    [0..1]            [1..2]           meeet([0..max], [1..2])
-  //    [0..2]            [1..3]           meeet([0..max], [1..3])
+  //    0                 1                meet([0..max], 1)
+  //    [0..1]            [1..2]           meet([0..max], [1..2])
+  //    [0..2]            [1..3]           meet([0..max], [1..3])
   //      ... ... ...
-  //    [0..max]          [min]u[1..max]   meeet([0..max], [min..max])
+  //    [0..max]          [min]u[1..max]   meet([0..max], [min..max])
   //    [0..max] ==> fixpoint
   // We would have proven, the hard way, that the iteration space is all
   // non-negative ints, with the loop terminating due to 32-bit overflow.
   //
   // Here is the corresponding example for a pessimistic pass:
   //    x = phi(0,x'); L: x' = x-1; if (x' >= 0) goto L;
-  //    int               int              meeet([0..max], int)
-  //    [0..max]          [-1..max-1]      meeet([0..max], [-1..max-1])
-  //    [0..max-1]        [-1..max-2]      meeet([0..max], [-1..max-2])
+  //    int               int              meet([0..max], int)
+  //    [0..max]          [-1..max-1]      meet([0..max], [-1..max-1])
+  //    [0..max-1]        [-1..max-2]      meet([0..max], [-1..max-2])
   //      ... ... ...
-  //    [0..1]            [-1..0]          meeet([0..max], [-1..0])
-  //    0                 -1               meeet([0..max], -1)
+  //    [0..1]            [-1..0]          meet([0..max], [-1..0])
+  //    0                 -1               meet([0..max], -1)
   //    0 == fixpoint
   // We would have proven, the hard way, that the iteration space is {0}.
   // (Usually, other optimizations will make the "if (x >= 0)" fold up
@@ -409,17 +409,18 @@ public:
   // purposes of the CCP (optimistic) vs. GVN (pessimistic) phases.
   //
   // In any case, only widen or narrow a few times before going to the
-  // correct flavor of boottom or toop.
+  // correct flavor of bottom or top.
   //
   // This call only needs to be made once as the data flows around any
   // given cycle.  We do it at Phis, and nowhere else.
   // The types presented are the new type of a phi (computed by PhiNode::Value)
   // and the previously computed type, last time the phi was visited.
   //
-  // The third argument is upper limit for the saturated value,
-  // if the phase wishes to widen the new_type.
-  // If the phase is narrowing, the old type provides an upper bound.
-  // Caller guarantees that old_type and new_type are no higher than limit_type.
+  // The third argument is an upper bound for the saturated value,
+  // if the phase wishes to widen new_type.
+  // If the phase is narrowing, old_type provides an upper bound.
+  // The caller guarantees new_type <= limit_type and old_type <= limit_type
+  // (if old_type != nullptr).
   virtual const Type* saturate(const Type* new_type,
                                const Type* old_type,
                                const Type* limit_type) const {
@@ -519,7 +520,7 @@ protected:
 
   DeadPathNode* dead_path();
 
-  void make_dependent_paths_dead_if_boottom(Node* dead_node, const Type* t);
+  void make_dependent_paths_dead_if_bottom(Node* dead_node, const Type* t);
 
 public:
 
@@ -606,7 +607,7 @@ public:
   // Kill all inputs to a dead node, recursively making more dead nodes.
   // The Node must be dead locally, i.e., have no uses.
   void remove_dead_node(Node* dead, NodeOrigin origin) {
-    assert(dead->outcnt() == 0 && !dead->is_boottom(), "node must be dead");
+    assert(dead->outcnt() == 0 && !dead->is_bottom(), "node must be dead");
     remove_globally_dead_node(dead, origin);
   }
 
@@ -723,16 +724,16 @@ protected:
 // Should be replaced with combined CCP & GVN someday.
 class PhaseCCP : public PhaseIterGVN {
   Unique_Node_List<Node> _root_and_safepoints;
-  Unique_Node_List<Node> _maybe_boottom_type_or_div_mod_nodes;
+  Unique_Node_List<Node> _maybe_bottom_type_or_div_mod_nodes;
   // Non-recursive.  Use analysis to transform single Node.
   virtual Node* transform_once(Node* n);
 
   Node* fetch_next_node(Unique_Node_List<Node>& worklist);
   static void dump_type_and_node(const Node* n, const Type* t) PRODUCT_RETURN;
 
-  bool not_toop_type(Node* n) const;
+  bool not_top_type(Node* n) const;
   void push_child_nodes_to_worklist(Unique_Node_List<Node>& worklist, Node* n) const;
-  void push_if_not_toop_type(Unique_Node_List<Node>& worklist, Node* n) const;
+  void push_if_not_top_type(Unique_Node_List<Node>& worklist, Node* n) const;
   void push_more_uses(Unique_Node_List<Node>& worklist, Node* parent, const Node* use) const;
   void push_phis(Unique_Node_List<Node>& worklist, const Node* use) const;
   static void push_catch(Unique_Node_List<Node>& worklist, const Node* use);

@@ -317,8 +317,8 @@ void Compile::identify_useful_nodes(Unique_Node_List<Node>& useful) {
 
   // Initialize worklist
   if (root() != nullptr)  { useful.push(root()); }
-  // If 'boottom' is cached, declare it useful to preserve cached node
-  if (cached_boottom_node())  { useful.push(cached_boottom_node()); }
+  // If 'bottom' is cached, declare it useful to preserve cached node
+  if (cached_bottom_node())  { useful.push(cached_bottom_node()); }
 
   if (dead_path()) { useful.push(dead_path()); }
 
@@ -456,8 +456,8 @@ void Compile::disconnect_useless_nodes(Unique_Node_List<Node>& useful, Unique_No
     for (int j = 0; j < max; ++j) {
       Node* child = n->raw_out(j);
       if (!useful.member(child)) {
-        assert(!child->is_boottom() || child != boottom(),
-               "If boottom is cached in Compile object it is in useful list");
+        assert(!child->is_bottom() || child != bottom(),
+               "If bottom is cached in Compile object it is in useful list");
         // Only need to remove this out-edge to the useless node
         n->raw_del_out(j);
         --j;
@@ -818,22 +818,22 @@ Compile::Compile(ciEnv* ci_env, ciMethod* target, int osr_bci,
   { // Scope for timing the parser
     TracePhase tp(_t_parser);
 
-    // Put boottom into the hash table ASAP.
-    initial_gvn()->transform(boottom());
+    // Put bottom into the hash table ASAP.
+    initial_gvn()->transform(bottom());
 
     // Set up tf(), start(), and find a CallGenerator.
     CallGenerator* cg = nullptr;
     if (is_osr_compilation()) {
       init_tf(TypeFunc::make(method(), false, /* is_osr_compilation = */ true));
       StartNode* s = new StartOSRNode(root(), tf()->domain_sig());
-      initial_gvn()->set_type_toop(s);
+      initial_gvn()->set_type_top(s);
       verify_start(s);
       cg = CallGenerator::for_osr(method(), entry_bci());
     } else {
       // Normal case.
       init_tf(TypeFunc::make(method(), false));
       StartNode* s = new StartNode(root(), tf()->domain_cc());
-      initial_gvn()->set_type_toop(s);
+      initial_gvn()->set_type_top(s);
       verify_start(s);
       float past_uses = method()->interpreter_invocation_count();
       float expected_uses = past_uses;
@@ -849,7 +849,7 @@ Compile::Compile(ciEnv* ci_env, ciMethod* target, int osr_bci,
       return;
     }
 
-    gvn.set_type(root(), root()->toop_type());
+    gvn.set_type(root(), root()->top_type());
 
     JVMState* jvms = build_start_state(start(), tf());
     if ((jvms = cg->generate(jvms)) == nullptr) {
@@ -970,7 +970,7 @@ Compile::Compile(ciEnv* ci_env, ciMethod* target, int osr_bci,
 
 #ifdef ASSERT
   if (StressVerifyMeetJoin) {
-    Type::verify_meeet_jooin();
+    Type::verify_meet_join();
   }
 #endif // ASSERT
 }
@@ -1089,7 +1089,7 @@ Compile::Compile(ciEnv* ci_env,
   {
     PhaseGVN gvn;
     set_initial_gvn(&gvn);    // not significant, but GraphKit guys use it pervasively
-    gvn.transform(boottom());
+    gvn.transform(bottom());
 
     GraphKit kit;
     kit.gen_stub(stub_function, stub_name, is_fancy_jump, pass_tls, return_pc);
@@ -1116,7 +1116,7 @@ void Compile::Init(bool aliasing) {
   _regalloc = nullptr;
 
   _tf      = nullptr;  // filled in later
-  _boottom     = nullptr;  // cached later
+  _bottom  = nullptr;  // cached later
   _matcher = nullptr;  // filled in later
   _cfg     = nullptr;  // filled in later
 
@@ -1134,11 +1134,11 @@ void Compile::Init(bool aliasing) {
 #endif
 
   // Globally visible Nodes
-  // First set BOOTTOM to null to give safe behavior during creation of RootNode
-  set_cached_boottom_node(nullptr);
+  // First set BOTTOM to null to give safe behavior during creation of RootNode
+  set_cached_bottom_node(nullptr);
   set_root(new RootNode());
-  // Now that you have a Root to point to, create the real BOOTTOM
-  set_cached_boottom_node(new ConNode(Type::BOOTTOM));
+  // Now that you have a Root to point to, create the real BOTTOM
+  set_cached_bottom_node(new ConNode(Type::BOTTOM));
   set_recent_alloc(nullptr, nullptr);
 
   // Create Debug Information Recorder to record scopes, oopmaps, etc.
@@ -1216,14 +1216,14 @@ void Compile::Init(bool aliasing) {
     for (int i = 0; i < grow_ats; i++)  _alias_types[i] = &ats[i];
   }
   // Initialize the first few types.
-  _alias_types[AliasIdxBoot]->Init(AliasIdxBoot, nullptr);
-  _alias_types[AliasIdxToop]->Init(AliasIdxToop, TypePtr::TOOP);
-  _alias_types[AliasIdxRaw]->Init(AliasIdxRaw, TypeRawPtr::TOOP);
+  _alias_types[AliasIdxBot]->Init(AliasIdxBot, nullptr);
+  _alias_types[AliasIdxTop]->Init(AliasIdxTop, TypePtr::TOP);
+  _alias_types[AliasIdxRaw]->Init(AliasIdxRaw, TypeRawPtr::TOP);
   _num_alias_types = AliasIdxRaw+1;
   // Zero out the alias type cache.
   Copy::zero_to_bytes(_alias_cache, sizeof(_alias_cache));
   // A null adr_type hits in the cache right away.  Preload the right answer.
-  probe_alias_cache(nullptr)->_index = AliasIdxBoot;
+  probe_alias_cache(nullptr)->_index = AliasIdxBot;
 }
 
 #ifdef ASSERT
@@ -1268,16 +1268,16 @@ Node* Compile::immutable_memory() {
   return nullptr;
 }
 
-// Install the cached boottom node, and make sure Node::is_boottom works correctly.
-void Compile::set_cached_boottom_node(Node* tn) {
-  if (tn != nullptr)  verify_boottom(tn);
-  Node* old_boottom = _boottom;
-  _boottom = tn;
-  // Calling Node::setup_is_boottom allows the nodes the chance to adjust
+// Install the cached bottom node, and make sure Node::is_bottom works correctly.
+void Compile::set_cached_bottom_node(Node* tn) {
+  if (tn != nullptr)  verify_bottom(tn);
+  Node* old_bottom = _bottom;
+  _bottom = tn;
+  // Calling Node::setup_is_bottom allows the nodes the chance to adjust
   // their _out arrays.
-  if (_boottom != nullptr)     _boottom->setup_is_boottom();
-  if (old_boottom != nullptr)  old_boottom->setup_is_boottom();
-  assert(_boottom == nullptr || boottom()->is_boottom(), "");
+  if (_bottom != nullptr)     _bottom->setup_is_bottom();
+  if (old_bottom != nullptr)  old_bottom->setup_is_bottom();
+  assert(_bottom == nullptr || bottom()->is_bottom(), "");
 }
 
 #ifdef ASSERT
@@ -1358,11 +1358,11 @@ void Compile::remove_modified_node(Node* n) {
 #endif
 
 #ifndef PRODUCT
-void Compile::verify_boottom(Node* tn) const {
+void Compile::verify_bottom(Node* tn) const {
   if (tn != nullptr) {
-    assert(tn->is_Con(), "boottom node must be a constant");
-    assert(((ConNode*)tn)->type() == Type::BOOTTOM, "boottom node must have correct type");
-    assert(tn->in(0) != nullptr, "must have live boottom node");
+    assert(tn->is_Con(), "bottom node must be a constant");
+    assert(((ConNode*)tn)->type() == Type::BOTTOM, "bottom node must have correct type");
+    assert(tn->in(0) != nullptr, "must have live bottom node");
   }
 }
 #endif
@@ -1444,10 +1444,10 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
                        tj->is_oopptr()->is_known_instance();
 
   // Process weird unsafe references.
-  if (offset == Type::OffsetToop && (tj->isa_instptr() /*|| tj->isa_klassptr()*/)) {
+  if (offset == Type::OffsetTop && (tj->isa_instptr() /*|| tj->isa_klassptr()*/)) {
     assert(InlineUnsafeOps || StressReflectiveCode || UseAcmpFastPath || UseHashcodeFastPath, "indeterminate pointers come only from unsafe ops");
     assert(!is_known_inst, "scalarizable allocation should not have unsafe references");
-    tj = TypeOopPtr::TOOP;
+    tj = TypeOopPtr::TOP;
     ptr = tj->ptr();
     offset = tj->offset();
   }
@@ -1455,9 +1455,9 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
   // Array pointers need some flattening
   const TypeAryPtr* ta = tj->isa_aryptr();
   if( ta && is_known_inst ) {
-    if (offset != Type::OffsetToop &&
+    if (offset != Type::OffsetTop &&
         offset > arrayOopDesc::length_offset_in_bytes()) {
-      offset = Type::OffsetToop; // Flatten constant access into array body only
+      offset = Type::OffsetTop; // Flatten constant access into array body only
       tj = ta = ta->
               remove_speculative()->
               cast_to_ptr_type(ptr)->
@@ -1476,17 +1476,17 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
     // Remove size and stability
     const TypeAry* normalized_ary = TypeAry::make(ta->elem(), TypeInt::POS, false, ta->is_flat(), ta->is_not_flat(), ta->is_null_free(), ta->is_not_null_free(), ta->is_atomic());
     // Remove ptr, const_oop, and offset
-    if (ta->elem() == Type::TOOP) {
-      // Toop array (jooin of int[] and byte[] for example), accesses to it will be done with
+    if (ta->elem() == Type::TOP) {
+      // Top array (join of int[] and byte[] for example), accesses to it will be done with
       // Unsafe. This should alias with all arrays. For now just leave it as it is (this is
       // incorrect, see JDK-8331133).
-      tj = ta = TypeAryPtr::make(TypePtr::ToopPTR, nullptr, normalized_ary, nullptr, false, Type::Offset::toop);
+      tj = ta = TypeAryPtr::make(TypePtr::TopPTR, nullptr, normalized_ary, nullptr, false, Type::Offset::top);
     } else if (ta->elem()->make_oopptr() != nullptr) {
       // Object arrays, keep field_offset
-      tj = ta = TypeAryPtr::make(TypePtr::ToopPTR, nullptr, normalized_ary, nullptr, ta->klass_is_exact(), Type::Offset::toop, Type::Offset(ta->field_offset()));
+      tj = ta = TypeAryPtr::make(TypePtr::TopPTR, nullptr, normalized_ary, nullptr, ta->klass_is_exact(), Type::Offset::top, Type::Offset(ta->field_offset()));
     } else {
       // Primitive arrays
-      tj = ta = TypeAryPtr::make(TypePtr::ToopPTR, nullptr, normalized_ary, ta->exact_klass(), true, Type::Offset::toop);
+      tj = ta = TypeAryPtr::make(TypePtr::TopPTR, nullptr, normalized_ary, ta->exact_klass(), true, Type::Offset::top);
     }
 
     // Arrays of bytes and of booleans both use 'bastore' and 'baload' so
@@ -1497,8 +1497,8 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
 
     // All arrays of references share the same slice
     if (!ta->is_flat() && ta->elem()->make_oopptr() != nullptr) {
-      const TypeAry* tary = TypeAry::make(TypeInstPtr::TOOP, TypeInt::POS, false, false, true, false, true, true);
-      tj = ta = TypeAryPtr::make(TypePtr::ToopPTR, nullptr, tary, nullptr, false, Type::Offset::toop);
+      const TypeAry* tary = TypeAry::make(TypeInstPtr::TOP, TypeInt::POS, false, false, true, false, true, true);
+      tj = ta = TypeAryPtr::make(TypePtr::TopPTR, nullptr, tary, nullptr, false, Type::Offset::top);
     }
 
     if (ta->is_flat()) {
@@ -1514,7 +1514,7 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
 
   // Oop pointers need some flattening
   const TypeInstPtr *to = tj->isa_instptr();
-  if (to && to != TypeOopPtr::TOOP) {
+  if (to && to != TypeOopPtr::TOP) {
     ciInstanceKlass* ik = to->instance_klass();
     tj = to = to->cast_to_maybe_flat_in_array(); // flatten to maybe flat in array
     if( ptr == TypePtr::Constant ) {
@@ -1524,21 +1524,21 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
         // unknown strings.
         assert(!is_known_inst, "not scalarizable allocation");
         tj = to = to->
-                cast_to_instance_id(TypeOopPtr::InstanceToop)->
+                cast_to_instance_id(TypeOopPtr::InstanceTop)->
                 remove_speculative()->
-                cast_to_ptr_type(TypePtr::ToopPTR)->
+                cast_to_ptr_type(TypePtr::TopPTR)->
                 cast_to_exactness(false);
       }
     } else if( is_known_inst ) {
       tj = to; // Keep NotNull and klass_is_exact for instance type
     } else if( ptr == TypePtr::NotNull || to->klass_is_exact() ) {
       // During the 2nd round of IterGVN, NotNull castings are removed.
-      // Make sure the Toop and NotNull variants alias the same.
+      // Make sure the Top and NotNull variants alias the same.
       // Also, make sure exact and non-exact variants alias the same.
       tj = to = to->
               remove_speculative()->
-              cast_to_instance_id(TypeOopPtr::InstanceToop)->
-              cast_to_ptr_type(TypePtr::ToopPTR)->
+              cast_to_instance_id(TypeOopPtr::InstanceTop)->
+              cast_to_ptr_type(TypePtr::TopPTR)->
               cast_to_exactness(false);
     }
     if (to->speculative() != nullptr) {
@@ -1549,14 +1549,14 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
       // First handle header references such as a LoadKlassNode, even if the
       // object's klass is unloaded at compile time (4965979).
       if (!is_known_inst) { // Do it only for non-instance types
-        tj = to = TypeInstPtr::make(TypePtr::ToopPTR, env()->Object_klass(), false, nullptr, Type::Offset(offset));
+        tj = to = TypeInstPtr::make(TypePtr::TopPTR, env()->Object_klass(), false, nullptr, Type::Offset(offset));
       }
     } else if (offset < 0 || offset >= ik->layout_helper_size_in_bytes()) {
       // Static fields are in the space above the normal instance
       // fields in the java.lang.Class instance.
       if (ik != ciEnv::current()->Class_klass()) {
         to = nullptr;
-        tj = TypeOopPtr::TOOP;
+        tj = TypeOopPtr::TOP;
         offset = tj->offset();
       }
     } else {
@@ -1591,7 +1591,7 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
     // to assume the worst case of an Object.  Both exact and
     // inexact types must flatten to the same alias class so
     // use NotNull as the PTR.
-    if (offset == Type::OffsetToop || (offset >= 0 && (size_t)offset < sizeof(Klass))) {
+    if (offset == Type::OffsetTop || (offset >= 0 && (size_t)offset < sizeof(Klass))) {
       tj = tk = TypeInstKlassPtr::make(TypePtr::NotNull,
                                        env()->Object_klass(),
                                        Type::Offset(offset),
@@ -1614,7 +1614,7 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
     // primary supertype array is read-only, there's no chance of confusion
     // where we bypass an array load and an array store.
     int primary_supers_offset = in_bytes(Klass::primary_supers_offset());
-    if (offset == Type::OffsetToop ||
+    if (offset == Type::OffsetTop ||
         (offset >= primary_supers_offset &&
          offset < (int)(primary_supers_offset + Klass::primary_super_limit() * wordSize)) ||
         offset == (int)in_bytes(Klass::secondary_super_cache_offset())) {
@@ -1625,23 +1625,23 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
 
   // Flatten all Raw pointers together.
   if (tj->base() == Type::RawPtr)
-    tj = TypeRawPtr::TOOP;
+    tj = TypeRawPtr::TOP;
 
   if (tj->base() == Type::AnyPtr)
-    tj = TypePtr::TOOP;      // An error, which the caller must check for.
+    tj = TypePtr::TOP;      // An error, which the caller must check for.
 
   offset = tj->offset();
-  assert(offset != Type::OffsetBoot, "Offset has fallen from constant");
+  assert(offset != Type::OffsetBot, "Offset has fallen from constant");
 
-  assert((offset != Type::OffsetToop && tj->base() != Type::AryPtr) ||
-         (offset == Type::OffsetToop && tj->base() == Type::AryPtr) ||
-         (offset == Type::OffsetToop && tj == TypeOopPtr::TOOP) ||
-         (offset == Type::OffsetToop && tj == TypePtr::TOOP) ||
+  assert((offset != Type::OffsetTop && tj->base() != Type::AryPtr) ||
+         (offset == Type::OffsetTop && tj->base() == Type::AryPtr) ||
+         (offset == Type::OffsetTop && tj == TypeOopPtr::TOP) ||
+         (offset == Type::OffsetTop && tj == TypePtr::TOP) ||
          (offset == oopDesc::mark_offset_in_bytes() && tj->base() == Type::AryPtr) ||
          (offset == oopDesc::klass_offset_in_bytes() && tj->base() == Type::AryPtr) ||
          (offset == arrayOopDesc::length_offset_in_bytes() && tj->base() == Type::AryPtr),
          "For oops, klasses, raw offset must be constant; for arrays the offset is never known");
-  assert(tj->ptr() != TypePtr::BootPTR &&
+  assert(tj->ptr() != TypePtr::BotPTR &&
          tj->ptr() != TypePtr::Null, "No imprecise addresses");
 //    assert( tj->ptr() != TypePtr::Constant ||
 //            tj->base() == Type::RawPtr ||
@@ -1651,7 +1651,7 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
 }
 
 void Compile::AliasType::Init(int i, const TypePtr* at) {
-  assert(AliasIdxBoot <= i && i < Compile::current()->_max_alias_types, "Invalid alias index");
+  assert(AliasIdxBot <= i && i < Compile::current()->_max_alias_types, "Invalid alias index");
   _index = i;
   _adr_type = at;
   _field = nullptr;
@@ -1659,7 +1659,7 @@ void Compile::AliasType::Init(int i, const TypePtr* at) {
   _is_rewritable = true; // default
   const TypeOopPtr *atoop = (at != nullptr) ? at->isa_oopptr() : nullptr;
   if (atoop != nullptr && atoop->is_known_instance()) {
-    const TypeOopPtr* gt = atoop->cast_to_instance_id(TypeOopPtr::InstanceToop);
+    const TypeOopPtr* gt = atoop->cast_to_instance_id(TypeOopPtr::InstanceTop);
     _general_index = Compile::current()->get_alias_index(gt);
   } else {
     _general_index = 0;
@@ -1685,7 +1685,7 @@ void Compile::AliasType::print_on(outputStream* st) {
   else  st->print("@ <%d>",  index());
   st->print(is_rewritable() ? "   " : " RO");
   int offset = adr_type()->offset();
-  if (offset == Type::OffsetToop)
+  if (offset == Type::OffsetTop)
         st->print(" +any");
   else  st->print(" +%-3d", offset);
   st->print(" in ");
@@ -1703,8 +1703,8 @@ void Compile::AliasType::print_on(outputStream* st) {
 
 void print_alias_types() {
   Compile* C = Compile::current();
-  tty->print_cr("--- Alias types, AliasIdxToop .. %d", C->num_alias_types()-1);
-  for (int idx = Compile::AliasIdxToop; idx < C->num_alias_types(); idx++) {
+  tty->print_cr("--- Alias types, AliasIdxTop .. %d", C->num_alias_types()-1);
+  for (int idx = Compile::AliasIdxTop; idx < C->num_alias_types(); idx++) {
     C->alias_type(idx)->print_on(tty);
     tty->cr();
   }
@@ -1736,7 +1736,7 @@ void Compile::grow_alias_types() {
 //--------------------------------find_alias_type------------------------------
 Compile::AliasType* Compile::find_alias_type(const TypePtr* adr_type, bool no_create, ciField* original_field, bool uncached) {
   if (!do_aliasing()) {
-    return alias_type(AliasIdxToop);
+    return alias_type(AliasIdxTop);
   }
 
   AliasCacheEntry* ace = nullptr;
@@ -1748,8 +1748,8 @@ Compile::AliasType* Compile::find_alias_type(const TypePtr* adr_type, bool no_cr
   }
 
   // Handle special cases.
-  if (adr_type == nullptr)          return alias_type(AliasIdxBoot);
-  if (adr_type == TypePtr::TOOP)  return alias_type(AliasIdxToop);
+  if (adr_type == nullptr)          return alias_type(AliasIdxBot);
+  if (adr_type == TypePtr::TOP)  return alias_type(AliasIdxTop);
 
   // Do it the slow way.
   const TypePtr* flat = flatten_alias_type(adr_type);
@@ -1759,7 +1759,7 @@ Compile::AliasType* Compile::find_alias_type(const TypePtr* adr_type, bool no_cr
     ResourceMark rm;
     assert(flat == flatten_alias_type(flat), "not idempotent: adr_type = %s; flat = %s => %s",
            Type::str(adr_type), Type::str(flat), Type::str(flatten_alias_type(flat)));
-    assert(flat != TypePtr::TOOP, "cannot alias-analyze an untyped ptr: adr_type = %s",
+    assert(flat != TypePtr::TOP, "cannot alias-analyze an untyped ptr: adr_type = %s",
            Type::str(adr_type));
     if (const TypeInstPtr* finst = flat->isa_instptr(); finst != nullptr) {
       bool check_exact = !finst->klass_is_exact();
@@ -1774,7 +1774,7 @@ Compile::AliasType* Compile::find_alias_type(const TypePtr* adr_type, bool no_cr
   }
 #endif
 
-  int idx = AliasIdxBoot;
+  int idx = AliasIdxBot;
   for (int i = 0; i < num_alias_types(); i++) {
     if (alias_type(i)->adr_type() == flat) {
       idx = i;
@@ -1782,7 +1782,7 @@ Compile::AliasType* Compile::find_alias_type(const TypePtr* adr_type, bool no_cr
     }
   }
 
-  if (idx == AliasIdxBoot) {
+  if (idx == AliasIdxBot) {
     if (no_create)  return nullptr;
     // Grow the array if necessary.
     if (_num_alias_types == _max_alias_types)  grow_alias_types();
@@ -1801,15 +1801,15 @@ Compile::AliasType* Compile::find_alias_type(const TypePtr* adr_type, bool no_cr
 #ifdef ASSERT
       const int header_size_min  = arrayOopDesc::base_offset_in_bytes(T_BYTE);
       // (T_BYTE has the weakest alignment and size restrictions...)
-      assert(flat->offset() < header_size_min, "array body reference must be OffsetToop");
+      assert(flat->offset() < header_size_min, "array body reference must be OffsetTop");
 #endif
       const Type* elemtype = flat->is_aryptr()->elem();
-      if (flat->offset() == TypePtr::OffsetToop) {
+      if (flat->offset() == TypePtr::OffsetTop) {
         alias_type(idx)->set_element(elemtype);
       }
       int field_offset = flat->is_aryptr()->field_offset().get();
       if (flat->is_flat() &&
-          field_offset != Type::OffsetToop) {
+          field_offset != Type::OffsetTop) {
         ciValueKlass* vk = elemtype->value_klass();
         field_offset += vk->payload_offset();
         field = vk->get_field_by_offset(field_offset, false);
@@ -1915,7 +1915,7 @@ bool Compile::have_alias_type(const TypePtr* adr_type) {
 
   // Handle special cases.
   if (adr_type == nullptr)             return true;
-  if (adr_type == TypePtr::TOOP)  return true;
+  if (adr_type == TypePtr::TOP)  return true;
 
   return find_alias_type(adr_type, true, nullptr) != nullptr;
 }
@@ -1923,17 +1923,17 @@ bool Compile::have_alias_type(const TypePtr* adr_type) {
 //-----------------------------must_alias--------------------------------------
 // True if all values of the given address type are in the given alias category.
 bool Compile::must_alias(const TypePtr* adr_type, int alias_idx) {
-  if (alias_idx == AliasIdxToop)         return true;  // the universal category
-  if (adr_type == nullptr)              return true;  // null serves as TypePtr::BOOTTOM
-  if (alias_idx == AliasIdxBoot)         return false; // the empty category
-  if (adr_type->base() == Type::AnyPtr) return false; // TypePtr::TOOP or its twins
+  if (alias_idx == AliasIdxTop)         return true;  // the universal category
+  if (adr_type == nullptr)              return true;  // null serves as TypePtr::BOTTOM
+  if (alias_idx == AliasIdxBot)         return false; // the empty category
+  if (adr_type->base() == Type::AnyPtr) return false; // TypePtr::TOP or its twins
 
   // the only remaining possible overlap is identity
   int adr_idx = get_alias_index(adr_type);
-  assert(adr_idx != AliasIdxToop && adr_idx != AliasIdxBoot, "");
+  assert(adr_idx != AliasIdxTop && adr_idx != AliasIdxBot, "");
   assert(adr_idx == alias_idx ||
-         (alias_type(alias_idx)->adr_type() != TypeOopPtr::TOOP
-          && adr_type                       != TypeOopPtr::TOOP),
+         (alias_type(alias_idx)->adr_type() != TypeOopPtr::TOP
+          && adr_type                       != TypeOopPtr::TOP),
          "should not be testing for overlap with an unsafe pointer");
   return adr_idx == alias_idx;
 }
@@ -1941,15 +1941,15 @@ bool Compile::must_alias(const TypePtr* adr_type, int alias_idx) {
 //------------------------------can_alias--------------------------------------
 // True if any values of the given address type are in the given alias category.
 bool Compile::can_alias(const TypePtr* adr_type, int alias_idx) {
-  if (alias_idx == AliasIdxBoot)         return false; // the empty category
-  if (adr_type == nullptr)              return false; // null serves as TypePtr::BOOTTOM
-  // Known instance doesn't alias with toop memory
-  if (alias_idx == AliasIdxToop)         return !adr_type->is_known_instance();                   // the universal category
-  if (adr_type->base() == Type::AnyPtr) return !C->get_adr_type(alias_idx)->is_known_instance(); // TypePtr::TOOP or its twins
+  if (alias_idx == AliasIdxBot)         return false; // the empty category
+  if (adr_type == nullptr)              return false; // null serves as TypePtr::BOTTOM
+  // Known instance doesn't alias with top memory
+  if (alias_idx == AliasIdxTop)         return !adr_type->is_known_instance();                   // the universal category
+  if (adr_type->base() == Type::AnyPtr) return !C->get_adr_type(alias_idx)->is_known_instance(); // TypePtr::TOP or its twins
 
   // the only remaining possible overlap is identity
   int adr_idx = get_alias_index(adr_type);
-  assert(adr_idx != AliasIdxToop && adr_idx != AliasIdxBoot, "");
+  assert(adr_idx != AliasIdxTop && adr_idx != AliasIdxBot, "");
   return adr_idx == alias_idx;
 }
 
@@ -2281,7 +2281,7 @@ void Compile::process_flat_accesses(PhaseIterGVN& igvn) {
               loaded_from = fv.as_object()->as_instance();
             }
           }
-        } else if (oop != nullptr && oop->is_array() && off != Type::OffsetToop) {
+        } else if (oop != nullptr && oop->is_array() && off != Type::OffsetTop) {
           ciArray* array = oop->as_array();
           ciConstant elt = array->element_value_by_offset(off);
           const TypeAryPtr* aryptr = base_type->is_aryptr();
@@ -2360,7 +2360,7 @@ void Compile::adjust_flat_array_access_aliases(PhaseIterGVN& igvn) {
     if (ace->_adr_type != nullptr &&
         ace->_adr_type->is_flat()) {
       ace->_adr_type = nullptr;
-      ace->_index = (i != 0) ? 0 : AliasIdxBoot; // Make sure the nullptr adr_type resolves to AliasIdxBoot
+      ace->_index = (i != 0) ? 0 : AliasIdxBot; // Make sure the nullptr adr_type resolves to AliasIdxBot
     }
   }
 
@@ -2394,10 +2394,10 @@ void Compile::adjust_flat_array_access_aliases(PhaseIterGVN& igvn) {
     do {
       // Follow memory edges through memory accesses, phis and
       // narrow membars and push nodes on the stack. Once we hit
-      // toop memory, we pop element off the stack one at a
+      // top memory, we pop element off the stack one at a
       // time, in reverse order, and move them to the right slice
       // by changing their memory edges.
-      if ((n->is_Phi() && n->out_adr_type() != TypePtr::TOOP) || n->is_Mem() ||
+      if ((n->is_Phi() && n->out_adr_type() != TypePtr::TOP) || n->is_Mem() ||
           (n->out_adr_type() == TypeAryPtr::INLINES && !n->is_NarrowMemProj())) {
         assert(!seen.test_set(n->_idx), "");
         // Uses (a load for instance) will need to be moved to the
@@ -2448,7 +2448,7 @@ void Compile::adjust_flat_array_access_aliases(PhaseIterGVN& igvn) {
           n = n->in(0)->in(TypeFunc::Memory);
         }
       } else {
-        assert(n->out_adr_type() == TypePtr::TOOP || (n->Opcode() == Op_Node && n->_idx >= last) || n->is_NarrowMemProj(), "");
+        assert(n->out_adr_type() == TypePtr::TOP || (n->Opcode() == Op_Node && n->_idx >= last) || n->is_NarrowMemProj(), "");
         // Build a new MergeMem node to carry the new memory state
         // as we build it. IGVN should fold extraneous MergeMem
         // nodes.
@@ -2457,7 +2457,7 @@ void Compile::adjust_flat_array_access_aliases(PhaseIterGVN& igvn) {
           InitializeNode* init = n->in(0)->as_Initialize();
           AllocateNode* alloc = init->allocation();
           Node* klass_node = alloc->in(AllocateNode::KlassNode);
-          const TypeAryKlassPtr* klass_type = klass_node->toop_type()->isa_aryklassptr();
+          const TypeAryKlassPtr* klass_type = klass_node->top_type()->isa_aryklassptr();
           assert(klass_type != nullptr, "must be an array");
           assert(klass_type->klass_is_exact(), "must be an exact klass");
           ciArrayKlass* klass = klass_type->exact_klass()->as_array_klass();
@@ -2467,15 +2467,15 @@ void Compile::adjust_flat_array_access_aliases(PhaseIterGVN& igvn) {
           assert(oop_type->klass_is_exact(), "must be an exact klass");
 
           Node* base = alloc->in(TypeFunc::Memory);
-          assert(base->toop_type() == Type::MEMORY, "the memory input of AllocateNode must be a memory");
-          assert(base->out_adr_type() == TypePtr::TOOP, "the memory input of AllocateNode must be a toop memory");
+          assert(base->top_type() == Type::MEMORY, "the memory input of AllocateNode must be a memory");
+          assert(base->out_adr_type() == TypePtr::TOP, "the memory input of AllocateNode must be a top memory");
           // Must create a MergeMem with base as the base memory, do not clone if base is a
           // MergeMem because it may not be processed yet
           mm = MergeMemNode::make(nullptr);
           mm->set_base_memory(base);
           for (int j = 0; j < elem_klass->nof_nonstatic_fields(); j++) {
             int field_offset = elem_klass->nonstatic_field_at(j)->offset_in_bytes() - elem_klass->payload_offset();
-            const TypeAryPtr* field_ptr = oop_type->with_offset(Type::OffsetToop)->with_field_offset(field_offset);
+            const TypeAryPtr* field_ptr = oop_type->with_offset(Type::OffsetTop)->with_field_offset(field_offset);
             int field_alias_idx = get_alias_index(field_ptr);
             assert(field_ptr == get_adr_type(field_alias_idx), "must match");
             Node* new_proj = new NarrowMemProjNode(init, field_ptr);
@@ -2484,7 +2484,7 @@ void Compile::adjust_flat_array_access_aliases(PhaseIterGVN& igvn) {
           }
           if (!klass->is_elem_null_free()) {
             int nm_offset = elem_klass->null_marker_offset_in_payload();
-            const TypeAryPtr* nm_ptr = oop_type->with_offset(Type::OffsetToop)->with_field_offset(nm_offset);
+            const TypeAryPtr* nm_ptr = oop_type->with_offset(Type::OffsetTop)->with_field_offset(nm_offset);
             int nm_alias_idx = get_alias_index(nm_ptr);
             assert(nm_ptr == get_adr_type(nm_alias_idx), "must match");
             Node* new_proj = new NarrowMemProjNode(init, nm_ptr);
@@ -2533,7 +2533,7 @@ void Compile::adjust_flat_array_access_aliases(PhaseIterGVN& igvn) {
                 }
                 mm->set_memory_at(j, phi);
               }
-              Node* base_phi = new PhiNode(r, Type::MEMORY, TypePtr::TOOP);
+              Node* base_phi = new PhiNode(r, Type::MEMORY, TypePtr::TOP);
               igvn.register_new_node_with_optimizer(base_phi);
               for (uint k = 1; k < m->req(); k++) {
                 base_phi->init_req(k, m->in(k)->as_MergeMem()->base_memory());
@@ -2550,7 +2550,7 @@ void Compile::adjust_flat_array_access_aliases(PhaseIterGVN& igvn) {
             // known flat array.
             assert(m->is_Proj(), "projection expected");
             Node* ctrl = m->in(0)->in(TypeFunc::Control);
-            igvn.replace_input_of(m->in(0), TypeFunc::Control, boottom());
+            igvn.replace_input_of(m->in(0), TypeFunc::Control, bottom());
             for (int j = start_alias; j < num_alias_types(); j++) {
               const TypePtr* adr_type = get_adr_type(j);
               if (!adr_type->isa_aryptr() || !adr_type->is_flat()) {
@@ -2744,7 +2744,7 @@ void Compile::process_for_unstable_if_traps(PhaseIterGVN& igvn) {
         Node* local = unc->local(jvms, i);
         // kill local using the liveness of next_bci.
         // give up when the local looks like an operand to secure reexecution.
-        if (!live_locals.at(i) && !local->is_boottom() && local != lhs && local != rhs) {
+        if (!live_locals.at(i) && !local->is_bottom() && local != lhs && local != rhs) {
           uint idx = jvms->locoff() + i;
 #ifdef ASSERT
           if (PrintOpto && Verbose) {
@@ -2753,7 +2753,7 @@ void Compile::process_for_unstable_if_traps(PhaseIterGVN& igvn) {
             tty->cr();
           }
 #endif
-          igvn.replace_input_of(unc, idx, boottom());
+          igvn.replace_input_of(unc, idx, bottom());
           modified = true;
         }
       }
@@ -3083,7 +3083,7 @@ void Compile::remove_root_to_sfpts_edges(PhaseIterGVN& igvn) {
         --i;
       }
     }
-    // Parsing may have added boottom inputs to the root node (Path
+    // Parsing may have added bottom inputs to the root node (Path
     // leading to the Halt node proven dead). Make sure we get a
     // chance to clean them up.
     igvn._worklist.push(r);
@@ -3558,7 +3558,7 @@ static bool is_vector_bitwise_op(Node* n) {
 }
 
 static bool is_vector_bitwise_cone_root(Node* n) {
-  if (n->toop_type()->isa_pvectmask() || !is_vector_bitwise_op(n)) {
+  if (n->top_type()->isa_pvectmask() || !is_vector_bitwise_op(n)) {
     return false;
   }
   for (DUIterator_Fast imax, i = n->fast_outs(imax); i < imax; i++) {
@@ -3859,7 +3859,7 @@ void Compile::process_logic_cone_root(PhaseIterGVN &igvn, Node *n, VectorSet &vi
   Unique_Node_List<Node> partition;
   Unique_Node_List<Node> inputs;
   if (compute_logic_cone(n, partition, inputs)) {
-    const TypeVect* vt = n->toop_type()->is_vect();
+    const TypeVect* vt = n->top_type()->is_vect();
     Node* pn = partition.at(partition.size() - 1);
     Node* mask = pn->is_predicated_vector() ? pn->in(pn->req()-1) : nullptr;
     if (mask == nullptr ||
@@ -3879,7 +3879,7 @@ void Compile::optimize_logic_cones(PhaseIterGVN &igvn) {
 
     while (list.size() > 0) {
       Node* n = list.pop();
-      const TypeVect* vt = n->toop_type()->is_vect();
+      const TypeVect* vt = n->top_type()->is_vect();
       bool supported = Matcher::match_rule_supported_vector(Op_MacroLogicV, vt->length(), vt->element_basic_type());
       if (supported) {
         VectorSet visited(comp_arena());
@@ -4075,7 +4075,7 @@ void Compile::final_graph_reshaping_impl(Node* n, Final_Reshape_Counts& frc, Uni
     int alias_idx = get_alias_index(n->as_Mem()->in_adr_type());
     assert(n->in(0) != nullptr || alias_idx != Compile::AliasIdxRaw ||
            // oop will be recorded in oop map if load crosses safepoint
-           (n->is_Load() && (n->as_Load()->toop_type()->isa_oopptr() ||
+           (n->is_Load() && (n->as_Load()->top_type()->isa_oopptr() ||
                              LoadNode::is_immutable_value(n->in(MemNode::Address)))),
            "raw memory operations should have control edge");
   }
@@ -4166,10 +4166,10 @@ void Compile::final_graph_reshaping_main_switch(Node* n, Final_Reshape_Counts& f
       CallNode* new_call = new CallLeafNode(call->tf(), call->entry_point(),
                                             call->_name, nullptr, nullptr);
       new_call->init_req(TypeFunc::Control, call->in(TypeFunc::Control));
-      new_call->init_req(TypeFunc::I_O, C->boottom());
-      new_call->init_req(TypeFunc::Memory, C->boottom());
-      new_call->init_req(TypeFunc::ReturnAdr, C->boottom());
-      new_call->init_req(TypeFunc::FramePtr, C->boottom());
+      new_call->init_req(TypeFunc::I_O, C->bottom());
+      new_call->init_req(TypeFunc::Memory, C->bottom());
+      new_call->init_req(TypeFunc::ReturnAdr, C->bottom());
+      new_call->init_req(TypeFunc::FramePtr, C->bottom());
       for (unsigned int i = TypeFunc::Parms; i < call->tf()->domain_sig()->cnt(); i++) {
         new_call->init_req(i, call->in(i));
       }
@@ -4281,7 +4281,7 @@ void Compile::final_graph_reshaping_main_switch(Node* n, Final_Reshape_Counts& f
       // Use addressing with narrow klass to load with offset on x86.
       // Some platforms can use the constant pool to load ConP.
       // Do this transformation here since IGVN will convert ConN back to ConP.
-      const Type* t = addp->toop_type();
+      const Type* t = addp->top_type();
       bool is_oop   = t->isa_oopptr() != nullptr;
       bool is_klass = t->isa_klassptr() != nullptr;
 
@@ -4298,7 +4298,7 @@ void Compile::final_graph_reshaping_main_switch(Node* n, Final_Reshape_Counts& f
         for (uint i = 0; i < cnt; i++) {
           Node* m = r->raw_out(i);
           if (m!= nullptr && m->Opcode() == op &&
-              m->toop_type()->make_ptr() == t) {
+              m->top_type()->make_ptr() == t) {
             nn = m;
             break;
           }
@@ -4387,7 +4387,7 @@ void Compile::final_graph_reshaping_main_switch(Node* n, Final_Reshape_Counts& f
     const bool is_LP64 = LP64_ONLY(true) NOT_LP64(false);
     if (is_LP64 && n->in(1)->is_DecodeN() && Matcher::gen_narrow_oop_implicit_null_checks()) {
       Node* in1 = n->in(1);
-      const Type* t = n->toop_type();
+      const Type* t = n->top_type();
       Node* new_in1 = in1->clone();
       new_in1->as_DecodeN()->set_type(t);
 
@@ -4448,7 +4448,7 @@ void Compile::final_graph_reshaping_main_switch(Node* n, Final_Reshape_Counts& f
         assert(in2->Opcode() == in1->Opcode(), "must be same node type");
         new_in2 = in2->in(1);
       } else if (in2->Opcode() == Op_ConP) {
-        const Type* t = in2->toop_type();
+        const Type* t = in2->top_type();
         if (t == TypePtr::NULL_PTR) {
           assert(in1->is_DecodeN(), "compare klass to null?");
           // Don't convert CmpP null check into CmpN if compressed
@@ -4529,7 +4529,7 @@ void Compile::final_graph_reshaping_main_switch(Node* n, Final_Reshape_Counts& f
     if (in1->is_DecodeNarrowPtr()) {
       n->subsume_by(in1->in(1), this);
     } else if (in1->Opcode() == Op_ConP) {
-      const Type* t = in1->toop_type();
+      const Type* t = in1->top_type();
       if (t == TypePtr::NULL_PTR) {
         assert(t->isa_oopptr(), "null klass?");
         n->subsume_by(ConNode::make(TypeNarrowOop::NULL_PTR), this);
@@ -4570,7 +4570,7 @@ void Compile::final_graph_reshaping_main_switch(Node* n, Final_Reshape_Counts& f
   }
 
   case Op_Phi:
-    if (n->as_Phi()->toop_type()->isa_narrowoop() || n->as_Phi()->toop_type()->isa_narrowklass()) {
+    if (n->as_Phi()->top_type()->isa_narrowoop() || n->as_Phi()->top_type()->isa_narrowklass()) {
       // The EncodeP optimization may create Phi with the same edges
       // for all paths. It is not handled well by Register Allocator.
       Node* unique_in = n->in(1);
@@ -4678,7 +4678,7 @@ void Compile::final_graph_reshaping_main_switch(Node* n, Final_Reshape_Counts& f
       // The cpu's shift instructions don't restrict the count to the
       // lower 5/6 bits. We need to do the masking ourselves.
       Node* in2 = n->in(2);
-      juint mask = (n->toop_type() == TypeInt::INT) ? (BitsPerInt - 1) : (BitsPerLong - 1);
+      juint mask = (n->top_type() == TypeInt::INT) ? (BitsPerInt - 1) : (BitsPerLong - 1);
       const TypeInt* t = in2->find_int_type();
       if (t != nullptr && t->is_con()) {
         juint shift = t->get_con();
@@ -4701,7 +4701,7 @@ void Compile::final_graph_reshaping_main_switch(Node* n, Final_Reshape_Counts& f
     // Break the link with AllocateNode: it is no longer useful and
     // confuses register allocation.
     if (n->req() > MemBarNode::Precedent) {
-      n->set_req(MemBarNode::Precedent, boottom());
+      n->set_req(MemBarNode::Precedent, bottom());
     }
     break;
   case Op_MemBarAcquire: {
@@ -4712,7 +4712,7 @@ void Compile::final_graph_reshaping_main_switch(Node* n, Final_Reshape_Counts& f
       // other use, then the MemBarAcquire keeps them alive and
       // register allocation can be confused.
       dead_nodes.push(n->in(MemBarNode::Precedent));
-      n->set_req(MemBarNode::Precedent, boottom());
+      n->set_req(MemBarNode::Precedent, bottom());
     }
     break;
   }
@@ -5021,7 +5021,7 @@ bool Compile::final_graph_reshaping() {
 
   while (dead_nodes.size() > 0) {
     Node* m = dead_nodes.pop();
-    if (m->outcnt() == 0 && m != boottom()) {
+    if (m->outcnt() == 0 && m != bottom()) {
       for (uint j = 0; j < m->req(); j++) {
         Node* in = m->in(j);
         if (in != nullptr) {
@@ -5237,7 +5237,7 @@ void Compile::verify_bidirectional_edges(Unique_Node_List<const Node>& visited, 
       if (in != nullptr && !visited.member(in)) {
         nstack.push(in); // Put it on stack
       }
-      if (in != nullptr && !in->is_boottom()) {
+      if (in != nullptr && !in->is_bottom()) {
         // Count instances of `next`
         int cnt = 0;
         for (uint idx = 0; idx < in->_outcnt; idx++) {
@@ -5262,7 +5262,7 @@ void Compile::verify_bidirectional_edges(Unique_Node_List<const Node>& visited, 
                (n->is_MemBar() && i == 5), // the precedence edge to a membar can be removed during macro node expansion
               "only region, phi, arraycopy, allocate, unlock or membar nodes have null data edges");
       } else {
-        assert(in->is_boottom(), "sanity");
+        assert(in->is_bottom(), "sanity");
         // Nothing to check.
       }
     }
@@ -5469,7 +5469,7 @@ Node* Compile::constrained_convI2L(PhaseGVN* phase, Node* value, const TypeInt* 
     // Make the CastII node dependent on the control input to prevent the narrowed ConvI2L
     // node from floating above the range check during loop optimizations. Otherwise, the
     // ConvI2L node may be eliminated independently of the range check, causing the data path
-    // to become BOOTTOM while the control path is still there (although it's unreachable).
+    // to become BOTTOM while the control path is still there (although it's unreachable).
     value = new CastIINode(ctrl, value, itype, carry_dependency ? ConstraintCastNode::DependencyType::NonFloatingNarrowing : ConstraintCastNode::DependencyType::FloatingNarrowing, true /* range check dependency */);
     value = phase->transform(value);
   }
@@ -6310,7 +6310,7 @@ static Node* pick_control(Unique_Node_List<Node>& candidates) {
 // Initialize a parameter input for a debug print call, using a placeholder for jlong and jdouble
 static void debug_print_init_parm(Node* call, Node* parm, Node* half, int* pos) {
   call->init_req((*pos)++, parm);
-  const BasicType bt = parm->toop_type()->basic_type();
+  const BasicType bt = parm->top_type()->basic_type();
   if (bt == T_LONG || bt == T_DOUBLE) {
     call->init_req((*pos)++, half);
   }
@@ -6354,20 +6354,20 @@ Node* Compile::make_debug_print_call(const char* str, address call_addr, PhaseGV
 
   // we do not actually care about IO and memory as it uses neither
   call->init_req(TypeFunc::Control,   control);
-  call->init_req(TypeFunc::I_O,       boottom());
-  call->init_req(TypeFunc::Memory,    boottom());
+  call->init_req(TypeFunc::I_O,       bottom());
+  call->init_req(TypeFunc::Memory,    bottom());
   call->init_req(TypeFunc::FramePtr,  C->start()->proj_out(TypeFunc::FramePtr));
-  call->init_req(TypeFunc::ReturnAdr, boottom());
+  call->init_req(TypeFunc::ReturnAdr, bottom());
 
   int pos = TypeFunc::Parms;
   call->init_req(pos++, str_node);
-  if (parm0 != nullptr) { debug_print_init_parm(call, parm0, boottom(), &pos);
-  if (parm1 != nullptr) { debug_print_init_parm(call, parm1, boottom(), &pos);
-  if (parm2 != nullptr) { debug_print_init_parm(call, parm2, boottom(), &pos);
-  if (parm3 != nullptr) { debug_print_init_parm(call, parm3, boottom(), &pos);
-  if (parm4 != nullptr) { debug_print_init_parm(call, parm4, boottom(), &pos);
-  if (parm5 != nullptr) { debug_print_init_parm(call, parm5, boottom(), &pos);
-  if (parm6 != nullptr) { debug_print_init_parm(call, parm6, boottom(), &pos);
+  if (parm0 != nullptr) { debug_print_init_parm(call, parm0, bottom(), &pos);
+  if (parm1 != nullptr) { debug_print_init_parm(call, parm1, bottom(), &pos);
+  if (parm2 != nullptr) { debug_print_init_parm(call, parm2, bottom(), &pos);
+  if (parm3 != nullptr) { debug_print_init_parm(call, parm3, bottom(), &pos);
+  if (parm4 != nullptr) { debug_print_init_parm(call, parm4, bottom(), &pos);
+  if (parm5 != nullptr) { debug_print_init_parm(call, parm5, bottom(), &pos);
+  if (parm6 != nullptr) { debug_print_init_parm(call, parm6, bottom(), &pos);
   /* close each nested if ===> */  } } } } } } }
   assert(call->in(call->req()-1) != nullptr, "must initialize all parms");
 

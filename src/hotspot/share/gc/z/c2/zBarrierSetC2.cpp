@@ -410,7 +410,7 @@ bool ZBarrierSetC2::array_copy_requires_gc_barriers(bool tightly_coupled_alloc, 
   return type == T_OBJECT || type == T_ARRAY;
 }
 
-#define XBOOTTOM LP64_ONLY(COMMA phase->boottom())
+#define XBOTTOM LP64_ONLY(COMMA phase->bottom())
 
 void ZBarrierSetC2::clone_at_expansion(PhaseMacroExpand* phase, ArrayCopyNode* ac) const {
   Node* const src = ac->in(ArrayCopyNode::Src);
@@ -455,10 +455,10 @@ void ZBarrierSetC2::clone_at_expansion(PhaseMacroExpand* phase, ArrayCopyNode* a
     const char*   copyfunc_name = "arraycopy";
     const address copyfunc_addr = phase->basictype2arraycopy(bt, nullptr, nullptr, true, copyfunc_name, true);
 
-    const TypePtr* const raw_adr_type = TypeRawPtr::TOOP;
+    const TypePtr* const raw_adr_type = TypeRawPtr::TOP;
     const TypeFunc* const call_type = OptoRuntime::fast_arraycopy_Type();
 
-    Node* const call = phase->make_leaf_call(ctrl, mem, call_type, copyfunc_addr, copyfunc_name, raw_adr_type, payload_src, payload_dst, length XBOOTTOM);
+    Node* const call = phase->make_leaf_call(ctrl, mem, call_type, copyfunc_addr, copyfunc_name, raw_adr_type, payload_src, payload_dst, length XBOTTOM);
     phase->transform_later(call);
 
     phase->igvn().replace_node(ac, call);
@@ -471,7 +471,7 @@ void ZBarrierSetC2::clone_at_expansion(PhaseMacroExpand* phase, ArrayCopyNode* a
   clone_in_runtime(phase, ac, ZBarrierSetRuntime::clone_addr(), "ZBarrierSetRuntime::clone");
 }
 
-#undef XBOOTTOM
+#undef XBOTTOM
 
 void ZBarrierSetC2::elide_dominated_barrier(MachNode* mach, MachNode* dominator) const {
   mach->set_barrier_data(ZBarrierElided);
