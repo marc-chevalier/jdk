@@ -25,14 +25,14 @@
 /*
  * @test
  * @bug 8260284
- * @summary Fix "assert(_base == Int) failed: Not an Int" due to a boottom divisor not handled correctly in no_dependent_zero_check().
+ * @summary Fix "assert(_base == Int) failed: Not an Int" due to a bottom divisor not handled correctly in no_dependent_zero_check().
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:-TieredCompilation -XX:CompileOnly=${test.main.class}::* ${test.main.class}
  */
 
 package compiler.loopopts;
 
-public class TestDivWithBoottomDivisor {
+public class TestDivWithBottomDivisor {
     static boolean bFld;
 
     static int test(int d, long e, long f) {

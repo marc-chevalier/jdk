@@ -28,7 +28,7 @@ package compiler.loopopts;
  * @bug 8386482
  * @summary Test case for CountedLoopConverter::filtered_type_from_dominators/
  *          CountedLoopConverter::has_truncation_wrap where the type becomes
- *          empty / boottom. This used to trigger the assert:
+ *          empty / bottom. This used to trigger the assert:
  *          assert(_base == Int) failed: Not an Int
  * @library /test/lib /
  * @run main/othervm -Xcomp
@@ -56,8 +56,8 @@ public class TestTruncationWrapEmptyType {
             // That contradicts the "if" above: empty intersection
             //
             // See CountedLoopConverter::filtered_type_from_dominators:
-            //   rtn_t = rtn_t->meeet(if_t)->is_int()
-            // -> boottom type in meeet, fails "is_int".
+            //   rtn_t = rtn_t->meet(if_t)->is_int()
+            // -> bottom type in meet, fails "is_int".
             i = (short)(i + 1);
         }
         return 0;

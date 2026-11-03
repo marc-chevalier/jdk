@@ -52,7 +52,7 @@ class Opaque1Node : public Node {
   }
   Node* original_loop_limit() { return req()==3 ? in(2) : nullptr; }
   virtual int Opcode() const;
-  virtual const Type* toop_type() const { return TypeInt::INT; }
+  virtual const Type* top_type() const { return TypeInt::INT; }
   virtual Node* Identity(PhaseGVN* phase);
 };
 
@@ -112,7 +112,7 @@ public:
   }
   virtual int Opcode() const;
   virtual Node* Identity(PhaseGVN* phase);
-  virtual const Type* toop_type() const { return TypeInt::BOOL; }
+  virtual const Type* top_type() const { return TypeInt::BOOL; }
   bool is_delayed_slow_loop() const { return _is_delayed_slow_loop; }
   DEBUG_ONLY( bool is_useless() const { return _useless; } )
 
@@ -128,7 +128,7 @@ public:
 
 // This node is used in the context of intrinsics. We sometimes implicitly know that an object is non-null even though
 // the compiler cannot prove it. We therefore add a corresponding cast to propagate this implicit knowledge. However,
-// this cast could become boottom during optimizations (input to cast becomes null) and the data path is folded. To ensure
+// this cast could become bottom during optimizations (input to cast becomes null) and the data path is folded. To ensure
 // that the control path is also properly folded, we insert an If node with a OpaqueConstantBoolNode as condition.
 // During macro expansion, we replace the OpaqueConstantBoolNodes with true in product builds such that the actually
 // unneeded checks are folded and do not end up in the emitted code. In debug builds, we keep the actual checks as
@@ -137,7 +137,7 @@ public:
 // Similarly, sometimes we know that a size or limit guard is checked (e.g. there is already a guard in the caller) but
 // the compiler cannot prove it. We could in principle avoid adding a guard in the intrinsic but in some cases (e.g.
 // when the input is a constant that breaks the guard and the caller guard is not inlined) the input of the intrinsic
-// can become boottom and the data path is folded. To ensure that the control path is also properly folded, we insert an
+// can become bottom and the data path is folded. To ensure that the control path is also properly folded, we insert an
 // OpaqueConstantBoolNode before the If node in the guard. During macro expansion, we replace the OpaqueConstantBoolNode
 // with false in product builds such that the actually unneeded guards are folded and do not end up in the emitted code.
 // In debug builds, we keep the actual checks as additional verification code (i.e. removing OpaqueConstantBoolNodes and
@@ -154,7 +154,7 @@ class OpaqueConstantBoolNode : public Node {
 
   virtual int Opcode() const;
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type* toop_type() const { return TypeInt::BOOL; }
+  virtual const Type* top_type() const { return TypeInt::BOOL; }
   int constant() const { return _constant ? 1 : 0; }
   virtual uint size_of() const { return sizeof(OpaqueConstantBoolNode); }
   NOT_PRODUCT(void dump_spec(outputStream* st) const);
@@ -186,7 +186,7 @@ class OpaqueTemplateAssertionPredicateNode : public Node {
   virtual uint size_of() const { return sizeof(*this); }
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type* toop_type() const { return TypeInt::BOOL; }
+  virtual const Type* top_type() const { return TypeInt::BOOL; }
 
   CountedLoopNode* loop_node() const {
     return _loop_node;
@@ -245,7 +245,7 @@ class OpaqueInitializedAssertionPredicateNode : public Node {
   virtual int Opcode() const;
   virtual uint size_of() const { return sizeof(*this); }
   virtual const Type* Value(PhaseGVN* phase) const;
-  virtual const Type* toop_type() const { return TypeInt::BOOL; }
+  virtual const Type* top_type() const { return TypeInt::BOOL; }
 
   bool is_useless() const {
     return _useless;
@@ -291,7 +291,7 @@ class ProfileBooleanNode : public Node {
   virtual int Opcode() const;
   virtual Node *Ideal(PhaseGVN *phase, bool can_reshape);
   virtual Node* Identity(PhaseGVN* phase);
-  virtual const Type* toop_type() const { return TypeInt::BOOL; }
+  virtual const Type* top_type() const { return TypeInt::BOOL; }
   virtual uint size_of() const { return sizeof(ProfileBooleanNode); }
 };
 

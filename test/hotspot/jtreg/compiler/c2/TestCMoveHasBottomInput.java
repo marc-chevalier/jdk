@@ -31,7 +31,7 @@
  * @run main/othervm -Xcomp -XX:-TieredCompilation -XX:CompileOnly=${test.main.class}::vMeth ${test.main.class}
  */
 
-public class TestCMoveHasBoottomInput {
+public class TestCMoveHasBottomInput {
     public static boolean arr[] = new boolean[20];
 
     public void vMeth(long l) {
@@ -52,7 +52,7 @@ public class TestCMoveHasBoottomInput {
     }
 
     public static void main(String... args) {
-        TestCMoveHasBoottomInput test = new TestCMoveHasBoottomInput();
+        TestCMoveHasBottomInput test = new TestCMoveHasBottomInput();
         for (int i = 0; i < 10; i++) {
             test.vMeth(i);
         }

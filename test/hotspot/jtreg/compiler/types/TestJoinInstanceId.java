@@ -26,7 +26,7 @@ package compiler.types;
 /*
  * @test
  * @bug 8370914
- * @summary C2 incorrectly computes the instance id of a jooin, leading to symmetry assert.
+ * @summary C2 incorrectly computes the instance id of a join, leading to symmetry assert.
  * @run main ${test.main.class}
  * @run main/othervm -Xbatch -XX:-TieredCompilation -XX:CompileThreshold=1 -XX:+UnlockDiagnosticVMOptions
  *                   -XX:+StressIncrementalInlining -XX:TypeProfileLevel=200
@@ -35,7 +35,7 @@ package compiler.types;
  *                   -XX:+StressIncrementalInlining -XX:TypeProfileLevel=200 -XX:StressSeed=823469094
  *                   -XX:CompileOnly=${test.main.class}::test ${test.main.class}
  */
-public class TestJooinInstanceId {
+public class TestJoinInstanceId {
     static Object getString() {
         return "42";
     }
