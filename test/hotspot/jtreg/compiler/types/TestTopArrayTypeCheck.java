@@ -28,7 +28,7 @@
  * @run main/othervm -Xbatch -XX:-TieredCompilation -XX:CompileCommand=compileonly,${test.main.class}::test ${test.main.class}
  */
 
-public class TestToopArrayTypeCheck {
+public class TestTopArrayTypeCheck {
 
     interface WordBase {
     }

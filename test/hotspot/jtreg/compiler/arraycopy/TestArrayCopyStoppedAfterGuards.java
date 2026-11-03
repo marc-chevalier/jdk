@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8075921
- * @summary control becomes boottom after arraycopy guards and confuses tightly coupled allocation logic
+ * @summary control becomes bottom after arraycopy guards and confuses tightly coupled allocation logic
  *
  * @run main/othervm -Xcomp
  *      -XX:CompileCommand=compileonly,java.lang.System::arraycopy

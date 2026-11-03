@@ -59,7 +59,7 @@ public class TestValAtSafepointOverflowsInt {
             obj.byteField = (byte)(1 << (i+1));
         }
         // Phi for byte here for uncommon trap in never taken path below
-        // Phi inputs don't fit in a byte. Phi transformed to boottom.
+        // Phi inputs don't fit in a byte. Phi transformed to bottom.
         if (flag2) {
             return obj;
         }

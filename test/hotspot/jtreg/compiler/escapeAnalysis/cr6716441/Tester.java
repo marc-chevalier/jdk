@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 6716441
- * @summary error in jooin with +DoEscapeAnalysis
+ * @summary error in join with +DoEscapeAnalysis
  *
  * @run main/othervm -XX:+IgnoreUnrecognizedVMOptions -Xcomp -XX:+EliminateAutoBox -XX:AutoBoxCacheMax=20000
  *                   compiler.escapeAnalysis.cr6716441.Tester

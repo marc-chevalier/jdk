@@ -11,6 +11,6 @@ remove(matches("short_name", "FP|RA|IO|RP"));
 // Remove back-edges to the Root node.
 removeInputs(matches("name", "Root"), matches("name", ".*"));
 
-// Remove boottom inputs from call-like nodes.
+// Remove bottom inputs from call-like nodes.
 removeInputs(matches("name", "SafePoint|CallStaticJava|CallDynamicJava|CallJava|CallLeaf|CallRuntime|AbstractLock|CallLeafNoFP|Call|CallStaticJavaDirect|Halt|Rethrow|ShouldNotReachHere|RethrowException|Return|Ret|MergeMem|Initialize|MemBarAcquire|MemBarRelease|Unlock|Lock|Allocate|AllocateArray"),
-             and([matches("name", "Con"), matches("type", "boottom")]));
+             and([matches("name", "Con"), matches("type", "bottom")]));
