@@ -65,8 +65,8 @@ ConnectionGraph::ConnectionGraph(Compile * C, PhaseIterGVN *igvn, int invocation
   _virtual_array_init_nodes(C->comp_arena(), 0, 0, nullptr),
   _node_map(C->comp_arena()) {
   // Add unknown java object.
-  add_java_object(C->boottom(), PointsToNode::GlobalEscape);
-  phantom_obj = ptnode_adr(C->boottom()->_idx)->as_JavaObject();
+  add_java_object(C->bottom(), PointsToNode::GlobalEscape);
+  phantom_obj = ptnode_adr(C->bottom()->_idx)->as_JavaObject();
   set_not_scalar_replaceable(phantom_obj NOT_PRODUCT(COMMA "Phantom object"));
   // Add ConP and ConN null oop nodes
   Node* oop_null = igvn->zerocon(T_OBJECT);
@@ -189,7 +189,7 @@ bool ConnectionGraph::compute_escape() {
       // specially to avoid inhibiting scalar replacement.
       Node* result = n->as_AllocateArray()->proj_out_or_null(AllocateNode::RawAddress);
       if (result != nullptr) {
-        // Use an arbitrary offset. The corresponding CG Field node uses OffsetToop.
+        // Use an arbitrary offset. The corresponding CG Field node uses OffsetTop.
         AddPNode* addp = AddPNode::make_off_heap(result, igvn->MakeConX(0));
         igvn->register_new_node_with_optimizer(addp);
         _virtual_array_init_nodes.push(addp);
@@ -713,7 +713,7 @@ bool ConnectionGraph::can_reduce_phi(PhiNode* ophi) const {
 // case because we have constraints on it and because the CastPP has a control
 // input.
 Node* ConnectionGraph::specialize_cmp(Node* base, Node* curr_ctrl) {
-  const Type* t = base->toop_type();
+  const Type* t = base->top_type();
   Node* con = nullptr;
 
   if (curr_ctrl == nullptr || curr_ctrl->is_Region()) {
@@ -810,9 +810,9 @@ Node* ConnectionGraph::split_castpp_load_through_phi(Node* curr_addp, Node* curr
   // we are loading pointers.
   if (load_type->make_ptr() != nullptr) {
     if (load_type->isa_narrowoop()) {
-      load_type = load_type->jooin(TypeNarrowOop::NULL_PTR);
+      load_type = load_type->join(TypeNarrowOop::NULL_PTR);
     } else if (load_type->isa_ptr()) {
-      load_type = load_type->jooin(TypePtr::NULL_PTR);
+      load_type = load_type->join(TypePtr::NULL_PTR);
     } else {
       assert(false, "Unexpected load ptr type.");
     }
@@ -1335,7 +1335,7 @@ bool ConnectionGraph::reduce_phi_on_safepoints_helper(Node* ophi, Node* cast, No
 
   Node* nsr_merge_pointer = ophi;
   if (cast != nullptr) {
-    const Type* new_t = merge_t->jooin(TypePtr::NULL_PTR);
+    const Type* new_t = merge_t->join(TypePtr::NULL_PTR);
     nsr_merge_pointer = _igvn->transform(ConstraintCastNode::make_cast_for_type(cast->in(0), cast->in(1), new_t, ConstraintCastNode::DependencyType::FloatingNarrowing, nullptr));
   }
 
@@ -1382,7 +1382,7 @@ bool ConnectionGraph::reduce_phi_on_safepoints_helper(Node* ophi, Node* cast, No
       AllocateNode* alloc = ptn->ideal_node()->as_Allocate();
       Unique_Node_List<ValueTypeNode> value_worklist;
 #ifdef ASSERT
-      const Type* res_type = alloc->result_cast()->toop_type();
+      const Type* res_type = alloc->result_cast()->top_type();
       if (res_type->is_valueklassptr()) {
         assert(!ophi->as_Phi()->can_push_value_types_down(_igvn), "missed earlier scalarization opportunity");
       }
@@ -1484,7 +1484,7 @@ void ConnectionGraph::reduce_phi(PhiNode* ophi, GrowableArray<Node*> &alloc_work
 void ConnectionGraph::reset_scalar_replaceable_entries(PhiNode* ophi) {
   Node* null_ptr            = _igvn->makecon(TypePtr::NULL_PTR);
   const TypeOopPtr* merge_t = _igvn->type(ophi)->make_oopptr();
-  const Type* new_t         = merge_t->jooin(TypePtr::NULL_PTR);
+  const Type* new_t         = merge_t->join(TypePtr::NULL_PTR);
   Node* new_phi             = _igvn->register_new_node_with_optimizer(PhiNode::make(ophi->region(), null_ptr, new_t));
 
   for (uint i = 1; i < ophi->req(); i++) {
@@ -1503,7 +1503,7 @@ void ConnectionGraph::reset_scalar_replaceable_entries(PhiNode* ophi) {
 
     if (out->is_ConstraintCast()) {
       const Type* out_t = _igvn->type(out)->make_ptr();
-      const Type* out_new_t = out_t->jooin(TypePtr::NULL_PTR);
+      const Type* out_new_t = out_t->join(TypePtr::NULL_PTR);
       bool change = out_new_t != out_t;
 
       for (int j = out->outcnt()-1; change && j >= 0; --j) {
@@ -1543,8 +1543,8 @@ void ConnectionGraph::verify_ram_nodes(Compile* C, Node* root) {
 
       // Validate inputs of merge
       for (uint i = 1; i < merge->req(); i++) {
-        if (merge->in(i) != nullptr && !merge->in(i)->is_boottom() && !merge->in(i)->is_SafePointScalarObject()) {
-          assert(false, "SafePointScalarMerge inputs should be null/boottom or SafePointScalarObject.");
+        if (merge->in(i) != nullptr && !merge->in(i)->is_bottom() && !merge->in(i)->is_SafePointScalarObject()) {
+          assert(false, "SafePointScalarMerge inputs should be null/bottom or SafePointScalarObject.");
           C->record_failure(C2Compiler::retry_no_reduce_allocation_merges());
         }
       }
@@ -1660,7 +1660,7 @@ void ConnectionGraph::add_proj(Node* n, Unique_Node_List<Node>* delayed_worklist
   } else if (n->in(0)->is_LoadFlat()) {
     // Treat LoadFlat outputs similar to a call return value
     add_local_var_and_edge(n, PointsToNode::NoEscape, n->in(0), delayed_worklist);
-  } else if (n->as_Proj()->_con >= TypeFunc::Parms && n->in(0)->is_Call() && n->toop_type()->isa_ptr()) {
+  } else if (n->as_Proj()->_con >= TypeFunc::Parms && n->in(0)->is_Call() && n->top_type()->isa_ptr()) {
     CallNode* call = n->in(0)->as_Call();
     assert(call->tf()->returns_value_type_as_fields(), "");
     if (n->as_Proj()->_con == TypeFunc::Parms || !returns_an_argument(call) || has_incompatible_argument_return(call)) {
@@ -1714,7 +1714,7 @@ void ConnectionGraph::add_node_to_connection_graph(Node* n, Unique_Node_List<Nod
         bool returns_oop = false;
         for (DUIterator_Fast imax, i = n->fast_outs(imax); i < imax && !returns_oop; i++) {
           ProjNode* pn = n->fast_out(i)->as_Proj();
-          if (pn->_con >= TypeFunc::Parms && pn->toop_type()->isa_ptr()) {
+          if (pn->_con >= TypeFunc::Parms && pn->top_type()->isa_ptr()) {
             returns_oop = true;
           }
         }
@@ -1740,7 +1740,7 @@ void ConnectionGraph::add_node_to_connection_graph(Node* n, Unique_Node_List<Nod
       // Graph because such fields are not used for oop loads and stores.
       bool is_virtual_array_init_n = is_virtual_array_init(n);
       assert(!is_virtual_array_init_n || n->outcnt() == 0, "virtual AddPs must be unused");
-      int offset = is_virtual_array_init_n ? Type::OffsetToop : address_offset(n, igvn);
+      int offset = is_virtual_array_init_n ? Type::OffsetTop : address_offset(n, igvn);
       add_field(n, PointsToNode::NoEscape, offset);
       if (ptn_base == nullptr) {
         delayed_worklist->push(n); // Process it later.
@@ -1967,8 +1967,8 @@ void ConnectionGraph::add_final_edges(Node *n) {
           continue;  // ignore null
         }
         Node* uncast_in = in->uncast();
-        if (uncast_in->is_boottom() || uncast_in == n) {
-          continue;  // ignore boottom or inputs which go back this node
+        if (uncast_in->is_bottom() || uncast_in == n) {
+          continue;  // ignore bottom or inputs which go back this node
         }
         PointsToNode* ptn = ptnode_adr(in->_idx);
         assert(ptn != nullptr, "node should be registered");
@@ -1994,8 +1994,8 @@ void ConnectionGraph::add_final_edges(Node *n) {
           continue;  // ignore null
         }
         Node* uncast_in = in->uncast();
-        if (uncast_in->is_boottom() || uncast_in == n) {
-          continue;  // ignore boottom or inputs which go back this node
+        if (uncast_in->is_bottom() || uncast_in == n) {
+          continue;  // ignore bottom or inputs which go back this node
         }
         PointsToNode* ptn = ptnode_adr(in->_idx);
         assert(ptn != nullptr, "node should be registered");
@@ -2070,8 +2070,8 @@ void ConnectionGraph::add_final_edges(Node *n) {
       for (uint i = 2; i < n->req(); i++) {
         Node* adr = n->in(i);
         const Type* at = _igvn->type(adr);
-        if (!adr->is_boottom() && at->isa_ptr()) {
-          assert(at == Type::BOOTTOM || at == TypePtr::NULL_PTR ||
+        if (!adr->is_bottom() && at->isa_ptr()) {
+          assert(at == Type::BOTTOM || at == TypePtr::NULL_PTR ||
                  at->isa_ptr() != nullptr, "expecting a pointer");
           if (adr->is_AddP()) {
             adr = get_addp_base(adr);
@@ -2131,8 +2131,8 @@ void ConnectionGraph::add_to_congraph_unsafe_access(Node* n, uint opcode, Unique
     assert (adr->is_AddP(), "expecting an AddP");
     if (adr_type == TypeRawPtr::NOTNULL) {
       // Verify a raw address for a store captured by Initialize node.
-      int offs = (int) _igvn->find_intptr_t_con(adr->in(AddPNode::Offset), Type::OffsetToop);
-      assert(offs != Type::OffsetToop, "offset must be a constant");
+      int offs = (int) _igvn->find_intptr_t_con(adr->in(AddPNode::Offset), Type::OffsetTop);
+      assert(offs != Type::OffsetTop, "offset must be a constant");
     }
 #endif
   } else {
@@ -2373,7 +2373,7 @@ void ConnectionGraph::add_call_node(CallNode* call) {
   uint call_idx = call->_idx;
   if (call->is_Allocate()) {
     Node* k = call->in(AllocateNode::KlassNode);
-    const TypeKlassPtr* kt = k->toop_type()->isa_klassptr();
+    const TypeKlassPtr* kt = k->top_type()->isa_klassptr();
     assert(kt != nullptr, "TypeKlassPtr  required.");
     PointsToNode::EscapeState es = PointsToNode::NoEscape;
     bool scalar_replaceable = true;
@@ -2539,7 +2539,7 @@ void ConnectionGraph::process_call_arguments(CallNode *call) {
           continue;
         }
         const Type *aat = _igvn->type(arg);
-        if (arg->is_boottom() || !at->isa_ptr() || !aat->isa_ptr()) {
+        if (arg->is_bottom() || !at->isa_ptr() || !aat->isa_ptr()) {
           continue;
         }
         if (arg->is_AddP()) {
@@ -2557,11 +2557,11 @@ void ConnectionGraph::process_call_arguments(CallNode *call) {
         assert(arg_ptn != nullptr, "should be registered");
         PointsToNode::EscapeState arg_esc = arg_ptn->escape_state();
         if (is_arraycopy || arg_esc < PointsToNode::ArgEscape) {
-          assert(aat == Type::BOOTTOM || aat == TypePtr::NULL_PTR ||
+          assert(aat == Type::BOTTOM || aat == TypePtr::NULL_PTR ||
                  aat->isa_ptr() != nullptr, "expecting an Ptr");
           bool arg_has_oops = aat->isa_oopptr() &&
                               (aat->isa_instptr() ||
-                               (aat->isa_aryptr() && (aat->isa_aryptr()->elem() == Type::TOOP || aat->isa_aryptr()->elem()->make_oopptr() != nullptr)) ||
+                               (aat->isa_aryptr() && (aat->isa_aryptr()->elem() == Type::TOP || aat->isa_aryptr()->elem()->make_oopptr() != nullptr)) ||
                                (aat->isa_aryptr() && aat->isa_aryptr()->elem() != nullptr &&
                                                                aat->isa_aryptr()->is_flat() &&
                                                                aat->isa_aryptr()->elem()->value_klass()->contains_oops()));
@@ -3128,7 +3128,7 @@ void ConnectionGraph::add_fields_to_worklist(FieldNode* field, PointsToNode* bas
           continue;
         }
         int offs = f->as_Field()->offset();
-        if (offs == offset || offset == Type::OffsetToop || offs == Type::OffsetToop) {
+        if (offs == offset || offset == Type::OffsetTop || offs == Type::OffsetTop) {
           add_to_worklist(f);
         }
       }
@@ -3152,7 +3152,7 @@ void ConnectionGraph::add_fields_to_worklist(FieldNode* field, PointsToNode* bas
           continue;
         }
         int offs = f->as_Field()->offset();
-        if (offs == offset || offset == Type::OffsetToop || offs == Type::OffsetToop) {
+        if (offs == offset || offset == Type::OffsetTop || offs == Type::OffsetTop) {
           add_to_worklist(f);
         }
       }
@@ -3234,7 +3234,7 @@ int ConnectionGraph::find_init_values_null(JavaObjectNode* pta, PhaseValues* pha
     return 0;
   }
   InitializeNode* ini = alloc->as_Allocate()->initialization();
-  bool visited_toop_offset = false;
+  bool visited_top_offset = false;
   GrowableArray<int> offsets_worklist;
   int new_edges = 0;
 
@@ -3249,21 +3249,21 @@ int ConnectionGraph::find_init_values_null(JavaObjectNode* pta, PhaseValues* pha
       continue; // Not oop field
     }
     int offset = field->as_Field()->offset();
-    if (offset == Type::OffsetToop) {
-      if (!visited_toop_offset) {
-        // OffsetToop is used to reference array's element,
+    if (offset == Type::OffsetTop) {
+      if (!visited_top_offset) {
+        // OffsetTop is used to reference array's element,
         // always add reference to null to all Field nodes since we don't
         // known which element is referenced.
         if (add_edge(field, null_obj)) {
           // New edge was added
           new_edges++;
           add_field_uses_to_worklist(field->as_Field());
-          visited_toop_offset = true;
+          visited_top_offset = true;
         }
       }
     } else {
       // Check only oop fields.
-      const Type* adr_type = field->ideal_node()->as_AddP()->toop_type();
+      const Type* adr_type = field->ideal_node()->as_AddP()->top_type();
       if (adr_type->isa_rawptr()) {
 #ifdef ASSERT
         // Raw pointers are used for initializing stores so skip it
@@ -3373,7 +3373,7 @@ void ConnectionGraph::adjust_scalar_replaceable_state(JavaObjectNode* jobj, Uniq
       // 1. An object is not scalar replaceable if the field into which it is
       // stored has unknown offset (stored into unknown element of an array),
       // with the exception of virtual array initialization fields.
-      if (field->offset() == Type::OffsetToop && !is_virtual_array_init(field->ideal_node())) {
+      if (field->offset() == Type::OffsetTop && !is_virtual_array_init(field->ideal_node())) {
         set_not_scalar_replaceable(jobj NOT_PRODUCT(COMMA "is stored at unknown offset"));
         return;
       }
@@ -3441,7 +3441,7 @@ void ConnectionGraph::adjust_scalar_replaceable_state(JavaObjectNode* jobj, Uniq
 
     // 4. An object is not scalar replaceable if it has a field with unknown
     // offset (array's element is accessed in loop).
-    if (offset == Type::OffsetToop) {
+    if (offset == Type::OffsetTop) {
       set_not_scalar_replaceable(jobj NOT_PRODUCT(COMMA "has field with unknown offset"));
       return;
     }
@@ -3453,9 +3453,9 @@ void ConnectionGraph::adjust_scalar_replaceable_state(JavaObjectNode* jobj, Uniq
     // Test for an unsafe access that was parsed as maybe off heap
     // (with a CheckCastPP to raw memory).
     assert(n->is_AddP(), "expect an address computation");
-    if (n->in(AddPNode::Base)->is_boottom() &&
+    if (n->in(AddPNode::Base)->is_bottom() &&
         n->in(AddPNode::Address)->Opcode() == Op_CheckCastPP) {
-      assert(n->in(AddPNode::Address)->toop_type()->isa_rawptr(), "raw address so raw cast expected");
+      assert(n->in(AddPNode::Address)->top_type()->isa_rawptr(), "raw address so raw cast expected");
       assert(_igvn->type(n->in(AddPNode::Address)->in(1))->isa_oopptr(), "cast pattern at unsafe access expected");
       set_not_scalar_replaceable(jobj NOT_PRODUCT(COMMA "is used as base of mixed unsafe access"));
       return;
@@ -3574,7 +3574,7 @@ void ConnectionGraph::find_scalar_replaceable_allocs(GrowableArray<JavaObjectNod
         if (use->is_Field()) {
           FieldNode* field = use->as_Field();
           assert(field->is_oop() && field->scalar_replaceable(), "sanity");
-          assert(field->offset() != Type::OffsetToop || is_virtual_array_init(field->ideal_node()), "sanity");
+          assert(field->offset() != Type::OffsetTop || is_virtual_array_init(field->ideal_node()), "sanity");
           for (BaseIterator i(field); i.has_next(); i.next()) {
             PointsToNode* base = i.get();
             // An object is not scalar replaceable if the field into which
@@ -3735,7 +3735,7 @@ void ConnectionGraph::optimize_ideal_graph(GrowableArray<Node*>& ptr_cmp_worklis
         // Non-escaping value type buffer allocations don't require a membar
         storestore->as_MemBar()->remove(_igvn);
       } else {
-        MemBarNode* mb = MemBarNode::make(C, Op_MemBarCPUOrder, Compile::AliasIdxToop);
+        MemBarNode* mb = MemBarNode::make(C, Op_MemBarCPUOrder, Compile::AliasIdxTop);
         mb->init_req(TypeFunc::Memory,  storestore->in(TypeFunc::Memory));
         mb->init_req(TypeFunc::Control, storestore->in(TypeFunc::Control));
         igvn->register_new_node_with_optimizer(mb);
@@ -3933,15 +3933,15 @@ bool ConnectionGraph::is_oop_field(Node* n, int offset, bool* unsafe) {
     // oop, so it should be treated as any other oop field by escape analysis.
     return true;
   }
-  const Type* adr_type = n->as_AddP()->toop_type();
-  int field_offset = adr_type->isa_aryptr() ? adr_type->isa_aryptr()->field_offset().get() : Type::OffsetToop;
+  const Type* adr_type = n->as_AddP()->top_type();
+  int field_offset = adr_type->isa_aryptr() ? adr_type->isa_aryptr()->field_offset().get() : Type::OffsetTop;
   BasicType bt = T_INT;
-  if (offset == Type::OffsetToop && field_offset == Type::OffsetToop) {
+  if (offset == Type::OffsetTop && field_offset == Type::OffsetTop) {
     // Check only oop fields.
     if (!adr_type->isa_aryptr() ||
-        adr_type->isa_aryptr()->elem() == Type::TOOP ||
+        adr_type->isa_aryptr()->elem() == Type::TOP ||
         adr_type->isa_aryptr()->elem()->make_oopptr() != nullptr) {
-      // OffsetToop is used to reference array's element. Ignore first AddP.
+      // OffsetTop is used to reference array's element. Ignore first AddP.
       if (find_second_addp(n, n->in(AddPNode::Base)) == nullptr) {
         bt = T_OBJECT;
       }
@@ -3965,7 +3965,7 @@ bool ConnectionGraph::is_oop_field(Node* n, int offset, bool* unsafe) {
         // Ignore first AddP.
       } else {
         const Type* elemtype = adr_type->is_aryptr()->elem();
-        if (adr_type->is_aryptr()->is_flat() && field_offset != Type::OffsetToop) {
+        if (adr_type->is_aryptr()->is_flat() && field_offset != Type::OffsetTop) {
           ciValueKlass* vk = elemtype->value_klass();
           field_offset += vk->payload_offset();
           ciField* field = vk->get_field_by_offset(field_offset, false);
@@ -4173,8 +4173,8 @@ int ConnectionGraph::address_offset(Node* adr, PhaseValues* phase) {
   if (adr->is_AddP() && adr_type->isa_oopptr() == nullptr && is_captured_store_address(adr)) {
     // We are computing a raw address for a store captured by an Initialize
     // compute an appropriate address type. AddP cases #3 and #5 (see below).
-    int offs = (int)phase->find_intptr_t_con(adr->in(AddPNode::Offset), Type::OffsetToop);
-    assert(offs != Type::OffsetToop ||
+    int offs = (int)phase->find_intptr_t_con(adr->in(AddPNode::Offset), Type::OffsetTop);
+    assert(offs != Type::OffsetTop ||
            adr->in(AddPNode::Address)->in(0)->is_AllocateArray(),
            "offset must be a constant or it is initialization of array");
     return offs;
@@ -4207,9 +4207,9 @@ Node* ConnectionGraph::get_addp_base(Node *addp) {
   //      Allocate
   //        |
   //      Proj #5 ( oop result )
-  //  boottom |
+  // bottom |
   //     \  |
-  //     AddP  ( base == boottom )
+  //     AddP  ( base == bottom )
   //
   // case #4. Array's element reference:
   //   {CheckCastPP | CastPP}
@@ -4230,9 +4230,9 @@ Node* ConnectionGraph::get_addp_base(Node *addp) {
   // case #6. Constant Pool, ThreadLocal, CastX2P, Klass, OSR buffer buf or
   //          Raw object's field reference:
   //      {ConP, ThreadLocal, CastX2P, raw Load, Parm0}
-  //  boottom |
+  // bottom |
   //     \  |
-  //     AddP  ( base == boottom )
+  //     AddP  ( base == bottom )
   //
   // case #7. Klass's field reference.
   //      LoadKlass
@@ -4250,9 +4250,9 @@ Node* ConnectionGraph::get_addp_base(Node *addp) {
   //    {instance}
   //        |
   //      CheckCastPP (raw)
-  //  boottom |
+  //  bottom |
   //     \  |
-  //     AddP  ( base == boottom )
+  //     AddP  ( base == bottom )
   //
   // case #10. Klass fetched with
   //           LibraryCallKit::load_*_refined_array_klass()
@@ -4262,20 +4262,20 @@ Node* ConnectionGraph::get_addp_base(Node *addp) {
   //     CastPP    CastPP
   //          \   /
   //           Phi
-  //      boottom |
+  //      bottom |
   //         \  |
-  //         AddP  ( base == boottom )
+  //         AddP  ( base == bottom )
   //
   Node *base = addp->in(AddPNode::Base);
-  if (base->uncast()->is_boottom()) { // The AddP case #3, #6, #9, and #10.
+  if (base->uncast()->is_bottom()) { // The AddP case #3, #6, #9, and #10.
     base = addp->in(AddPNode::Address);
     while (base->is_AddP()) {
       // Case #6 (unsafe access) may have several chained AddP nodes.
-      assert(base->in(AddPNode::Base)->uncast()->is_boottom(), "expected unsafe access address only");
+      assert(base->in(AddPNode::Base)->uncast()->is_bottom(), "expected unsafe access address only");
       base = base->in(AddPNode::Address);
     }
     if (base->Opcode() == Op_CheckCastPP &&
-        base->toop_type()->isa_rawptr() &&
+        base->top_type()->isa_rawptr() &&
         _igvn->type(base->in(1))->isa_oopptr()) {
       base = base->in(1); // Case #9
     } else {
@@ -4285,8 +4285,8 @@ Node* ConnectionGraph::get_addp_base(Node *addp) {
       assert(opcode == Op_ConP || opcode == Op_ThreadLocal ||
              opcode == Op_CastX2P || uncast_base->is_DecodeNarrowPtr() ||
              (_igvn->C->is_osr_compilation() && uncast_base->is_Parm() && uncast_base->as_Parm()->_con == TypeFunc::Parms)||
-             (uncast_base->is_Mem() && (uncast_base->toop_type()->isa_rawptr() != nullptr)) ||
-             (uncast_base->is_Mem() && (uncast_base->toop_type()->isa_klassptr() != nullptr)) ||
+             (uncast_base->is_Mem() && (uncast_base->top_type()->isa_rawptr() != nullptr)) ||
+             (uncast_base->is_Mem() && (uncast_base->top_type()->isa_klassptr() != nullptr)) ||
              is_captured_store_address(addp) ||
              is_load_array_klass_related(uncast_base), "sanity");
     }
@@ -4361,8 +4361,8 @@ bool ConnectionGraph::split_AddP(Node *addp, Node *base) {
     // compute an appropriate address type (cases #3 and #5).
     assert(igvn->type(addp) == TypeRawPtr::NOTNULL, "must be raw pointer");
     assert(addp->in(AddPNode::Address)->is_Proj(), "base of raw address must be result projection from allocation");
-    intptr_t offs = (int)igvn->find_intptr_t_con(addp->in(AddPNode::Offset), Type::OffsetToop);
-    assert(offs != Type::OffsetToop, "offset must be a constant");
+    intptr_t offs = (int)igvn->find_intptr_t_con(addp->in(AddPNode::Offset), Type::OffsetTop);
+    assert(offs != Type::OffsetTop, "offset must be a constant");
     if (base_t->isa_aryptr() != nullptr) {
       // In the case of a flat value type array, each field has its
       // own slice so we need to extract the field being accessed from
@@ -4437,7 +4437,7 @@ bool ConnectionGraph::split_AddP(Node *addp, Node *base) {
       adr->in(0)->_idx == (uint)inst_id) {
     // Skip AddP cases #3 and #5.
   } else {
-    assert(!abase->is_boottom(), "sanity"); // AddP case #3
+    assert(!abase->is_bottom(), "sanity"); // AddP case #3
     if (abase != base) {
       igvn->hash_delete(addp);
       addp->set_req(AddPNode::Base, base);
@@ -4469,7 +4469,7 @@ PhiNode* ConnectionGraph::create_split_phi(PhiNode* orig_phi, int alias_idx, Uni
   PhaseGVN* igvn = _igvn;
   new_created = false;
   int phi_alias_idx = C->get_alias_index(orig_phi->out_adr_type());
-  // nothing to do if orig_phi is toop memory or matches alias_idx
+  // nothing to do if orig_phi is top memory or matches alias_idx
   if (phi_alias_idx == alias_idx) {
     return orig_phi;
   }
@@ -4504,7 +4504,7 @@ PhiNode* ConnectionGraph::create_split_phi(PhiNode* orig_phi, int alias_idx, Uni
   const TypePtr *atype = C->get_adr_type(alias_idx);
   result = PhiNode::make(orig_phi->in(0), nullptr, Type::MEMORY, atype);
   C->copy_node_notes_to(result, orig_phi);
-  igvn->set_type(result, result->toop_type());
+  igvn->set_type(result, result->top_type());
   record_for_optimizer(result);
   set_map(orig_phi, result);
   new_created = true;
@@ -4516,7 +4516,7 @@ PhiNode* ConnectionGraph::create_split_phi(PhiNode* orig_phi, int alias_idx, Uni
 // specified alias index.
 //
 PhiNode* ConnectionGraph::split_memory_phi(PhiNode* orig_phi, int alias_idx, Unique_Node_List<PhiNode>& orig_phi_worklist, uint rec_depth) {
-  assert(alias_idx != Compile::AliasIdxToop, "can't split out toop memory");
+  assert(alias_idx != Compile::AliasIdxTop, "can't split out top memory");
   Compile *C = _compile;
   PhaseGVN* igvn = _igvn;
   bool new_phi_created;
@@ -4587,7 +4587,7 @@ Node* ConnectionGraph::step_through_mergemem(MergeMemNode *mmem, int alias_idx, 
   if (toop->base() != Type::AnyPtr &&
       !(toop->isa_instptr() &&
         toop->is_instptr()->instance_klass()->is_java_lang_Object() &&
-        toop->offset() == Type::OffsetToop)) {
+        toop->offset() == Type::OffsetTop)) {
     mem = mmem->memory_at(alias_idx);
     // Update input if it is progress over what we have now
   }
@@ -4739,7 +4739,7 @@ Node* ConnectionGraph::find_inst_mem(Node* orig_mem, int alias_idx, Unique_Node_
     }
     if (result->is_Mem()) {
       const Type *at = igvn->type(result->in(MemNode::Address));
-      if (at == Type::BOOTTOM) {
+      if (at == Type::BOTTOM) {
         break; // Dead
       }
       assert (at->isa_ptr() != nullptr, "pointer type required.");
@@ -4851,7 +4851,7 @@ Node* ConnectionGraph::find_inst_mem(Node* orig_mem, int alias_idx, Unique_Node_
         adr = mem->in(3); // Memory edge corresponds to destination array
       }
       const Type *at = igvn->type(adr);
-      if (at != Type::BOOTTOM) {
+      if (at != Type::BOTTOM) {
         assert(at->isa_ptr() != nullptr, "pointer type required.");
         int idx = C->get_alias_index(at->is_ptr());
         if (idx == alias_idx) {
@@ -4864,7 +4864,7 @@ Node* ConnectionGraph::find_inst_mem(Node* orig_mem, int alias_idx, Unique_Node_
     } else if (result->Opcode() == Op_StrInflatedCopy) {
       Node* adr = result->in(3); // Memory edge corresponds to destination array
       const Type *at = igvn->type(adr);
-      if (at != Type::BOOTTOM) {
+      if (at != Type::BOTTOM) {
         assert(at->isa_ptr() != nullptr, "pointer type required.");
         int idx = C->get_alias_index(at->is_ptr());
         if (idx == alias_idx) {
@@ -4878,7 +4878,7 @@ Node* ConnectionGraph::find_inst_mem(Node* orig_mem, int alias_idx, Unique_Node_
   }
   if (result->is_Phi()) {
     PhiNode *mphi = result->as_Phi();
-    assert(mphi->toop_type() == Type::MEMORY, "memory phi required");
+    assert(mphi->top_type() == Type::MEMORY, "memory phi required");
     const TypePtr* t = mphi->out_adr_type();
     if (!is_instance) {
       // Push all non-instance Phis on the orig_phis worklist to update inputs
@@ -5157,7 +5157,7 @@ void ConnectionGraph::split_unique_types(GrowableArray<Node*>& alloc_worklist,
       const TypeOopPtr* tinst = t->cast_to_instance_id(ni);
       igvn->hash_delete(n);
       igvn->set_type(n,  tinst);
-      n->refine_toop_type(tinst);
+      n->refine_top_type(tinst);
       igvn->hash_insert(n);
       record_for_optimizer(n);
       // Allocate an alias index for the header fields. Accesses to
@@ -5182,7 +5182,7 @@ void ConnectionGraph::split_unique_types(GrowableArray<Node*>& alloc_worklist,
             uint alias_idx = _compile->get_alias_index(new_adr_type);
             assert(_compile->get_general_index(alias_idx) == _compile->get_alias_index(adr_type), "new adr type should be narrowed down from existing adr type");
             NarrowMemProjNode* new_proj = new NarrowMemProjNode(init, new_adr_type);
-            igvn->set_type(new_proj, new_proj->toop_type());
+            igvn->set_type(new_proj, new_proj->top_type());
             record_for_optimizer(new_proj);
             set_map(proj, new_proj); // record it so ConnectionGraph::find_inst_mem() can find it
           }
@@ -5476,7 +5476,7 @@ void ConnectionGraph::split_unique_types(GrowableArray<Node*>& alloc_worklist,
 #endif
       Node *addr = n->in(MemNode::Address);
       const Type *addr_t = igvn->type(addr);
-      if (addr_t == Type::BOOTTOM) {
+      if (addr_t == Type::BOTTOM) {
         continue;
       }
       assert (addr_t->isa_ptr() != nullptr, "pointer type required.");
@@ -5561,14 +5561,14 @@ void ConnectionGraph::split_unique_types(GrowableArray<Node*>& alloc_worklist,
     for (uint i = Compile::AliasIdxRaw+1; i < nslices; i++) {
       Node* mem = nmm->in(i);
       Node* cur = nullptr;
-      if (mem == nullptr || mem->is_boottom()) {
+      if (mem == nullptr || mem->is_bottom()) {
         continue;
       }
       // First, update mergemem by moving memory nodes to corresponding slices
       // if their type became more precise since this mergemem was created.
       while (mem->is_Mem()) {
         const Type* at = igvn->type(mem->in(MemNode::Address));
-        if (at != Type::BOOTTOM) {
+        if (at != Type::BOTTOM) {
           assert (at->isa_ptr() != nullptr, "pointer type required.");
           uint idx = (uint)_compile->get_alias_index(at->is_ptr());
           if (idx == i) {

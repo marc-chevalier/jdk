@@ -166,7 +166,7 @@ class ThreadLocalNode : public Node {
 public:
     ThreadLocalNode( ) : Node((Node*)Compile::current()->root()) {}
     int Opcode() const override;
-    const Type* toop_type() const override { return TypeRawPtr::TOOP;}
+    const Type* top_type() const override { return TypeRawPtr::TOP;}
     uint ideal_reg() const override { return Op_RegP; }
 };
 

@@ -25,7 +25,7 @@
 /**
  * @test
  * @bug 6837094
- * @summary False positive for "jooin not symmetric" failure
+ * @summary False positive for "join not symmetric" failure
  *
  * @run main/othervm -Xbatch
  *    -XX:CompileCommand=compileonly,compiler.c2.Test6837094::collectIs
@@ -55,7 +55,7 @@ public class Test6837094 {
 
   /**
    * C2 asserts when compiling this method. Bimorphic inlining happens at
-   * getArray call site. A Phi in the catch block tries to jooin the jooin type
+   * getArray call site. A Phi in the catch block tries to join the join type
    * from he inline site (Parent[]) with the type expected by CI (Interface[]).
    *
    * C2 throws an assert when it doesn't need to.

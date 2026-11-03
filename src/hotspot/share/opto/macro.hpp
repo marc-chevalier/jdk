@@ -53,7 +53,7 @@ public:
   }
 
   Node* basic_plus_adr(Node* ptr, Node* offset, bool raw_base = false) {
-    Node* base = raw_base ? boottom() : ptr;
+    Node* base = raw_base ? bottom() : ptr;
     return basic_plus_adr(base, ptr, offset);
   }
 
@@ -63,11 +63,11 @@ public:
   }
 
   Node* off_heap_plus_addr(Node* ptr, int offset) {
-    return basic_plus_adr(boottom(), ptr, MakeConX(offset));
+    return basic_plus_adr(bottom(), ptr, MakeConX(offset));
   }
 
   Node* off_heap_plus_addr(Node* ptr, Node* offset) {
-    return basic_plus_adr(boottom(), ptr, offset);
+    return basic_plus_adr(bottom(), ptr, offset);
   }
 
   Node* transform_later(Node* n) {
@@ -267,7 +267,7 @@ public:
   Node* longcon(jlong con)      const { return _igvn.longcon(con); }
   Node* makecon(const Type *t)  const { return _igvn.makecon(t); }
   Node* zerocon(BasicType bt)   const { return _igvn.zerocon(bt); }
-  Node* boottom()                   const { return C->boottom(); }
+  Node* bottom()                const { return C->bottom(); }
 
   Node* prefetch_allocation(Node* i_o,
                             Node*& needgc_false, Node*& contended_phi_rawmem,
