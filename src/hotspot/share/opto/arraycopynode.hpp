@@ -76,15 +76,15 @@ public:
   static void initialize_arraycopy_Type() {
     assert(_arraycopy_type_Type == nullptr, "should be");
     const Type** fields = TypeTuple::fields(ParmLimit - TypeFunc::Parms);
-    fields[Src]       = TypeInstPtr::TOOP;
+    fields[Src]       = TypeInstPtr::TOP;
     fields[SrcPos]    = TypeInt::INT;
-    fields[Dest]      = TypeInstPtr::TOOP;
+    fields[Dest]      = TypeInstPtr::TOP;
     fields[DestPos]   = TypeInt::INT;
     fields[Length]    = TypeInt::INT;
     fields[SrcLen]    = TypeInt::INT;
     fields[DestLen]   = TypeInt::INT;
-    fields[SrcKlass]  = TypeKlassPtr::TOOP;
-    fields[DestKlass] = TypeKlassPtr::TOOP;
+    fields[SrcKlass]  = TypeKlassPtr::TOP;
+    fields[DestKlass] = TypeKlassPtr::TOP;
     const TypeTuple *domain = TypeTuple::make(ParmLimit, fields);
 
     // create result type (range)

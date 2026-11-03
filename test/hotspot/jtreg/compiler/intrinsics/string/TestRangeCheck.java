@@ -58,7 +58,7 @@ public class TestRangeCheck {
             // know about the explicit range checks, and does not cut off the
             // dead code. As a result, an invalid value (e.g., `-1`) can be fed
             // as input into the `countPositives0` intrinsic, get replaced
-            // by BOOTTOM, and cause a failure in the matcher.
+            // by BOTTOM, and cause a failure in the matcher.
             return JLA.countPositives(bytes, -1, 42);
         } catch (Exception e) {
             return 0;

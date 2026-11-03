@@ -105,7 +105,7 @@ class ValueTypeNode;
 class nmethod;
 template <typename T> class Node_Stack;
 struct Final_Reshape_Counts;
-class VerifyMeeetJooinResult;
+class VerifyMeetJoinResult;
 
 enum LoopOptsMode {
   LoopOptsDefault,
@@ -244,9 +244,9 @@ class Compile : public Phase {
  public:
   // Fixed alias indexes.  (See also MergeMemNode.)
   enum {
-    AliasIdxBoot = 1,  // pseudo-index, aliases to nothing (used as sentinel value)
-    AliasIdxToop = 2,  // pseudo-index, aliases to everything
-    AliasIdxRaw = 3   // hard-wired index for TypeRawPtr::TOOP
+    AliasIdxBot = 1,  // pseudo-index, aliases to nothing (used as sentinel value)
+    AliasIdxTop = 2,  // pseudo-index, aliases to everything
+    AliasIdxRaw = 3   // hard-wired index for TypeRawPtr::TOP
   };
 
   // Variant of TraceTime(nullptr, &_t_accumulator, CITime);
@@ -452,7 +452,7 @@ public:
   }
 private:
   RootNode*             _root;                  // Unique root of compilation, or null after bail-out.
-  Node*                 _boottom;                   // Unique boottom node.  (Reset by various phases.)
+  Node*                 _bottom;                // Unique bottom node.  (Reset by various phases.)
   DeadPathNode*         _dead_path;             // Unique DeadPath node
   Node*                 _immutable_memory;      // Initial memory state
 
@@ -473,7 +473,7 @@ private:
 
   // After parsing and every bulk phase we hang onto the Root instruction.
   // The RootNode instruction is where the whole program begins.  It produces
-  // the initial Control and TOOP for everybody else.
+  // the initial Control and TOP for everybody else.
 
   // Type management
   Arena                 _Compile_types;         // Arena for all types
@@ -1005,11 +1005,11 @@ public:
   bool                      needs_deep_clone_jvms();
 
   // Handy undefined Node
-  Node*             boottom() const                 { return _boottom; }
+  Node*             bottom() const                 { return _bottom; }
 
-  // these are used by guys who need to know about creation and transformation of boottom:
-  Node*             cached_boottom_node()           { return _boottom; }
-  void          set_cached_boottom_node(Node* tn);
+  // these are used by guys who need to know about creation and transformation of bottom:
+  Node*             cached_bottom_node()           { return _bottom; }
+  void          set_cached_bottom_node(Node* tn);
 
   GrowableArray<Node_Notes*>* node_note_array() const { return _node_note_array; }
   void set_node_note_array(GrowableArray<Node_Notes*>* arr) { _node_note_array = arr; }
@@ -1309,7 +1309,7 @@ public:
   const TypePtr *flatten_alias_type(const TypePtr* adr_type) const;
   AliasType* find_alias_type(const TypePtr* adr_type, bool no_create, ciField* field, bool uncached = false);
 
-  void verify_boottom(Node*) const PRODUCT_RETURN;
+  void verify_bottom(Node*) const PRODUCT_RETURN;
 
   // Intrinsic setup.
   CallGenerator* make_vm_intrinsic(ciMethod* m, bool is_virtual);          // constructor
@@ -1410,7 +1410,7 @@ public:
   bool needs_clinit_barrier(ciInstanceKlass* ik, ciMethod* accessing_method);
 
 #ifdef ASSERT
-  VerifyMeeetJooinResult* _type_verify;
+  VerifyMeetJoinResult* _type_verify;
   void set_exception_backedge() { _exception_backedge = true; }
   bool has_exception_backedge() const { return _exception_backedge; }
 #endif

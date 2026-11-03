@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8286638
- * @summary Dominator failure because ConvL2I node becomes BOOTTOM, kills data-flow, but range-check does not collapse
+ * @summary Dominator failure because ConvL2I node becomes BOTTOM, kills data-flow, but range-check does not collapse
  *          due to insufficient overflow/underflow handling in CmpUNode::Value.
  *
  * @run main/othervm -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN -Xcomp -XX:-TieredCompilation
