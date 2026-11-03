@@ -33,7 +33,7 @@
  *
  */
 
-public class TestCheckCastPPBecomesBOOTTOM {
+public class TestCheckCastPPBecomesBOTTOM {
     private static I field;
     private static I field2;
     private static I field3;

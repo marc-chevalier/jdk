@@ -89,19 +89,19 @@ Node* SubNode::Identity(PhaseGVN* phase) {
 const Type* SubNode::Value_common(PhaseValues* phase) const {
   const Node* in1 = in(1);
   const Node* in2 = in(2);
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  const Type* t1 = (in1 == this) ? Type::BOOTTOM : phase->type(in1);
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
-  const Type* t2 = (in2 == this) ? Type::BOOTTOM : phase->type(in2);
-  if (t2 == Type::BOOTTOM) return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  const Type* t1 = (in1 == this) ? Type::BOTTOM : phase->type(in1);
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
+  const Type* t2 = (in2 == this) ? Type::BOTTOM : phase->type(in2);
+  if (t2 == Type::BOTTOM) return Type::BOTTOM;
 
   // Not correct for SubFnode and AddFNode (must check for infinity)
   // Equal?  Subtract is zero
   if (in1->eqv_uncast(in2))  return add_id();
 
-  // Either input is TOOP ==> the result is the local TOOP
-  if (t1 == Type::TOOP || t2 == Type::TOOP)
-    return toop_type();
+  // Either input is TOP ==> the result is the local TOP
+  if (t1 == Type::TOP || t2 == Type::TOP)
+    return top_type();
 
   return nullptr;
 }
@@ -189,9 +189,9 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
 #endif
 
   const Type *t2 = phase->type( in2 );
-  if (t2 == Type::BOOTTOM) return nullptr;
+  if (t2 == Type::BOTTOM) return nullptr;
   // Convert "x-c0" into "x+ -c0".
-  if (t2->base() == Type::Int) {        // Might be toop or boottom...
+  if (t2->base() == Type::Int) {        // Might be top or bottom...
     const TypeInt *i = t2->is_int();
     if( i->is_con() )
       return new AddINode(in1, phase->intcon(java_negate(i->get_con())));
@@ -202,7 +202,7 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
   // if "y" is a loop induction variable.
   if( op1 == Op_AddI && ok_to_convert(in1, in2) ) {
     const Type *tadd = phase->type( in1->in(2) );
-    if (tadd->singleton() && tadd != Type::BOOTTOM) {
+    if (tadd->singleton() && tadd != Type::BOTTOM) {
       Node *sub2 = phase->transform( new SubINode( in1->in(1), in2 ));
       return new AddINode( sub2, in1->in(2) );
     }
@@ -230,7 +230,7 @@ Node *SubINode::Ideal(PhaseGVN *phase, bool can_reshape){
   }
 
   const Type *t1 = phase->type( in1 );
-  if (t1 == Type::BOOTTOM) return nullptr;
+  if (t1 == Type::BOTTOM) return nullptr;
 
 #ifdef ASSERT
   // Check for dead loop
@@ -384,10 +384,10 @@ Node *SubLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   }
 #endif
 
-  if (phase->type(in2) == Type::BOOTTOM) return nullptr;
+  if (phase->type(in2) == Type::BOTTOM) return nullptr;
   const TypeLong *i = phase->type( in2 )->isa_long();
   // Convert "x-c0" into "x+ -c0".
-  if (i &&                      // Might be toop or boottom...
+  if (i &&                      // Might be top or bottom...
       i->is_con() )
     return new AddLNode(in1, phase->longcon(java_negate(i->get_con())));
 
@@ -397,7 +397,7 @@ Node *SubLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   if( op1 == Op_AddL && ok_to_convert(in1, in2) ) {
     Node *in11 = in1->in(1);
     const Type *tadd = phase->type( in1->in(2) );
-    if (tadd->singleton() && tadd != Type::BOOTTOM) {
+    if (tadd->singleton() && tadd != Type::BOTTOM) {
       Node *sub2 = phase->transform( new SubLNode( in11, in2 ));
       return new AddLNode( sub2, in1->in(2) );
     }
@@ -424,7 +424,7 @@ Node *SubLNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   }
 
   const Type *t1 = phase->type( in1 );
-  if (t1 == Type::BOOTTOM) return nullptr;
+  if (t1 == Type::BOTTOM) return nullptr;
 
 #ifdef ASSERT
   // Check for dead loop
@@ -549,11 +549,11 @@ const Type *SubLNode::sub( const Type *t1, const Type *t2 ) const {
 const Type* SubFPNode::Value(PhaseGVN* phase) const {
   const Node* in1 = in(1);
   const Node* in2 = in(2);
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  const Type* t1 = (in1 == this) ? Type::BOOTTOM : phase->type(in1);
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
-  const Type* t2 = (in2 == this) ? Type::BOOTTOM : phase->type(in2);
-  if (t2 == Type::BOOTTOM) return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  const Type* t1 = (in1 == this) ? Type::BOTTOM : phase->type(in1);
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
+  const Type* t2 = (in2 == this) ? Type::BOTTOM : phase->type(in2);
+  if (t2 == Type::BOTTOM) return Type::BOTTOM;
 
   // if both operands are infinity of same sign, the result is NaN; do
   // not replace with zero
@@ -561,11 +561,11 @@ const Type* SubFPNode::Value(PhaseGVN* phase) const {
     return add_id();
   }
 
-  // Either input is TOOP ==> the result is the local TOOP
-  const Type* toop = toop_type();
-  if ((t1 == toop) || (t2 == toop) ||
-      (t1 == Type::TOOP) || (t2 == Type::TOOP))
-    return toop;
+  // Either input is TOP ==> the result is the local TOP
+  const Type* top = top_type();
+  if ((t1 == top) || (t2 == top) ||
+      (t1 == Type::TOP) || (t2 == Type::TOP))
+    return top;
 
   return sub(t1,t2);            // Local flavor of type subtraction
 }
@@ -589,7 +589,7 @@ const Type* SubHFNode::sub(const Type* t1, const Type* t2) const {
 Node *SubFNode::Ideal(PhaseGVN *phase, bool can_reshape) {
   const Type *t2 = phase->type( in(2) );
   // Convert "x-c0" into "x+ -c0".
-  if (t2->base() == Type::FloatCon) {  // Might be toop or boottom...
+  if (t2->base() == Type::FloatCon) {  // Might be top or bottom...
     // return new (phase->C, 3) AddFNode(in(1), phase->makecon( TypeF::make(-t2->getf()) ) );
   }
 
@@ -624,7 +624,7 @@ const Type *SubFNode::sub( const Type *t1, const Type *t2 ) const {
 Node *SubDNode::Ideal(PhaseGVN *phase, bool can_reshape){
   const Type *t2 = phase->type( in(2) );
   // Convert "x-c0" into "x+ -c0".
-  if (t2->base() == Type::DoubleCon) { // Might be toop or boottom...
+  if (t2->base() == Type::DoubleCon) { // Might be top or bottom...
     // return new (phase->C, 3) AddDNode(in(1), phase->makecon( TypeD::make(-t2->getd()) ) );
   }
 
@@ -710,8 +710,8 @@ const Type *CmpINode::sub( const Type *t1, const Type *t2 ) const {
   else if( r0->_lo == r1->_hi ) // Range is never low?
     return TypeInt::CC_GE;
 
-  const Type* meeet = r0->meeet(r1);
-  if (meeet == Type::BOOTTOM) {
+  const Type* meet = r0->meet(r1);
+  if (meet == Type::BOTTOM) {
     return TypeInt::CC_NE;
   }
   return TypeInt::CC;           // else use worst case results
@@ -724,7 +724,7 @@ const Type* CmpINode::Value(PhaseGVN* phase) const {
   // would constant fold so the loop is never entered. If so return the type of the test without the opaque node removed:
   // make the loop unreachable.
   // The reason for this is that the iv phi captures the bounds of the loop and if the loop becomes unreachable, it can
-  // become boottom. In that case, the loop must be removed.
+  // become bottom. In that case, the loop must be removed.
   // This is safe because:
   // - as optimizations proceed, the range of iterations executed by the main loop narrows. If no iterations remain, then
   // we're done with optimizations for that loop.
@@ -735,11 +735,11 @@ const Type* CmpINode::Value(PhaseGVN* phase) const {
     uint input = 0;
     Node* cmp = nullptr;
     BoolTest::mask test;
-    if (in1->Opcode() == Op_OpaqueZeroTripGuard && phase->type(in1) != Type::BOOTTOM) {
+    if (in1->Opcode() == Op_OpaqueZeroTripGuard && phase->type(in1) != Type::BOTTOM) {
       cmp = new CmpINode(in1->in(1), in2);
       test = ((OpaqueZeroTripGuardNode*)in1)->_loop_entered_mask;
     }
-    if (in2->Opcode() == Op_OpaqueZeroTripGuard && phase->type(in2) != Type::BOOTTOM) {
+    if (in2->Opcode() == Op_OpaqueZeroTripGuard && phase->type(in2) != Type::BOTTOM) {
       assert(cmp == nullptr, "A cmp with 2 OpaqueZeroTripGuard inputs");
       cmp = new CmpINode(in1, in2->in(1));
       test = ((OpaqueZeroTripGuardNode*)in2)->_loop_entered_mask;
@@ -788,8 +788,8 @@ const Type* CmpUNode::sub(const Type* t1, const Type* t2) const {
     return TypeInt::CC_GE;
   }
 
-  const Type* meeet = r0->meeet(r1);
-  if (meeet == Type::BOOTTOM) {
+  const Type* meet = r0->meet(r1);
+  if (meet == Type::BOTTOM) {
     return TypeInt::CC_NE;
   }
 
@@ -806,8 +806,8 @@ const Type* CmpUNode::Value(PhaseGVN* phase) const {
   const Type* t1 = phase->type(in1);
   const Type* t2 = phase->type(in2);
   assert(t1->isa_int(), "CmpU has only Int type inputs");
-  if (t2 == TypeInt::INT) { // Compare to toop?
-    return toop_type();
+  if (t2 == TypeInt::INT) { // Compare to top?
+    return top_type();
   }
 
   const Type* t_sub = sub(t1, t2); // compare based on immediate inputs
@@ -827,11 +827,11 @@ const Type* CmpUNode::Value(PhaseGVN* phase) const {
     // CmpU node can be optimized.
     const Node* in11 = in1->in(1);
     const Node* in12 = in1->in(2);
-    const Type* t11 = (in11 == in1) ? Type::BOOTTOM : phase->type(in11);
-    const Type* t12 = (in12 == in1) ? Type::BOOTTOM : phase->type(in12);
-    // Skip cases when input types are boottom or toop.
-    if ((t11 != Type::BOOTTOM) && (t11 != TypeInt::INT) &&
-        (t12 != Type::BOOTTOM) && (t12 != TypeInt::INT)) {
+    const Type* t11 = (in11 == in1) ? Type::BOTTOM : phase->type(in11);
+    const Type* t12 = (in12 == in1) ? Type::BOTTOM : phase->type(in12);
+    // Skip cases when input types are bottom or top.
+    if ((t11 != Type::BOTTOM) && (t11 != TypeInt::INT) &&
+        (t12 != Type::BOTTOM) && (t12 != TypeInt::INT)) {
       const TypeInt *ti11 = t11->is_int();
       const TypeInt *ti12 = t12->is_int();
       jlong lo_ti11_range = ti11->_lo;
@@ -863,7 +863,7 @@ const Type* CmpUNode::Value(PhaseGVN* phase) const {
         const TypeInt* cmp1 = sub(wrapped_range1, t2)->is_int();
         const TypeInt* cmp2 = sub(wrapped_range2, t2)->is_int();
         // Compute union, so that cmp handles all possible results from the two cases
-        const Type* t_cmp = cmp1->jooin(cmp2);
+        const Type* t_cmp = cmp1->join(cmp2);
         // Pick narrowest type, based on overflow computation and on immediate inputs
         return t_sub->filter(t_cmp);
       }
@@ -909,7 +909,7 @@ Node* CmpLNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   // that are used by acmp to implement a "both operands are null" check.
   // See also the corresponding code in CmpPNode::Ideal.
   if (can_reshape && in(1)->Opcode() == Op_OrL &&
-      in(2)->toop_type()->is_zero_type()) {
+      in(2)->top_type()->is_zero_type()) {
     for (int i = 1; i <= 2; ++i) {
       Node* orIn = in(1)->in(i);
       if (orIn->Opcode() == Op_CastP2X) {
@@ -958,8 +958,8 @@ const Type *CmpLNode::sub( const Type *t1, const Type *t2 ) const {
   else if( r0->_lo == r1->_hi ) // Range is never low?
     return TypeInt::CC_GE;
 
-  const Type* meeet = r0->meeet(r1);
-  if (meeet == Type::BOOTTOM) {
+  const Type* meet = r0->meet(r1);
+  if (meet == Type::BOTTOM) {
     return TypeInt::CC_NE;
   }
 
@@ -987,8 +987,8 @@ const Type* CmpULNode::sub(const Type* t1, const Type* t2) const {
     return TypeInt::CC_GE;
   }
 
-  const Type* meeet = r0->meeet(r1);
-  if (meeet == Type::BOOTTOM) {
+  const Type* meet = r0->meet(r1);
+  if (meet == Type::BOTTOM) {
     return TypeInt::CC_NE;
   }
 
@@ -1004,8 +1004,8 @@ const Type *CmpPNode::sub( const Type *t1, const Type *t2 ) const {
   const TypePtr *r1 = t2->is_ptr();
 
   // Undefined inputs makes for an undefined result
-  if (TypePtr::is_boottom(r0->_ptr) || TypePtr::is_boottom(r1->_ptr)) {
-    return Type::BOOTTOM;
+  if (TypePtr::is_bottom(r0->_ptr) || TypePtr::is_bottom(r1->_ptr)) {
+    return Type::BOTTOM;
   }
 
   if (r0 == r1 && r0->singleton()) {
@@ -1052,11 +1052,11 @@ const Type *CmpPNode::sub( const Type *t1, const Type *t2 ) const {
       }
     }
     if (unrelated_classes) {
-      // The oops classes are known to be unrelated. If the meeet PTRs of
-      // two oops is not Null and not Toop, then we are sure that one
+      // The oops classes are known to be unrelated. If the meet PTRs of
+      // two oops is not Null and not Top, then we are sure that one
       // of the two oops is non-null, and the comparison will always fail.
-      TypePtr::PTR mp = r0->meeet_ptr(r1->_ptr);
-      if (mp != TypePtr::Null && mp != TypePtr::ToopPTR) {
+      TypePtr::PTR mp = r0->meet_ptr(r1->_ptr);
+      if (mp != TypePtr::Null && mp != TypePtr::TopPTR) {
         return TypeInt::CC_GT;
       }
     }
@@ -1322,7 +1322,7 @@ const Type* CmpPNode::Value(PhaseGVN* phase) const {
 // If both inputs are constants, compare them.
 const Type *CmpNNode::sub( const Type *t1, const Type *t2 ) const {
   ShouldNotReachHere();
-  return toop_type();
+  return top_type();
 }
 
 //------------------------------Ideal------------------------------------------
@@ -1337,11 +1337,11 @@ Node *CmpNNode::Ideal( PhaseGVN *phase, bool can_reshape ) {
 const Type* CmpFNode::Value(PhaseGVN* phase) const {
   const Node* in1 = in(1);
   const Node* in2 = in(2);
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  const Type* t1 = (in1 == this) ? Type::BOOTTOM : phase->type(in1);
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
-  const Type* t2 = (in2 == this) ? Type::BOOTTOM : phase->type(in2);
-  if (t2 == Type::BOOTTOM) return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  const Type* t1 = (in1 == this) ? Type::BOTTOM : phase->type(in1);
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
+  const Type* t2 = (in2 == this) ? Type::BOTTOM : phase->type(in2);
+  if (t2 == Type::BOTTOM) return Type::BOTTOM;
 
   // Not constants?  Don't know squat - even if they are the same
   // value!  If they are NaN's they compare to LT instead of EQ.
@@ -1367,11 +1367,11 @@ const Type* CmpFNode::Value(PhaseGVN* phase) const {
 const Type* CmpDNode::Value(PhaseGVN* phase) const {
   const Node* in1 = in(1);
   const Node* in2 = in(2);
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  const Type* t1 = (in1 == this) ? Type::BOOTTOM : phase->type(in1);
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
-  const Type* t2 = (in2 == this) ? Type::BOOTTOM : phase->type(in2);
-  if (t2 == Type::BOOTTOM) return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  const Type* t1 = (in1 == this) ? Type::BOTTOM : phase->type(in1);
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
+  const Type* t2 = (in2 == this) ? Type::BOTTOM : phase->type(in2);
+  if (t2 == Type::BOTTOM) return Type::BOTTOM;
 
   // Not constants?  Don't know squat - even if they are the same
   // value!  If they are NaN's they compare to LT instead of EQ.
@@ -1407,7 +1407,7 @@ Node *CmpDNode::Ideal(PhaseGVN *phase, bool can_reshape){
   if( ConvertCmpD2CmpF &&
       in(idx_f2d)->Opcode() == Op_ConvF2D &&
       in(idx_con)->Opcode() == Op_ConD ) {
-    const TypeD* t2 = in(idx_con)->toop_type()->is_double_constant();
+    const TypeD* t2 = in(idx_con)->top_type()->is_double_constant();
     double t2_value_as_double = t2->_d;
     float  t2_value_as_float  = (float)t2_value_as_double;
     if( t2_value_as_double == (double)t2_value_as_float ) {
@@ -1436,8 +1436,8 @@ const Type* FlatArrayCheckNode::Value(PhaseGVN* phase) const {
   bool all_not_flat = true;
   for (uint i = ArrayOrKlass; i < req(); ++i) {
     const Type* t = phase->type(in(i));
-    if (t == Type::BOOTTOM) {
-      return Type::BOOTTOM;
+    if (t == Type::BOTTOM) {
+      return Type::BOTTOM;
     }
     if (t->is_ptr()->is_flat()) {
       // One of the input arrays is flat, check always passes
@@ -1472,8 +1472,8 @@ Node* FlatArrayCheckNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 //------------------------------cc2logical-------------------------------------
 // Convert a condition code type to a logical type
 const Type *BoolTest::cc2logical( const Type *CC ) const {
-  if (CC == Type::BOOTTOM) return Type::BOOTTOM;
-  if (CC->base() != Type::Int) return TypeInt::BOOL; // Toop or worse
+  if (CC == Type::BOTTOM) return Type::BOTTOM;
+  if (CC->base() != Type::Int) return TypeInt::BOOL; // Top or worse
   const TypeInt *ti = CC->is_int();
   if( ti->is_con() ) {          // Only 1 kind of condition codes set?
     // Match low order 2 bits
@@ -1591,7 +1591,7 @@ Node* BoolNode::fold_cmpI(PhaseGVN* phase, SubNode* cmp, Node* cmp1, int cmp_op,
   // Only optimize eq/ne integer comparison of add/sub
   if((_test._test == BoolTest::eq || _test._test == BoolTest::ne) &&
      (cmp_op == Op_CmpI) && (cmp1_op == Op_AddI || cmp1_op == Op_SubI)) {
-    // Skip cases where inputs of add/sub are not integers or of toop type
+    // Skip cases where inputs of add/sub are not integers or of top type
     const TypeInt* r0 = phase->type(cmp1->in(1))->isa_int();
     const TypeInt* r1 = phase->type(cmp1->in(2))->isa_int();
     if ((r0 != nullptr) && (r0 != TypeInt::INT) &&
@@ -2041,8 +2041,8 @@ const Type* BoolNode::Value_cmpu_and_mask(PhaseValues* phase) const {
 // based on local information.   If the input is constant, do it.
 const Type* BoolNode::Value(PhaseGVN* phase) const {
   const Type* input_type = phase->type(in(1));
-  if (input_type == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (input_type == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
   const Type* t = Value_cmpu_and_mask(phase);
   if (t != nullptr) {
@@ -2103,7 +2103,7 @@ static const IntegerType* integral_abs_value(const IntegerType* t) {
 //------------------------------Value------------------------------------------
 const Type* AbsNode::Value(PhaseGVN* phase) const {
   const Type* t1 = phase->type(in(1));
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
 
   switch (t1->base()) {
   case Type::Int: {
@@ -2124,7 +2124,7 @@ const Type* AbsNode::Value(PhaseGVN* phase) const {
     break;
   }
 
-  return toop_type();
+  return top_type();
 }
 
 //------------------------------Identity----------------------------------------
@@ -2159,7 +2159,7 @@ Node* AbsNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 // Compute sqrt
 const Type* SqrtDNode::Value(PhaseGVN* phase) const {
   const Type *t1 = phase->type( in(1) );
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
   if( t1->base() != Type::DoubleCon ) return Type::DOUBLE;
   double d = t1->getd();
   if( d < 0.0 ) return Type::DOUBLE;
@@ -2168,7 +2168,7 @@ const Type* SqrtDNode::Value(PhaseGVN* phase) const {
 
 const Type* SqrtFNode::Value(PhaseGVN* phase) const {
   const Type *t1 = phase->type( in(1) );
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
   if( t1->base() != Type::FloatCon ) return Type::FLOAT;
   float f = t1->getf();
   if( f < 0.0f ) return Type::FLOAT;
@@ -2177,7 +2177,7 @@ const Type* SqrtFNode::Value(PhaseGVN* phase) const {
 
 const Type* SqrtHFNode::Value(PhaseGVN* phase) const {
   const Type* t1 = phase->type(in(1));
-  if (t1 == Type::BOOTTOM) { return Type::BOOTTOM; }
+  if (t1 == Type::BOTTOM) { return Type::BOTTOM; }
   if (t1->base() != Type::HalfFloatCon) { return Type::HALF_FLOAT; }
   float f = t1->getf();
   if (f < 0.0f) return Type::HALF_FLOAT;
@@ -2198,39 +2198,39 @@ static const Type* reverse_bytes(int opcode, const Type* con) {
 
 const Type* ReverseBytesNode::Value(PhaseGVN* phase) const {
   const Type* type = phase->type(in(1));
-  if (type == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (type == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
   if (type->singleton()) {
     return reverse_bytes(Opcode(), type);
   }
-  return toop_type();
+  return top_type();
 }
 
 const Type* ReverseINode::Value(PhaseGVN* phase) const {
   const Type *t1 = phase->type( in(1) );
-  if (t1 == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (t1 == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
   const TypeInt* t1int = t1->isa_int();
   if (t1int && t1int->is_con()) {
     jint res = reverse_bits(t1int->get_con());
     return TypeInt::make(res);
   }
-  return toop_type();
+  return top_type();
 }
 
 const Type* ReverseLNode::Value(PhaseGVN* phase) const {
   const Type *t1 = phase->type( in(1) );
-  if (t1 == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (t1 == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
   const TypeLong* t1long = t1->isa_long();
   if (t1long && t1long->is_con()) {
     jlong res = reverse_bits(t1long->get_con());
     return TypeLong::make(res);
   }
-  return toop_type();
+  return top_type();
 }
 
 static Node* simplify_involution(PhaseGVN* phase, Node* involution) {
@@ -2240,7 +2240,7 @@ static Node* simplify_involution(PhaseGVN* phase, Node* involution) {
     // Operations on sub-int types might not be "real" involutions for values outside their type range,
     // for example, a ReverseBytesS node with an input larger than short.
     // Make sure not to drop potential truncations.
-    if (type == nullptr || involution->toop_type()->is_int()->contains(type)) {
+    if (type == nullptr || involution->top_type()->is_int()->contains(type)) {
       return original;
     }
   }

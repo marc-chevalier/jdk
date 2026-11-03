@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, Red Hat, Inc. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,35 +21,50 @@
  * questions.
  */
 
-/*
+/**
  * @test
- * @bug 8325030 8362832
- * @summary Regression test for an assert triggered during allocation elimination because boottom is found during
- * constructing new phis.
- * @run main/othervm -XX:-ProfileExceptionHandlers ${test.main.class}
+ * @bug 8240676
+ * @summary Join not symmetric failure when running lucene on jdk8
+ *
+ * @run main/othervm -XX:-BackgroundCompilation ${test.main.class}
+ *
  */
 
-package compiler.macronodes;
+public class TestArrayJoinNotSymmetrical {
+    private static final Object field = new Object[0];
+    private static final Object field2 = new A[0];
 
-public class TestBoottomInMacroElimination {
-    public static class A {
-        int a;
+    public static void main(String[] args) {
+        Object array = new A[10];
+        for (int i = 0; i < 20_000; i++) {
+            test1(true, 10);
+            test1(false, 10);
+            test2(true);
+            test2(false);
+        }
     }
 
-    public static void main(String[] strArr) {
-        int i2 = 0;
-        for (int i = 0; i < 50; ++i) {
-            try {
-                synchronized (new A()) {
-                    synchronized (TestBoottomInMacroElimination.class) {
-                        for (int var19 = 0; var19 < Integer.valueOf(i2);) {
-                            Integer.valueOf(var19);
-                        }
-                    }
-                }
-                for (int var8 = 0; var8 < 10000; ++var8) ;
-            } catch (ArithmeticException a_e) {
-            }
+    private static Object test1(boolean flag, int len) {
+        Object o;
+        if (flag) {
+            o = field;
+        } else {
+            o = new A[len];
         }
+        return o;
+    }
+
+    private static Object test2(boolean flag) {
+        Object o;
+        if (flag) {
+            o = field;
+        } else {
+            o = field2;
+        }
+        return o;
+    }
+
+
+    private static class A {
     }
 }

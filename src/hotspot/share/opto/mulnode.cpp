@@ -127,7 +127,7 @@ Node *MulNode::Ideal(PhaseGVN *phase, bool can_reshape) {
       op != Op_MulF &&          // Float & double cannot reassociate
       op != Op_MulD &&
       op != Op_MulHF) {
-    if (t2 == Type::BOOTTOM) return nullptr;
+    if (t2 == Type::BOTTOM) return nullptr;
     Node *mul1 = in(1);
 #ifdef ASSERT
     // Check for dead loop
@@ -143,7 +143,7 @@ Node *MulNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     if( mul1->Opcode() == mul_opcode() ) {  // Left input is a multiply?
       // Mul of a constant?
       const Type *t12 = phase->type( mul1->in(2) );
-      if (t12->singleton() && t12 != Type::BOOTTOM) { // Left input is an add of a constant?
+      if (t12->singleton() && t12 != Type::BOTTOM) { // Left input is an add of a constant?
         // Compute new constant; check for overflow
         const Type *tcon01 = ((MulNode*)mul1)->mul_ring(t2,t12);
         if( tcon01->singleton() ) {
@@ -161,7 +161,7 @@ Node *MulNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     if( add1->Opcode() == add_opcode() ) {      // Left input is an add?
       // Add of a constant?
       const Type *t12 = phase->type( add1->in(2) );
-      if (t12->singleton() && t12 != Type::BOOTTOM) { // Left input is an add of a constant?
+      if (t12->singleton() && t12 != Type::BOTTOM) { // Left input is an add of a constant?
         assert( add1->in(1) != add1, "dead loop in MulNode::Ideal" );
         // Compute new constant; check for overflow
         const Type *tcon01 = mul_ring(t2,t12);
@@ -188,9 +188,9 @@ Node *MulNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 const Type* MulNode::Value(PhaseGVN* phase) const {
   const Type *t1 = phase->type( in(1) );
   const Type *t2 = phase->type( in(2) );
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
-  if (t2 == Type::BOOTTOM) return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
+  if (t2 == Type::BOTTOM) return Type::BOTTOM;
 
   // Either input is ZERO ==> the result is ZERO.
   // Not valid for floats or doubles since +0.0 * -0.0 --> +0.0
@@ -201,9 +201,9 @@ const Type* MulNode::Value(PhaseGVN* phase) const {
     if( t2->is_subseteq_of( zero ) ) return zero;
   }
 
-  // Either input is TOOP ==> the result is the local TOOP
-  if (t1 == Type::TOOP || t2 == Type::TOOP)
-    return toop_type();
+  // Either input is TOP ==> the result is the local TOP
+  if (t1 == Type::TOP || t2 == Type::TOP)
+    return top_type();
 
   return mul_ring(t1,t2);            // Local flavor of type multiplication
 }
@@ -319,7 +319,7 @@ Node *MulINode::Ideal(PhaseGVN *phase, bool can_reshape) {
 // with x bits:
 //      [result_lo,result_hi] = [MIN(Lx(1),Lx(2),Lx(3),Lx(4)),MAX(Lx(1),Lx(2),Lx(3),Lx(4))]
 //
-// If any of these multiplications overflows, we could pessimistically take the toop type for the x bit result
+// If any of these multiplications overflows, we could pessimistically take the top type for the x bit result
 // (i.e. all values in the x-bit space could be possible):
 //      [result_lo,result_hi] = [NativeType_min,NativeType_max]
 //
@@ -396,7 +396,7 @@ class IntegerTypeMultiplication {
   // Compute the product type by multiplying the two input type ranges. We take the minimum and maximum of all possible
   // values (requires 4 multiplications of all possible combinations of the two range boundary values). If any of these
   // multiplications overflows/underflows, we need to make sure that they all have the same number of overflows/underflows
-  // If that is not the case, we return the toop type to cover all values due to the inconsistent overflows/underflows).
+  // If that is not the case, we return the top type to cover all values due to the inconsistent overflows/underflows).
   const Type* compute() const {
     if (cross_product_not_same_overflow_value()) {
       return overflow_type();
@@ -597,15 +597,15 @@ Node* MulDNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 const Type* MulHiLNode::Value(PhaseGVN* phase) const {
   const Type *t1 = phase->type( in(1) );
   const Type *t2 = phase->type( in(2) );
-  const Type* toop = toop_type();
-  return MulHiValue(t1, t2, toop);
+  const Type* top = top_type();
+  return MulHiValue(t1, t2, top);
 }
 
 const Type* UMulHiLNode::Value(PhaseGVN* phase) const {
   const Type *t1 = phase->type( in(1) );
   const Type *t2 = phase->type( in(2) );
-  const Type* toop = toop_type();
-  return MulHiValue(t1, t2, toop);
+  const Type* top = top_type();
+  return MulHiValue(t1, t2, top);
 }
 
 MulHiLoLNode* MulHiLoLNode::make(Node* mul_hi) {
@@ -639,15 +639,15 @@ Node* MulHiLoLNode::match(const ProjNode* proj, const Matcher* match) {
 }
 
 // A common routine used by UMulHiLNode and MulHiLNode
-const Type* MulHiValue(const Type* t1, const Type* t2, const Type* toop) {
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
-  if (t2 == Type::BOOTTOM) return Type::BOOTTOM;
+const Type* MulHiValue(const Type* t1, const Type* t2, const Type* top) {
+  // Either input is BOTTOM ==> the result is BOTTOM
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
+  if (t2 == Type::BOTTOM) return Type::BOTTOM;
 
-  // Either input is TOOP ==> the result is the local TOOP
-  if ((t1 == toop) || (t2 == toop) ||
-      (t1 == Type::TOOP) || (t2 == Type::TOOP))
-    return toop;
+  // Either input is TOP ==> the result is the local TOP
+  if ((t1 == top) || (t2 == top) ||
+      (t1 == Type::TOP) || (t2 == Type::TOP))
+    return top;
 
   // It is not worth trying to constant fold this stuff!
   return TypeLong::LONG;
@@ -658,7 +658,7 @@ const Type* MulHiValue(const Type* t1, const Type* t2, const Type* toop) {
 // Supplied function returns the product of the inputs IN THE CURRENT RING.
 // For the logical operations the ring's MUL is really a logical AND function.
 // This also type-checks the inputs for sanity.  Guaranteed never to
-// be passed a BOOTTOM or TOOP type, these are filtered out by pre-check.
+// be passed a BOTTOM or TOP type, these are filtered out by pre-check.
 const Type* AndINode::mul_ring(const Type* t1, const Type* t2) const {
   return RangeInference::infer_and(t1->is_int(), t2->is_int());
 }
@@ -776,7 +776,7 @@ Node *AndINode::Ideal(PhaseGVN *phase, bool can_reshape) {
 // Supplied function returns the product of the inputs IN THE CURRENT RING.
 // For the logical operations the ring's MUL is really a logical AND function.
 // This also type-checks the inputs for sanity.  Guaranteed never to
-// be passed a BOOTTOM or TOOP type, these are filtered out by pre-check.
+// be passed a BOTTOM or TOP type, these are filtered out by pre-check.
 const Type* AndLNode::mul_ring(const Type* t1, const Type* t2) const {
   return RangeInference::infer_and(t1->is_long(), t2->is_long());
 }
@@ -1184,12 +1184,12 @@ Node* LShiftINode::Ideal(PhaseGVN *phase, bool can_reshape) {
 const Type* LShiftNode::ValueIL(PhaseGVN* phase, BasicType bt) const {
   const Type* t1 = phase->type(in(1));
   const Type* t2 = phase->type(in(2));
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  if (t1 == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  if (t1 == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
-  if (t2 == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (t2 == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
 
   // Left input is ZERO ==> the result is ZERO.
@@ -1201,9 +1201,9 @@ const Type* LShiftNode::ValueIL(PhaseGVN* phase, BasicType bt) const {
     return t1;
   }
 
-  // If nothing is known about the shift amount then the result is TOOP
+  // If nothing is known about the shift amount then the result is TOP
   if (t2 == TypeInt::INT) {
-    return TypeInteger::toop(bt);
+    return TypeInteger::top(bt);
   }
 
   const TypeInteger* r1 = t1->is_integer(bt); // Handy access
@@ -1215,7 +1215,7 @@ const Type* LShiftNode::ValueIL(PhaseGVN* phase, BasicType bt) const {
   const TypeInt* r2 = RangeInference::infer_and(t2->is_int(), mask);
 
   if (!r2->is_con()) {
-    return TypeInteger::toop(bt);
+    return TypeInteger::top(bt);
   }
 
   uint shift = r2->get_con();
@@ -1329,7 +1329,7 @@ Node* RShiftINode::Identity(PhaseGVN* phase) {
 }
 
 Node* RShiftNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
-  // Inputs may be BOOTTOM if they are dead.
+  // Inputs may be BOTTOM if they are dead.
   const TypeInteger* t1 = phase->type(in(1))->isa_integer(bt);
   if (t1 == nullptr) {
     return NodeSentinel;        // Left input is an integer
@@ -1417,12 +1417,12 @@ Node* RShiftINode::Ideal(PhaseGVN* phase, bool can_reshape) {
 const Type* RShiftNode::ValueIL(PhaseGVN* phase, BasicType bt) const {
   const Type* t1 = phase->type(in(1));
   const Type* t2 = phase->type(in(2));
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  if (t1 == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  if (t1 == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
-  if (t2 == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (t2 == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
 
   // Left input is ZERO ==> the result is ZERO.
@@ -1434,9 +1434,9 @@ const Type* RShiftNode::ValueIL(PhaseGVN* phase, BasicType bt) const {
     return t1;
   }
 
-  // Either input is TOOP ==> the result is TOOP
-  if (t1 == Type::TOOP || t2 == Type::TOOP) {
-    return TypeInteger::toop(bt);
+  // Either input is TOP ==> the result is TOP
+  if (t1 == Type::TOP || t2 == Type::TOP) {
+    return TypeInteger::top(bt);
   }
 
   const TypeInteger* r1 = t1->isa_integer(bt);
@@ -1490,7 +1490,7 @@ const Type* RShiftNode::ValueIL(PhaseGVN* phase, BasicType bt) const {
       return TypeInteger::make(r1->lo_as_long(), -1, MAX2(r1->_widen, r2->_widen), bt);
     }
 
-    return TypeInteger::toop(bt);
+    return TypeInteger::top(bt);
   }
 
   // Signed shift right
@@ -1664,17 +1664,17 @@ const Type* URShiftINode::Value(PhaseGVN* phase) const {
   // (This is a near clone of RShiftINode::Value.)
   const Type *t1 = phase->type( in(1) );
   const Type *t2 = phase->type( in(2) );
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
-  if (t2 == Type::BOOTTOM) return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
+  if (t2 == Type::BOTTOM) return Type::BOTTOM;
 
   // Left input is ZERO ==> the result is ZERO.
   if( t1 == TypeInt::ZERO ) return TypeInt::ZERO;
   // Shift by zero does nothing
   if( t2 == TypeInt::ZERO ) return t1;
 
-  // Either input is TOOP ==> the result is TOOP
-  if (t1 == Type::TOOP || t2 == Type::TOOP)
+  // Either input is TOP ==> the result is TOP
+  if (t1 == Type::TOP || t2 == Type::TOP)
     return TypeInt::INT;
 
   if (t2 == TypeInt::INT)
@@ -1825,17 +1825,17 @@ const Type* URShiftLNode::Value(PhaseGVN* phase) const {
   // (This is a near clone of RShiftLNode::Value.)
   const Type *t1 = phase->type( in(1) );
   const Type *t2 = phase->type( in(2) );
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
-  if (t2 == Type::BOOTTOM) return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
+  if (t2 == Type::BOTTOM) return Type::BOTTOM;
 
   // Left input is ZERO ==> the result is ZERO.
   if( t1 == TypeLong::ZERO ) return TypeLong::ZERO;
   // Shift by zero does nothing
   if( t2 == TypeInt::ZERO ) return t1;
 
-  // Either input is TOOP ==> the result is TOOP
-  if (t1 == Type::TOOP || t2 == Type::TOOP)
+  // Either input is TOP ==> the result is TOP
+  if (t1 == Type::TOP || t2 == Type::TOP)
     return TypeLong::LONG;
 
   if (t2 == TypeInt::INT)
@@ -1898,13 +1898,13 @@ Node* FmaNode::Ideal(PhaseGVN* phase, bool can_reshape) {
 //------------------------------Value------------------------------------------
 const Type* FmaDNode::Value(PhaseGVN* phase) const {
   const Type *t1 = phase->type(in(1));
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
   if (t1->base() != Type::DoubleCon) return Type::DOUBLE;
   const Type *t2 = phase->type(in(2));
-  if (t2 == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t2 == Type::BOTTOM) return Type::BOTTOM;
   if (t2->base() != Type::DoubleCon) return Type::DOUBLE;
   const Type *t3 = phase->type(in(3));
-  if (t3 == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t3 == Type::BOTTOM) return Type::BOTTOM;
   if (t3->base() != Type::DoubleCon) return Type::DOUBLE;
 #ifndef __STDC_IEC_559__
   return Type::DOUBLE;
@@ -1920,13 +1920,13 @@ const Type* FmaDNode::Value(PhaseGVN* phase) const {
 //------------------------------Value------------------------------------------
 const Type* FmaFNode::Value(PhaseGVN* phase) const {
   const Type *t1 = phase->type(in(1));
-  if (t1 == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t1 == Type::BOTTOM) return Type::BOTTOM;
   if (t1->base() != Type::FloatCon) return Type::FLOAT;
   const Type *t2 = phase->type(in(2));
-  if (t2 == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t2 == Type::BOTTOM) return Type::BOTTOM;
   if (t2->base() != Type::FloatCon) return Type::FLOAT;
   const Type *t3 = phase->type(in(3));
-  if (t3 == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t3 == Type::BOTTOM) return Type::BOTTOM;
   if (t3->base() != Type::FloatCon) return Type::FLOAT;
 #ifndef __STDC_IEC_559__
   return Type::FLOAT;
@@ -1942,13 +1942,13 @@ const Type* FmaFNode::Value(PhaseGVN* phase) const {
 //------------------------------Value------------------------------------------
 const Type* FmaHFNode::Value(PhaseGVN* phase) const {
   const Type* t1 = phase->type(in(1));
-  if (t1 == Type::BOOTTOM) { return Type::BOOTTOM; }
+  if (t1 == Type::BOTTOM) { return Type::BOTTOM; }
   if (t1->base() != Type::HalfFloatCon) { return Type::HALF_FLOAT; }
   const Type* t2 = phase->type(in(2));
-  if (t2 == Type::BOOTTOM) { return Type::BOOTTOM; }
+  if (t2 == Type::BOTTOM) { return Type::BOTTOM; }
   if (t2->base() != Type::HalfFloatCon) { return Type::HALF_FLOAT; }
   const Type* t3 = phase->type(in(3));
-  if (t3 == Type::BOOTTOM) { return Type::BOOTTOM; }
+  if (t3 == Type::BOTTOM) { return Type::BOTTOM; }
   if (t3->base() != Type::HalfFloatCon) { return Type::HALF_FLOAT; }
 #ifndef __STDC_IEC_559__
   return Type::HALF_FLOAT;
@@ -1972,7 +1972,7 @@ uint MulAddS2INode::hash() const {
 
 Node* RotateLeftNode::Identity(PhaseGVN* phase) {
   const Type* t1 = phase->type(in(1));
-  if (t1 == Type::BOOTTOM) {
+  if (t1 == Type::BOTTOM) {
     return this;
   }
   uint count;
@@ -1988,9 +1988,9 @@ Node* RotateLeftNode::Identity(PhaseGVN* phase) {
 const Type* RotateLeftNode::Value(PhaseGVN* phase) const {
   const Type* t1 = phase->type(in(1));
   const Type* t2 = phase->type(in(2));
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  if (t1 == Type::BOOTTOM || t2 == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  if (t1 == Type::BOTTOM || t2 == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
 
   if (t1->isa_int()) {
@@ -2040,7 +2040,7 @@ Node* RotateLeftNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     if (t1->isa_int()) {
       int lshift = t2->is_int()->get_con() & 31;
       return new RotateRightNode(in(1), phase->intcon(32 - (lshift & 31)), TypeInt::INT);
-    } else if (t1 != Type::BOOTTOM) {
+    } else if (t1 != Type::BOTTOM) {
       assert(t1->isa_long(), "Type must be a long");
       int lshift = t2->is_int()->get_con() & 63;
       return new RotateRightNode(in(1), phase->intcon(64 - (lshift & 63)), TypeLong::LONG);
@@ -2051,7 +2051,7 @@ Node* RotateLeftNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 
 Node* RotateRightNode::Identity(PhaseGVN* phase) {
   const Type* t1 = phase->type(in(1));
-  if (t1 == Type::BOOTTOM) {
+  if (t1 == Type::BOTTOM) {
     return this;
   }
   uint count;
@@ -2067,9 +2067,9 @@ Node* RotateRightNode::Identity(PhaseGVN* phase) {
 const Type* RotateRightNode::Value(PhaseGVN* phase) const {
   const Type* t1 = phase->type(in(1));
   const Type* t2 = phase->type(in(2));
-  // Either input is BOOTTOM ==> the result is BOOTTOM
-  if (t1 == Type::BOOTTOM || t2 == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  // Either input is BOTTOM ==> the result is BOTTOM
+  if (t1 == Type::BOTTOM || t2 == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
 
   if (t1->isa_int()) {

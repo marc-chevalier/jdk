@@ -777,21 +777,21 @@ static jint array_description_value(const TypeAryPtr* ary_type) {
 void PhaseOutput::FillLocArray( int idx, MachSafePointNode* sfpt, Node *local,
                             GrowableArray<ScopeValue*> *array,
                             GrowableArray<ScopeValue*> *objs ) {
-  assert(local, "use _boottom instead of null");
+  assert(local, "use _bottom instead of null");
   if (array->length() != idx) {
     assert(array->length() == idx + 1, "Unexpected array count");
     // Old functionality:
     //   return
     // New functionality:
-    //   Assert if the local is not boottom. In product mode let the new node
+    //   Assert if the local is not bottom. In product mode let the new node
     //   override the old entry.
-    assert(local == C->boottom(), "LocArray collision");
-    if (local == C->boottom()) {
+    assert(local == C->bottom(), "LocArray collision");
+    if (local == C->bottom()) {
       return;
     }
     array->pop();
   }
-  const Type* t = local->toop_type();
+  const Type* t = local->top_type();
 
   // Is it a safepoint scalar object node?
   if (local->is_SafePointScalarObject()) {
@@ -809,8 +809,8 @@ void PhaseOutput::FillLocArray( int idx, MachSafePointNode* sfpt, Node *local,
       if (cik->is_value_klass()) {
         Node* null_marker_node = sfpt->in(first_ind++);
         assert(null_marker_node != nullptr, "null_marker node not found");
-        if (!null_marker_node->is_boottom()) {
-          const TypeInt* null_marker_type = null_marker_node->toop_type()->is_int();
+        if (!null_marker_node->is_bottom()) {
+          const TypeInt* null_marker_type = null_marker_node->top_type()->is_int();
           if (null_marker_node->is_Con()) {
             properties = new ConstantIntValue(null_marker_type->get_con());
           } else {
@@ -887,7 +887,7 @@ void PhaseOutput::FillLocArray( int idx, MachSafePointNode* sfpt, Node *local,
     // memory word.  (Note that register numbers are completely
     // arbitrary, and are not tied to any machine-level encodings.)
 #ifdef _LP64
-    if (t->base() == Type::DoubleToop || t->base() == Type::DoubleCon) {
+    if (t->base() == Type::DoubleTop || t->base() == Type::DoubleCon) {
       array->append(new ConstantIntValue((jint)0));
       array->append(new_loc_value( C->regalloc(), regnum, Location::dbl ));
     } else if ( t->base() == Type::Long ) {
@@ -899,7 +899,7 @@ void PhaseOutput::FillLocArray( int idx, MachSafePointNode* sfpt, Node *local,
       array->append(new_loc_value( C->regalloc(), regnum, Location::lng ));
     }
 #else //_LP64
-    if (t->base() == Type::DoubleToop || t->base() == Type::DoubleCon || t->base() == Type::Long) {
+    if (t->base() == Type::DoubleTop || t->base() == Type::DoubleCon || t->base() == Type::Long) {
       // Repack the double/long as two jints.
       // The convention the interpreter uses is that the second local
       // holds the first raw word of the native double representation.
@@ -911,7 +911,7 @@ void PhaseOutput::FillLocArray( int idx, MachSafePointNode* sfpt, Node *local,
       array->append(new_loc_value( C->regalloc(),              regnum   , Location::normal ));
     }
 #endif //_LP64
-    else if ((t->base() == Type::FloatToop || t->base() == Type::FloatCon) &&
+    else if ((t->base() == Type::FloatTop || t->base() == Type::FloatCon) &&
              OptoReg::is_reg(regnum)) {
       array->append(new_loc_value( C->regalloc(), regnum, Matcher::float_in_double()
                                                       ? Location::float_in_dbl : Location::normal ));
@@ -932,7 +932,7 @@ void PhaseOutput::FillLocArray( int idx, MachSafePointNode* sfpt, Node *local,
       array->append(new_loc_value( C->regalloc(), regnum, Location::oop ));
     } else {
       assert(t->base() == Type::Int || t->base() == Type::Half ||
-             t->base() == Type::FloatCon || t->base() == Type::FloatToop,
+             t->base() == Type::FloatCon || t->base() == Type::FloatTop,
              "Unexpected type: %s", t->msg());
       array->append(new_loc_value( C->regalloc(), regnum, Location::normal ));
     }
@@ -1016,7 +1016,7 @@ void PhaseOutput::FillLocArray( int idx, MachSafePointNode* sfpt, Node *local,
 #endif
       break;
     }
-    case Type::Boottom:               // Add an illegal value here
+    case Type::Bottom:               // Add an illegal value here
       array->append(new LocationValue(Location()));
       break;
     default:
@@ -1156,7 +1156,7 @@ void PhaseOutput::Process_OopMap_Node(MachNode *mach, int current_offset) {
         SafePointScalarObjectNode* spobj = obj_node->as_SafePointScalarObject();
         scval = PhaseOutput::sv_for_node_id(objs, spobj->_idx);
         if (scval == nullptr) {
-          const Type* t = spobj->toop_type();
+          const Type* t = spobj->top_type();
           ciKlass* cik = t->is_oopptr()->exact_klass();
           assert(cik->is_instance_klass() ||
                  cik->is_array_klass(), "Not supported allocation.");
@@ -1209,7 +1209,7 @@ void PhaseOutput::Process_OopMap_Node(MachNode *mach, int current_offset) {
         scval = mv;
       } else if (!obj_node->is_Con()) {
         OptoReg::Name obj_reg = C->regalloc()->get_reg_first(obj_node);
-        if (obj_node->toop_type()->base() == Type::NarrowOop) {
+        if (obj_node->top_type()->base() == Type::NarrowOop) {
           scval = new_loc_value( C->regalloc(), obj_reg, Location::narrowoop );
         } else {
           scval = new_loc_value( C->regalloc(), obj_reg, Location::oop );
@@ -2662,7 +2662,7 @@ void Scheduling::DoScheduling() {
     }
 
     // Leave untouched the starting instruction, any Phis, a CreateEx node
-    // or Boottom.  bb->get_node(_bb_start) is the first schedulable instruction.
+    // or Bottom.  bb->get_node(_bb_start) is the first schedulable instruction.
     _bb_end = bb->number_of_nodes()-1;
     for( _bb_start=1; _bb_start <= _bb_end; _bb_start++ ) {
       Node *n = bb->get_node(_bb_start);
@@ -2672,7 +2672,7 @@ void Scheduling::DoScheduling() {
       MachNode *mach = n->as_Mach();
       int iop = mach->ideal_Opcode();
       if( iop == Op_CreateEx ) continue; // CreateEx is pinned
-      if (iop == Op_Con) continue;      // Do not schedule Boottom
+      if (iop == Op_Con) continue;       // Do not schedule Bottom
       if( iop == Op_Node &&     // Do not schedule PhiNodes, ProjNodes
           mach->pipeline() == MachNode::pipeline_class() &&
           !n->is_SpillCopy() && !n->is_MachMerge() )  // Breakpoints, Prolog, etc
@@ -2904,7 +2904,7 @@ void Scheduling::anti_do_def( Block *b, Node *def, OptoReg::Name def_reg, int is
     _reg_node.map(def_reg,pinch); // Record pinch-point
     //regalloc()->set_bad(pinch->_idx); // Already initialized this way.
     if( later_def->outcnt() == 0 || later_def->ideal_reg() == MachProjNode::fat_proj ) { // Distinguish def from kill
-      pinch->init_req(0, C->boottom());     // set not null for the next call
+      pinch->init_req(0, C->bottom());     // set not null for the next call
       add_prec_edge_from_to(later_def,pinch); // Add edge from kill to pinch
       later_def = nullptr;           // and no later def
     }
@@ -3060,7 +3060,7 @@ void Scheduling::ComputeRegisterAntidependencies(Block *b) {
       bool need_safept_prec = false;
       // Add precedence edge from following safepoint to use of derived pointer
       for (uint k = 1; k < m->req(); k++) {
-        const Type* t = m->in(k)->toop_type();
+        const Type* t = m->in(k)->top_type();
         if (t->isa_oop_ptr() &&
             t->is_ptr()->offset() != 0) {
           need_safept_prec = true;
@@ -3073,7 +3073,7 @@ void Scheduling::ComputeRegisterAntidependencies(Block *b) {
       if (!need_safept_prec && m->is_Mach() &&
           m->as_Mach()->ideal_Opcode() == Op_CheckCastPP) {
         Node* def = m->in(1);
-        if (def != nullptr && def->toop_type()->base() == Type::RawPtr) {
+        if (def != nullptr && def->top_type()->base() == Type::RawPtr) {
           need_safept_prec = true;
         }
       }
@@ -3563,7 +3563,7 @@ void PhaseOutput::dump_asm_on(outputStream* st, int* pcs, uint pc_limit) {
           !n->is_SafePointScalarObject() &&
           !n->is_Catch() &&     // Would be nice to print exception table targets
           !n->is_MergeMem() &&  // Not very interesting
-          !n->is_boottom() &&   // Debug info table constants
+          !n->is_bottom() &&    // Debug info table constants
           !(n->is_Con() && !n->is_Mach())// Debug info table constants
           ) {
         if ((pcs != nullptr) && (n->_idx < pc_limit)) {

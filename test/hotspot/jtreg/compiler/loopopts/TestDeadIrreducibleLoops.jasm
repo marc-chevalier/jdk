@@ -235,7 +235,7 @@ super public class TestDeadIrreducibleLoops
         iload            12;
         ifge             LOOP_3d;
     LOOP_3b:
-        iload_0; // eventually, we get BOOTTOM and things die from the inside out
+        iload_0; // eventually, we get BOTTOM and things die from the inside out
         ldc              2;
         if_icmplt        LOOP_3b;
         iinc             12, 1; // the problematic AddI

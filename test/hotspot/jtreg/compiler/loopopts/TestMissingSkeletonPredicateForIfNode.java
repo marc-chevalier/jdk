@@ -61,7 +61,7 @@ public class TestMissingSkeletonPredicateForIfNode {
                 //
                 // The type of iArr2[i+2] is [4..SHORT_MAX+2] (we need limit to be short such that we do not have an integer overflow
                 // which would set the type to int). However, the type of the CastII node for the index i+2 is [0..3] because its size
-                // is only 4. Since the type of i+2 is outside the range of the CastII node, the CastII node is replaced by boottom and
+                // is only 4. Since the type of i+2 is outside the range of the CastII node, the CastII node is replaced by bottom and
                 // some of the data nodes and memory nodes die. We are left with a broken graph and later assert because of that.
                 iFld += iArr2[i]; // RangeCheck node is removed because it shares the same bool as the If (**).
                 sum += iFld;

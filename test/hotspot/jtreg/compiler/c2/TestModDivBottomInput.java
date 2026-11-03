@@ -32,7 +32,7 @@
  *                   -Xcomp -XX:CompileOnly=${test.main.class}::* -XX:-TieredCompilation ${test.main.class}
  */
 
-public class TestModDivBoottomInput {
+public class TestModDivBottomInput {
 
     public static final int N = 400;
 
@@ -64,7 +64,7 @@ public class TestModDivBoottomInput {
     }
 
     public static void main(String[] strArr) {
-        TestModDivBoottomInput _instance = new TestModDivBoottomInput();
+        TestModDivBottomInput _instance = new TestModDivBottomInput();
         for (int i = 0; i < 10; i++ ) {
             _instance.mainTest(strArr);
         }
