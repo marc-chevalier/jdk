@@ -73,7 +73,7 @@ public:
   virtual uint size_of() const;
   virtual uint hash() const;
   virtual bool cmp( const Node &n ) const;
-  virtual const Type* toop_type() const { return TypeRawPtr::TOOP; }
+  virtual const Type* top_type() const { return TypeRawPtr::TOP; }
   virtual uint ideal_reg() const { return Op_RegP; }
   virtual Node* Identity(PhaseGVN* phase);
 

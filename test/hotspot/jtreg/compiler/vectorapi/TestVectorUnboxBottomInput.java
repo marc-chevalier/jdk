@@ -25,7 +25,7 @@
  * @test
  * @bug 8388490
  * @key randomness
- * @summary VectorUnboxNode::Ideal must handle a BOOTTOM value during IGVN
+ * @summary VectorUnboxNode::Ideal must handle a BOTTOM value during IGVN
  * @requires vm.debug == true & vm.compiler2.enabled
  * @modules jdk.incubator.vector
  * @library /test/lib
@@ -43,7 +43,7 @@ import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorSpecies;
 import jdk.test.lib.Asserts;
 
-public class TestVectorUnboxBoottomInput {
+public class TestVectorUnboxBottomInput {
     private static final VectorSpecies<Integer> I_SPECIES = IntVector.SPECIES_128;
     private static final VectorSpecies<Long> L_SPECIES = LongVector.SPECIES_128;
 

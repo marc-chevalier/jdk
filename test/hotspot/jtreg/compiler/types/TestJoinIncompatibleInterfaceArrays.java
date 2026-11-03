@@ -43,7 +43,7 @@
  *        -XX:CICompilerCount=1
  *        -XX:+PrintCompilation
  *        -XX:+PrintInlining
- *        -XX:CompileCommand=compileonly,JooinIncompatibleInterfaceArrays*::run
+ *        -XX:CompileCommand=compileonly,JoinIncompatibleInterfaceArrays*::run
  *        -XX:CompileCommand=dontinline,${test.main.class}$Helper::createI2*
  *        -XX:CompileCommand=quiet
  *        ${test.main.class} 0
@@ -57,7 +57,7 @@
  *        -XX:CICompilerCount=1
  *        -XX:+PrintCompilation
  *        -XX:+PrintInlining
- *        -XX:CompileCommand=compileonly,JooinIncompatibleInterfaceArrays*::run
+ *        -XX:CompileCommand=compileonly,JoinIncompatibleInterfaceArrays*::run
  *        -XX:CompileCommand=inline,${test.main.class}$Helper::createI2*
  *        -XX:CompileCommand=quiet
  *        ${test.main.class} 1
@@ -71,7 +71,7 @@
  *        -XX:CICompilerCount=2
  *        -XX:+PrintCompilation
  *        -XX:+PrintInlining
- *        -XX:CompileCommand=compileonly,JooinIncompatibleInterfaceArrays*::run
+ *        -XX:CompileCommand=compileonly,JoinIncompatibleInterfaceArrays*::run
  *        -XX:CompileCommand=compileonly,${test.main.class}$Helper::createI2*
  *        -XX:CompileCommand=inline,${test.main.class}$Helper::createI2*
  *        -XX:CompileCommand=quiet
@@ -106,7 +106,7 @@ import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.RETURN;
 import static org.objectweb.asm.Opcodes.V1_8;
 
-public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
+public class TestJoinIncompatibleInterfaceArrays extends ClassLoader {
 
     private static final WhiteBox WB = WhiteBox.getWhiteBox();
 
@@ -160,10 +160,10 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
     /*
      * With 'good == false' this helper method creates the following classes
      * (using the nested 'Helper' class and the nested interfaces 'I1' and 'I2').
-     * For brevity I omit the enclosing class 'TestJooinIncompatibleInterfaceArrays' in the
+     * For brevity I omit the enclosing class 'TestJoinIncompatibleInterfaceArrays' in the
      * following examples:
      *
-     * public class JooinIncompatibleInterfaceArrays0ASM {
+     * public class JoinIncompatibleInterfaceArrays0ASM {
      *   public static I1 run() {
      *     return Helper.createI2Array0(); // returns I2
      *   }
@@ -172,7 +172,7 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
      *     System.out.println(i1.getName());
      *   }
      * }
-     * public class JooinIncompatibleInterfaceArrays1ASM {
+     * public class JoinIncompatibleInterfaceArrays1ASM {
      *   public static I1[] run() {
      *     return Helper.createI2Array1(); // returns I2[]
      *   }
@@ -182,9 +182,9 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
      *   }
      * }
      * ...
-     * // JooinIncompatibleInterfaceArrays4ASM is special because it creates
+     * // JoinIncompatibleInterfaceArrays4ASM is special because it creates
      * // an illegal class which will be rejected by the verifier.
-     * public class JooinIncompatibleInterfaceArrays4ASM {
+     * public class JoinIncompatibleInterfaceArrays4ASM {
      *   public static I1[][][][] run() {
      *     return Helper.createI2Array3(); // returns I1[][][] which gives a verifier error because return expects I1[][][][]
      *   }
@@ -193,7 +193,7 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
      *     System.out.println(i1[0][0][0][0].getName());
      *   }
      * ...
-     * public class JooinIncompatibleInterfaceArrays5ASM {
+     * public class JoinIncompatibleInterfaceArrays5ASM {
      *   public static I1[][][][][] run() {
      *     return Helper.createI2Array5(); // returns I2[][][][][]
      *   }
@@ -223,7 +223,7 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
      *
      * With 'good == true' this helper method will create the following classes:
      *
-     * public class JooinIncompatibleInterfaceArraysGood0ASM {
+     * public class JoinIncompatibleInterfaceArraysGood0ASM {
      *   public static I1 run() {
      *     return Helper.createI21Array0(); // returns I2
      *   }
@@ -238,14 +238,14 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
      * type "I21C" which implements both "I2" and "I1".
      *
      * Notice that at the bytecode level, the code for the "run()" and "test()" methods in
-     * "JooinIncompatibleInterfaceArraysASM" and "JooinIncompatibleInterfaceArraysGoodASM" look exactly
+     * "JoinIncompatibleInterfaceArraysASM" and "JoinIncompatibleInterfaceArraysGoodASM" look exactly
      * the same. I.e. the verifier has no chance to verify if the I2 object returned by "createI1Array()"
      * or "createI21Array()" implements "I1" or not. That's actually the reason why both versions of
      * generated classes are legal from a verifier point of view.
      *
      */
     static void generateTestClass(int dim, boolean good) throws Exception {
-        String baseClassName = "JooinIncompatibleInterfaceArrays";
+        String baseClassName = "JoinIncompatibleInterfaceArrays";
         if (good)
             baseClassName += "Good";
         String createName = "createI2" + (good ? "1" : "") + "Array";
@@ -262,14 +262,14 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
         constr.visitMaxs(0, 0);
         constr.visitEnd();
         MethodVisitor run = cw.visitMethod(ACC_PUBLIC | ACC_STATIC, "run",
-                "()" + a + "Lcompiler/types/TestJooinIncompatibleInterfaceArrays$I1;", null, null);
+                "()" + a + "Lcompiler/types/TestJoinIncompatibleInterfaceArrays$I1;", null, null);
         run.visitCode();
         if (dim == 4) {
-            run.visitMethodInsn(INVOKESTATIC, "compiler/types/TestJooinIncompatibleInterfaceArrays$Helper", createName + 3,
-                    "()" + "[[[" + "Lcompiler/types/TestJooinIncompatibleInterfaceArrays$I2;", false);
+            run.visitMethodInsn(INVOKESTATIC, "compiler/types/TestJoinIncompatibleInterfaceArrays$Helper", createName + 3,
+                    "()" + "[[[" + "Lcompiler/types/TestJoinIncompatibleInterfaceArrays$I2;", false);
         } else {
-            run.visitMethodInsn(INVOKESTATIC, "compiler/types/TestJooinIncompatibleInterfaceArrays$Helper", createName + dim,
-                    "()" + a + "Lcompiler/types/TestJooinIncompatibleInterfaceArrays$I2;", false);
+            run.visitMethodInsn(INVOKESTATIC, "compiler/types/TestJoinIncompatibleInterfaceArrays$Helper", createName + dim,
+                    "()" + a + "Lcompiler/types/TestJoinIncompatibleInterfaceArrays$I2;", false);
         }
         run.visitInsn(ARETURN);
         run.visitMaxs(0, 0);
@@ -277,7 +277,7 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
         MethodVisitor test = cw.visitMethod(ACC_PUBLIC | ACC_STATIC, "test", "()V", null, null);
         test.visitCode();
         test.visitMethodInsn(INVOKESTATIC, baseClassName + dim + "ASM", "run",
-                "()" + a + "Lcompiler/types/TestJooinIncompatibleInterfaceArrays$I1;", false);
+                "()" + a + "Lcompiler/types/TestJoinIncompatibleInterfaceArrays$I1;", false);
         test.visitVarInsn(ASTORE, 0);
         if (dim > 0) {
             test.visitVarInsn(ALOAD, 0);
@@ -289,7 +289,7 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
         }
         test.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
         test.visitVarInsn(ALOAD, dim > 0 ? 1 : 0);
-        test.visitMethodInsn(INVOKEINTERFACE, "compiler/types/TestJooinIncompatibleInterfaceArrays$I1", "getName",
+        test.visitMethodInsn(INVOKEINTERFACE, "compiler/types/TestJoinIncompatibleInterfaceArrays$I1", "getName",
                 "()Ljava/lang/String;", true);
         test.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/Object;)V", false);
         test.visitInsn(RETURN);
@@ -329,12 +329,12 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
         final int pass = Integer.parseInt(args.length > 0 ? args[0] : "0");
 
         // Load and initialize some classes required for compilation
-        Class.forName("compiler.types.TestJooinIncompatibleInterfaceArrays$I1");
-        Class.forName("compiler.types.TestJooinIncompatibleInterfaceArrays$I2");
-        Class.forName("compiler.types.TestJooinIncompatibleInterfaceArrays$Helper");
+        Class.forName("compiler.types.TestJoinIncompatibleInterfaceArrays$I1");
+        Class.forName("compiler.types.TestJoinIncompatibleInterfaceArrays$I2");
+        Class.forName("compiler.types.TestJoinIncompatibleInterfaceArrays$Helper");
 
         for (int g = 0; g < 2; g++) {
-            String baseClassName = "JooinIncompatibleInterfaceArrays";
+            String baseClassName = "JoinIncompatibleInterfaceArrays";
             boolean good = (g == 0) ? false : true;
             if (good)
                 baseClassName += "Good";
@@ -342,7 +342,7 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
                 System.out.println();
                 System.out.println("Creating " + baseClassName + i + "ASM.class");
                 System.out.println("========================================" + "=" + "=========");
-                // Create the "JooinIncompatibleInterfaceArrays<i>ASM" class
+                // Create the "JoinIncompatibleInterfaceArrays<i>ASM" class
                 generateTestClass(i, good);
                 Class<?> c = null;
                 try {
@@ -355,7 +355,7 @@ public class TestJooinIncompatibleInterfaceArrays extends ClassLoader {
                     }
                     continue;
                 }
-                // Call JooinIncompatibleInterfaceArrays<i>ASM.test()
+                // Call JoinIncompatibleInterfaceArrays<i>ASM.test()
                 Method m = c.getMethod("test");
                 Method r = c.getMethod("run");
                 for (int j = 0; j < 3; j++) {

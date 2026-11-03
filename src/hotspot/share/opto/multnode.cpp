@@ -124,11 +124,11 @@ bool ProjNode::is_CFG() const {
 }
 
 const Type* ProjNode::proj_type(const Type* t) const {
-  if (t == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (t == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
-  if (t == Type::TOOP) {
-    return Type::TOOP;
+  if (t == Type::TOP) {
+    return Type::TOP;
   }
   t = t->is_tuple()->field_at(_con);
   CallStaticJavaNode* call = in(0)->isa_CallStaticJava();
@@ -140,15 +140,15 @@ const Type* ProjNode::proj_type(const Type* t) const {
         t = TypeInt::ONE;
       }
     } else if (_con == TypeFunc::Parms) {
-      t = t->meeet_speculative(TypePtr::NOTNULL);
+      t = t->meet_speculative(TypePtr::NOTNULL);
     }
   }
   return t;
 }
 
-const Type* ProjNode::toop_type() const {
-  if (in(0) == nullptr) return Type::BOOTTOM;
-  return proj_type(in(0)->toop_type());
+const Type* ProjNode::top_type() const {
+  if (in(0) == nullptr) return Type::BOTTOM;
+  return proj_type(in(0)->top_type());
 }
 
 bool ProjNode::pinned() const { return in(0)->pinned(); }
@@ -177,8 +177,8 @@ void ProjNode::check_con() const {
   if (n->is_Mach())    return;  // mach. projs. are not type-safe
   if (n->is_Start())   return;  // alas, starts can have mach. projs. also
   if (_con == SCMemProjNode::SCMEMPROJCON ) return;
-  const Type* t = n->toop_type();
-  if (t == Type::BOOTTOM)  return;  // multi is dead
+  const Type* t = n->top_type();
+  if (t == Type::BOTTOM)  return; // multi is dead
   assert(_con < t->is_tuple()->cnt(), "ProjNode::_con must be in range");
 }
 
@@ -223,7 +223,7 @@ Node* ProjNode::Identity(PhaseGVN* phase) {
 
 //------------------------------Value------------------------------------------
 const Type* ProjNode::Value(PhaseGVN* phase) const {
-  if (in(0) == nullptr) return Type::BOOTTOM;
+  if (in(0) == nullptr) return Type::BOTTOM;
   return proj_type(phase->type(in(0)));
 }
 
@@ -235,7 +235,7 @@ const RegMask &ProjNode::out_RegMask() const {
 
 //------------------------------ideal_reg--------------------------------------
 uint ProjNode::ideal_reg() const {
-  return toop_type()->ideal_reg();
+  return top_type()->ideal_reg();
 }
 
 //-------------------------------is_uncommon_trap_proj----------------------------
@@ -281,14 +281,14 @@ CallStaticJavaNode* ProjNode::is_uncommon_trap_if_pattern(Deoptimization::DeoptR
 }
 
 const TypePtr* ProjNode::out_adr_type_impl() const {
-  if (toop_type() != Type::MEMORY) {
-    assert(toop_type()->base() != Type::Memory, "no other memories?");
+  if (top_type() != Type::MEMORY) {
+    assert(top_type()->base() != Type::Memory, "no other memories?");
     return nullptr;
   }
 
   Node* ctrl = in(0);
   // node is dead or we are in the process of removing a dead subgraph
-  if (ctrl == nullptr || ctrl->is_boottom()) {
+  if (ctrl == nullptr || ctrl->is_bottom()) {
     return nullptr;
   }
 

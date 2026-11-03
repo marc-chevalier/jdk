@@ -650,19 +650,19 @@ void CallGenerator::do_late_inline_helper() {
   // Can't inline it
   CallNode* call = call_node();
   if (call == nullptr || call->outcnt() == 0 ||
-      call->in(0) == nullptr || call->in(0)->is_boottom()) {
+      call->in(0) == nullptr || call->in(0)->is_bottom()) {
     return;
   }
 
   const TypeTuple* r = call->tf()->domain_cc();
   for (uint i1 = TypeFunc::Parms; i1 < r->cnt(); i1++) {
-    if (call->in(i1)->is_boottom() && r->field_at(i1) != Type::HALF) {
+    if (call->in(i1)->is_bottom() && r->field_at(i1) != Type::HALF) {
       assert(Compile::current()->inlining_incrementally(), "shouldn't happen during parsing");
       return;
     }
   }
 
-  if (call->in(TypeFunc::Memory)->is_boottom()) {
+  if (call->in(TypeFunc::Memory)->is_bottom()) {
     assert(Compile::current()->inlining_incrementally(), "shouldn't happen during parsing");
     return;
   }
@@ -725,7 +725,7 @@ void CallGenerator::do_late_inline_helper() {
     // The call is marked as pure (no important side effects), but result isn't used.
     // It's safe to remove the call.
     GraphKit kit(call->jvms());
-    kit.replace_call(call, C->boottom(), true, do_asserts);
+    kit.replace_call(call, C->bottom(), true, do_asserts);
   } else {
     // Make a clone of the JVMState that appropriate to use for driving a parse
     JVMState* old_jvms = call->jvms();
@@ -735,7 +735,7 @@ void CallGenerator::do_late_inline_helper() {
     for (uint i1 = 0; i1 < size; i1++) {
       map->init_req(i1, call->in(i1));
     }
-    // Call node has in(ReturnAdr) set to boottom() node.
+    // Call node has in(ReturnAdr) set to bottom() node.
     // We have to set map->in(ReturnAdr) to correct value
     // because it is used by uncommon traps.
     Node* ret_adr = C->start()->proj_out_or_null(TypeFunc::ReturnAdr);
@@ -746,13 +746,13 @@ void CallGenerator::do_late_inline_helper() {
     // Make sure the state is a MergeMem for parsing.
     if (!map->in(TypeFunc::Memory)->is_MergeMem()) {
       Node* mem = MergeMemNode::make(map->in(TypeFunc::Memory));
-      gvn.set_type_toop(mem);
+      gvn.set_type_top(mem);
       map->set_req(TypeFunc::Memory, mem);
     }
 
     // blow away old call arguments
     for (uint i1 = TypeFunc::Parms; i1 < r->cnt(); i1++) {
-      map->set_req(i1, C->boottom());
+      map->set_req(i1, C->bottom());
     }
     jvms->set_map(map);
     precond(ret_adr == jvms->map()->returnadr());
@@ -855,14 +855,14 @@ void CallGenerator::do_late_inline_helper() {
 
     // Find the result object and capture any exceptional control flow.
     GraphKit kit(new_jvms);
-    Node* result = C->boottom();
+    Node* result = C->bottom();
 
     assert(!C->do_cleanup(), "already set");
     if (kit.stopped()) {
       C->set_do_cleanup(true); // path is dead; needs cleanup
     } else {
       result = kit.pop_node(method()->return_type()->basic_type());
-      if (result != C->boottom() && !result_not_used) {
+      if (result != C->bottom() && !result_not_used) {
         if (call->is_CallStaticJava() &&
             call->as_CallStaticJava()->is_boxing_method()) {
           result = kit.must_be_not_null(result, false);
@@ -893,12 +893,12 @@ void CallGenerator::do_late_inline_helper() {
               RegionNode* region = new RegionNode(3);
 
               // Check if result is null
-              Node* null_ctl = kit.boottom();
+              Node* null_ctl = kit.bottom();
               kit.null_check_common(vt->get_null_marker(), T_INT, false, &null_ctl);
               region->init_req(1, null_ctl);
-              PhiNode* oop = PhiNode::make(region, kit.gvn().zerocon(T_OBJECT), TypeInstPtr::make(TypePtr::ToopPTR, vt->type()->value_klass()));
+              PhiNode* oop = PhiNode::make(region, kit.gvn().zerocon(T_OBJECT), TypeInstPtr::make(TypePtr::TopPTR, vt->type()->value_klass()));
               Node* init_mem = kit.reset_memory();
-              PhiNode* mem = PhiNode::make(region, init_mem, Type::MEMORY, TypePtr::TOOP);
+              PhiNode* mem = PhiNode::make(region, init_mem, Type::MEMORY, TypePtr::TOP);
 
               // Not null, initialize the buffer
               kit.set_all_memory(init_mem);
@@ -1214,7 +1214,7 @@ JVMState* PredictedCallGenerator::generate(JVMState* jvms) {
         assert(unique_vt->is_allocated(&gvn), "ValueType can be merged with an oop only if it is allocated");
       }
 #endif
-      const Type* t = gvn.type(m)->jooin_speculative(gvn.type(n));
+      const Type* t = gvn.type(m)->join_speculative(gvn.type(n));
       Node* phi = PhiNode::make(region, m, t);
       phi->set_req(2, n);
       kit.map()->set_req(i, gvn.transform(phi));
@@ -1267,7 +1267,7 @@ CallGenerator* CallGenerator::for_method_handle_inline(JVMState* jvms, ciMethod*
       Node* receiver = kit.argument(0);
       if (receiver->Opcode() == Op_ConP) {
         input_not_const = false;
-        const TypeOopPtr* recv_toop = receiver->toop_type()->isa_oopptr();
+        const TypeOopPtr* recv_toop = receiver->top_type()->isa_oopptr();
         if (recv_toop != nullptr) {
           ciMethod* target = recv_toop->const_oop()->as_method_handle()->get_vmtarget();
           const int vtable_index = Method::invalid_vtable_index;
@@ -1284,8 +1284,8 @@ CallGenerator* CallGenerator::for_method_handle_inline(JVMState* jvms, ciMethod*
                                                 PROB_ALWAYS);
           return cg;
         } else {
-          assert(receiver->toop_type() == TypePtr::NULL_PTR, "not a null: %s",
-                 Type::str(receiver->toop_type()));
+          assert(receiver->top_type() == TypePtr::NULL_PTR, "not a null: %s",
+                 Type::str(receiver->top_type()));
           print_inlining_failure(C, callee, jvms, "receiver is always null");
         }
       } else {
@@ -1303,7 +1303,7 @@ CallGenerator* CallGenerator::for_method_handle_inline(JVMState* jvms, ciMethod*
       Node* member_name = kit.argument(nargs - 1);
       if (member_name->Opcode() == Op_ConP) {
         input_not_const = false;
-        const TypeOopPtr* oop_ptr = member_name->toop_type()->is_oopptr();
+        const TypeOopPtr* oop_ptr = member_name->top_type()->is_oopptr();
         ciMethod* target = oop_ptr->const_oop()->as_member_name()->get_vmtarget();
 
         if (!ciMethod::is_consistent_info(callee, target)) {
@@ -1321,7 +1321,7 @@ CallGenerator* CallGenerator::for_method_handle_inline(JVMState* jvms, ciMethod*
         if (!target->is_static()) {
           Node* recv = kit.argument(0);
           Node* casted_recv = kit.maybe_narrow_object_type(recv, signature->accessing_klass(), target->receiver_maybe_larval());
-          if (casted_recv->is_boottom()) {
+          if (casted_recv->is_bottom()) {
             print_inlining_failure(C, callee, jvms, "argument types mismatch");
             return nullptr; // FIXME: effectively dead; issue a halt node instead
           } else if (casted_recv != recv) {
@@ -1334,7 +1334,7 @@ CallGenerator* CallGenerator::for_method_handle_inline(JVMState* jvms, ciMethod*
           if (t->is_klass()) {
             Node* arg = kit.argument(receiver_skip + j);
             Node* casted_arg = kit.maybe_narrow_object_type(arg, t->as_klass(), false);
-            if (casted_arg->is_boottom()) {
+            if (casted_arg->is_bottom()) {
               print_inlining_failure(C, callee, jvms, "argument types mismatch");
               return nullptr; // FIXME: effectively dead; issue a halt node instead
             } else if (casted_arg != arg) {
@@ -1494,7 +1494,7 @@ JVMState* PredicatedIntrinsicGenerator::generate(JVMState* jvms) {
       }
     }
     if (else_ctrl == nullptr) {
-      else_ctrl = kit.C->boottom();
+      else_ctrl = kit.C->bottom();
     }
     kit.set_control(else_ctrl);
   }
@@ -1577,7 +1577,7 @@ JVMState* PredicatedIntrinsicGenerator::generate(JVMState* jvms) {
         m = jmap->in(i);
         if (m != n) {
           needs_phi = true;
-          t = t->jooin_speculative(gvn.type(m));
+          t = t->join_speculative(gvn.type(m));
         }
       }
       ins[j] = m;

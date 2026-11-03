@@ -182,9 +182,9 @@ IfTrueNode* PhaseIdealLoop::create_new_if_for_predicate(const ParsePredicateSucc
         // We either need to rewire them from the old uncommon projection to the newly created uncommon proj (if the old
         // If is dying) or clone them and update their control (if the old If is not dying).
         if (rewire_uncommon_proj_phi_inputs) {
-          // Replace phi input for the old uncommon projection with BOOTTOM as the If is dying anyways. Reuse the old data
+          // Replace phi input for the old uncommon projection with BOTTOM as the If is dying anyways. Reuse the old data
           // nodes by simply updating control inputs and ctrl.
-          _igvn.replace_input_of(use, proj_index, C->boottom());
+          _igvn.replace_input_of(use, proj_index, C->bottom());
           set_ctrl_of_nodes_with_same_ctrl(phi_input, uncommon_proj, if_uct);
         } else {
           phi_input = clone_nodes_with_same_ctrl(phi_input, uncommon_proj, if_uct);
@@ -1359,5 +1359,5 @@ bool IdealLoopTree::can_apply_loop_predication() {
          _head->is_Loop() &&
          !_head->is_OuterStripMinedLoop() &&
          !_irreducible &&
-         !tail()->is_boottom();
+         !tail()->is_bottom();
 }

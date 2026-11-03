@@ -53,24 +53,24 @@
 
 // Clones the value type to handle control flow merges involving multiple value types.
 // The inputs are replaced by PhiNodes to represent the merged values for the given region.
-// init_with_boottom: input of phis above the returned ValueTypeNode are initialized to boottom.
-ValueTypeNode* ValueTypeNode::clone_with_phis(PhaseGVN* gvn, Node* region, SafePointNode* map, bool is_non_null, bool init_with_boottom) {
+// init_with_bottom: input of phis above the returned ValueTypeNode are initialized to bottom.
+ValueTypeNode* ValueTypeNode::clone_with_phis(PhaseGVN* gvn, Node* region, SafePointNode* map, bool is_non_null, bool init_with_bottom) {
   ValueTypeNode* vt = clone_if_required(gvn, map);
   const Type* t = Type::get_const_type(value_klass());
   gvn->set_type(vt, t);
   vt->as_ValueType()->set_type(t);
 
-  Node* const boottom = gvn->C->boottom();
+  Node* const bottom = gvn->C->bottom();
 
   // Create a PhiNode for merging the oop values
-  PhiNode* oop = PhiNode::make(region, init_with_boottom ? boottom : vt->get_oop(), t);
+  PhiNode* oop = PhiNode::make(region, init_with_bottom ? bottom : vt->get_oop(), t);
   gvn->set_type(oop, t);
   gvn->record_for_igvn(oop);
   vt->set_oop(*gvn, oop);
 
   // Create a PhiNode for merging the is_buffered values
   t = Type::get_const_basic_type(T_BOOLEAN);
-  Node* is_buffered_node = PhiNode::make(region, init_with_boottom ? boottom : vt->get_is_buffered(), t);
+  Node* is_buffered_node = PhiNode::make(region, init_with_bottom ? bottom : vt->get_is_buffered(), t);
   gvn->set_type(is_buffered_node, t);
   gvn->record_for_igvn(is_buffered_node);
   vt->set_req(IsBuffered, is_buffered_node);
@@ -81,7 +81,7 @@ ValueTypeNode* ValueTypeNode::clone_with_phis(PhaseGVN* gvn, Node* region, SafeP
     null_marker_node = gvn->intcon(1);
   } else {
     t = Type::get_const_basic_type(T_BOOLEAN);
-    null_marker_node = PhiNode::make(region, init_with_boottom ? boottom : vt->get_null_marker(), t);
+    null_marker_node = PhiNode::make(region, init_with_bottom ? bottom : vt->get_null_marker(), t);
     gvn->set_type(null_marker_node, t);
     gvn->record_for_igvn(null_marker_node);
   }
@@ -97,7 +97,7 @@ ValueTypeNode* ValueTypeNode::clone_with_phis(PhaseGVN* gvn, Node* region, SafeP
       value = value->as_ValueType()->clone_with_phis(gvn, region, map);
     } else {
       t = Type::get_const_type(type);
-      value = PhiNode::make(region, init_with_boottom ? boottom : value, t);
+      value = PhiNode::make(region, init_with_bottom ? bottom : value, t);
       gvn->set_type(value, t);
       gvn->record_for_igvn(value);
     }
@@ -163,7 +163,7 @@ ValueTypeNode* ValueTypeNode::merge_with(PhaseGVN* gvn, const ValueTypeNode* oth
     Node* val1 = field_value(i);
     Node* val2 = other->field_value(i);
     if (field(i)->is_flat()) {
-      if (val2->is_boottom()) {
+      if (val2->is_bottom()) {
         // The path where 'other' is used is dying. Therefore, we do not need to process the merge with 'other' further.
         // The phi inputs of 'this' at 'phi_index' will eventually be removed.
         break;
@@ -226,7 +226,7 @@ Node* ValueTypeNode::field_value_by_offset(int offset, bool recursive) const {
   ciField* field = this->field(index);
   assert(!field->is_flat() || field->type()->is_value_klass(), "must be a value type");
 
-  if (value->is_boottom()) {
+  if (value->is_bottom()) {
     // The graph is dying but a load may still ask for a nested field
     // inside a flattened field before the dead load itself is folded away.
     assert(offset == field->offset_in_bytes() || field->is_flat(), "offset mismatch");
@@ -266,21 +266,21 @@ ciField* ValueTypeNode::field(uint index) const {
   return value_klass()->declared_nonstatic_field_at(index);
 }
 
-static uint add_boottom_to_safepoint(ciValueKlass* vk, SafePointNode* sfpt) {
+static uint add_bottom_to_safepoint(ciValueKlass* vk, SafePointNode* sfpt) {
   uint cnt = 0;
   for (int i = 0; i < vk->nof_declared_nonstatic_fields(); ++i) {
     ciField* field = vk->declared_nonstatic_field_at(i);
     assert(!field->is_flat() || field->type()->is_value_klass(), "must be a value type");
     if (field->is_flat()) {
-      cnt += add_boottom_to_safepoint(field->type()->as_value_klass(), sfpt);
+      cnt += add_bottom_to_safepoint(field->type()->as_value_klass(), sfpt);
       if (field->is_null_free()) {
         continue;
       }
       // The null marker of a flat field is added right after we scalarize that field, so the next
       // add_req either stands for the null marker of `field`, or for the whole `field` itself if
-      // it isn't flat. It's boottom anyway.
+      // it isn't flat. It's bottom anyway.
     }
-    sfpt->add_req(Compile::current()->boottom());
+    sfpt->add_req(Compile::current()->bottom());
     cnt++;
   }
   return cnt;
@@ -293,13 +293,13 @@ uint ValueTypeNode::add_fields_to_safepoint(Unique_Node_List<ValueTypeNode>& wor
     ciField* field = this->field(i);
     assert(!field->is_flat() || field->type()->is_value_klass(), "must be a value type");
     if (field->is_flat()) {
-      if (value->is_boottom()) {
-        // An input is boottom. We act like it was a value type whose fields are all boottom.
-        Node* boottom = value;
-        cnt += add_boottom_to_safepoint(field->type()->as_value_klass(), sfpt);
+      if (value->is_bottom()) {
+        // An input is bottom. We act like it was a value type whose fields are all bottom.
+        Node* bottom = value;
+        cnt += add_bottom_to_safepoint(field->type()->as_value_klass(), sfpt);
         if (!field->is_null_free()) {
           // The null marker of a flat field is added right after we scalarize that field
-          sfpt->add_req(boottom);
+          sfpt->add_req(bottom);
           cnt++;
         }
       } else {
@@ -460,12 +460,12 @@ void ValueTypeNode::load(GraphKit* kit, Node* base, Node* ptr, bool immutable_me
     } else {
       // Load field value from memory
       BasicType bt = type2field[ft->basic_type()];
-      assert(is_java_primitive(bt) || field_ptr->toop_type()->is_ptr_to_narrowoop() == UseCompressedOops, "inconsistent");
+      assert(is_java_primitive(bt) || field_ptr->top_type()->is_ptr_to_narrowoop() == UseCompressedOops, "inconsistent");
       const Type* val_type = Type::get_const_type(ft);
       if (trust_null_free_oop && field_null_free) {
-        val_type = val_type->meeet_speculative(TypePtr::NOTNULL);
+        val_type = val_type->meet_speculative(TypePtr::NOTNULL);
       }
-      const TypePtr* field_ptr_type = (decorators & C2_MISMATCHED) == 0 ? kit->gvn().type(field_ptr)->is_ptr() : TypeRawPtr::TOOP;
+      const TypePtr* field_ptr_type = (decorators & C2_MISMATCHED) == 0 ? kit->gvn().type(field_ptr)->is_ptr() : TypeRawPtr::TOP;
       value = kit->access_load_at(base, field_ptr, field_ptr_type, val_type, bt, decorators);
     }
     set_field_value(i, value);
@@ -488,7 +488,7 @@ void ValueTypeNode::store_flat(GraphKit* kit, Node* base, Node* ptr, bool atomic
     if (!null_free) {
       int nm_offset = vk->null_marker_offset_in_payload();
       Node* nm_ptr = kit->basic_plus_adr(base, ptr, nm_offset);
-      const TypePtr* nm_ptr_type = (decorators & C2_MISMATCHED) == 0 ? kit->gvn().type(nm_ptr)->is_ptr() : TypeRawPtr::TOOP;
+      const TypePtr* nm_ptr_type = (decorators & C2_MISMATCHED) == 0 ? kit->gvn().type(nm_ptr)->is_ptr() : TypeRawPtr::TOP;
       kit->access_store_at(base, nm_ptr, nm_ptr_type, get_null_marker(), TypeInt::BOOL, T_BOOLEAN, decorators);
     }
     store(kit, base, ptr, immutable_memory, decorators);
@@ -532,7 +532,7 @@ static ValueTypeNode* do_flat_array_access(const FlatArrayAccessContext& ctx, bo
   }
   ValueTypeNode* res = nullptr;
   Node* cast = ctx._kit->cast_to_flat_array(ctx._base, array_klass, true);
-  if (!cast->is_boottom()) {
+  if (!cast->is_bottom()) {
     Node* ptr = ctx._kit->array_element_address(cast, ctx._idx, T_FLAT_ELEMENT);
     if (is_read) {
       res = ValueTypeNode::make_from_flat(ctx._kit, ctx._element_klass, cast, ptr,
@@ -565,7 +565,7 @@ void ValueTypeNode::store_flat_array(GraphKit* kit, Node* base, Node* idx) {
   Node* input_memory_state = kit->reset_memory();
   kit->set_all_memory(input_memory_state);
 
-  PhiNode* mem = PhiNode::make(region, input_memory_state, Type::MEMORY, TypePtr::TOOP);
+  PhiNode* mem = PhiNode::make(region, input_memory_state, Type::MEMORY, TypePtr::TOP);
   gvn.set_type(mem, Type::MEMORY);
   kit->record_for_igvn(mem);
 
@@ -634,7 +634,7 @@ void ValueTypeNode::store(GraphKit* kit, Node* base, Node* ptr, bool immutable_m
     } else {
       // Store field value to memory
       BasicType bt = type2field[ft->basic_type()];
-      const TypePtr* field_ptr_type = (decorators & C2_MISMATCHED) == 0 ? kit->gvn().type(field_ptr)->is_ptr() : TypeRawPtr::TOOP;
+      const TypePtr* field_ptr_type = (decorators & C2_MISMATCHED) == 0 ? kit->gvn().type(field_ptr)->is_ptr() : TypeRawPtr::TOP;
       const Type* val_type = Type::get_const_type(ft);
       kit->access_store_at(base, field_ptr, field_ptr_type, field_val, val_type, bt, decorators);
     }
@@ -690,8 +690,8 @@ bool ValueTypeNode::can_emit_substitutability_check(PhaseGVN* phase, Node* lhs, 
     return false;
   }
 
-  if (!lhs->toop_type()->isa_ptr() ||
-      (rhs != nullptr && !rhs->toop_type()->isa_ptr())) {
+  if (!lhs->top_type()->isa_ptr() ||
+      (rhs != nullptr && !rhs->top_type()->isa_ptr())) {
     return false;
   }
 
@@ -699,8 +699,8 @@ bool ValueTypeNode::can_emit_substitutability_check(PhaseGVN* phase, Node* lhs, 
     return true;
   }
 
-  if (!lhs->toop_type()->is_ptr()->can_be_value_type() ||
-      (rhs != nullptr && !rhs->toop_type()->is_ptr()->can_be_value_type())) {
+  if (!lhs->top_type()->is_ptr()->can_be_value_type() ||
+      (rhs != nullptr && !rhs->top_type()->is_ptr()->can_be_value_type())) {
     return true;
   }
 
@@ -775,14 +775,14 @@ static void emit_substitutability_check_primitive(GraphKit* kit, PhiNode* result
 // last case, NodeSentinel is returned.
 static Node* emit_substitutability_check_pointer(GraphKit* kit, PhiNode* result, Node* lhs, Node* rhs) {
   PhaseGVN& gvn = kit->gvn();
-  Node* boottom = kit->C->boottom();
+  Node* bottom = kit->C->bottom();
   const Type* lhs_type = gvn.type(lhs);
   const Type* rhs_type = gvn.type(rhs);
 
   // Dead graph
-  if (lhs_type == Type::BOOTTOM || rhs_type == Type::BOOTTOM) {
-    kit->set_control(boottom);
-    return boottom;
+  if (lhs_type == Type::BOTTOM || rhs_type == Type::BOTTOM) {
+    kit->set_control(bottom);
+    return bottom;
   }
 
   Node* cmp = nullptr;
@@ -791,7 +791,7 @@ static Node* emit_substitutability_check_pointer(GraphKit* kit, PhiNode* result,
   } else if (!lhs_type->is_ptr()->can_be_value_type() || !rhs_type->is_ptr()->can_be_value_type()) {
     // If one of the sides is not a value object, can only be substitutable if they are the same
     cmp = kit->CmpP(lhs, rhs);
-  } else if (lhs_type->is_instptr()->as_klass_type()->meeet(rhs_type->is_instptr()->as_klass_type())->empty()) {
+  } else if (lhs_type->is_instptr()->as_klass_type()->meet(rhs_type->is_instptr()->as_klass_type())->empty()) {
     // Both belongs to provably different types, must be different unless both are null. Cannot
     // rely on the pointer independence alone because different pointers may still be
     // substitutable.
@@ -850,7 +850,7 @@ Node* ValueTypeNode::emit_substitutability_check(GraphKit* kit, Node* lhs, Node*
   const Type* rhs_type = igvn.type(rhs);
   assert(!lhs_type->maybe_null() && !rhs_type->maybe_null(), "must check null beforehand");
   ciValueKlass* vk = lhs_type->is_valueklassptr() ? lhs_type->value_klass() : rhs_type->value_klass();
-  const TypeInstPtr* vk_type = TypeOopPtr::make_from_klass(vk)->meeet(TypePtr::NOTNULL)->is_instptr();
+  const TypeInstPtr* vk_type = TypeOopPtr::make_from_klass(vk)->meet(TypePtr::NOTNULL)->is_instptr();
 
   if (!lhs->is_ValueType()) {
     if (!lhs_type->is_subseteq_of(vk_type)) {
@@ -999,12 +999,12 @@ Node* ValueTypeNode::emit_substitutability_check(GraphKit* kit, Node* lhs, Node*
       igvn.register_new_node_with_optimizer(field_true_region);
 
       // Firstly, filter the cases when either is null
-      Node* null_unknown = kit->boottom();
+      Node* null_unknown = kit->bottom();
       cur_lhs_field = kit->null_check_common(cur_lhs_field, T_OBJECT, false, &null_unknown);
-      if (!null_unknown->is_boottom()) {
+      if (!null_unknown->is_bottom()) {
         PreserveJVMState pjvms(kit);
         kit->set_control(null_unknown);
-        Node* null_null = kit->boottom();
+        Node* null_null = kit->bottom();
         kit->null_check_common(cur_rhs_field, T_OBJECT, false, &null_null);
 
         // null - null, skip other checks
@@ -1022,9 +1022,9 @@ Node* ValueTypeNode::emit_substitutability_check(GraphKit* kit, Node* lhs, Node*
         continue;
       }
 
-      Node* notnull_null = kit->boottom();
+      Node* notnull_null = kit->bottom();
       cur_rhs_field = kit->null_check_common(cur_rhs_field, T_OBJECT, false, &notnull_null);
-      if (!notnull_null->is_boottom()) {
+      if (!notnull_null->is_bottom()) {
         region->add_req(notnull_null);
         result->add_req(igvn.intcon(0));
       }
@@ -1048,9 +1048,9 @@ Node* ValueTypeNode::emit_substitutability_check(GraphKit* kit, Node* lhs, Node*
       if (cur_lhs_value != nullptr && cur_lhs_value->value_klass() == vk) {
         cur_lhs_field = cur_lhs_value;
       } else {
-        Node* not_vk = kit->boottom();
+        Node* not_vk = kit->bottom();
         cur_lhs_field = kit->gen_checkcast(cur_lhs_field, vk_klass, &not_vk);
-        if (!not_vk->is_boottom()) {
+        if (!not_vk->is_bottom()) {
           region->add_req(not_vk);
           result->add_req(igvn.intcon(0));
         }
@@ -1060,9 +1060,9 @@ Node* ValueTypeNode::emit_substitutability_check(GraphKit* kit, Node* lhs, Node*
       if (cur_rhs_value != nullptr && cur_rhs_value->value_klass() == vk) {
         cur_rhs_field = cur_rhs_value;
       } else {
-        Node* not_vk = kit->boottom();
+        Node* not_vk = kit->bottom();
         cur_rhs_field = kit->gen_checkcast(cur_rhs_field, vk_klass, &not_vk);
-        if (!not_vk->is_boottom()) {
+        if (!not_vk->is_bottom()) {
           region->add_req(not_vk);
           result->add_req(igvn.intcon(0));
         }
@@ -1120,9 +1120,9 @@ Node* ValueTypeNode::emit_identity_hash_code(GraphKit* kit, Node* arg, intptr_t 
   igvn.register_new_node_with_optimizer(region);
   igvn.register_new_node_with_optimizer(phi_result);
 
-  Node* null_ctl = kit->boottom();
+  Node* null_ctl = kit->bottom();
   arg = kit->null_check_oop(arg, &null_ctl, false, false, false);
-  if (!null_ctl->is_boottom()) {
+  if (!null_ctl->is_bottom()) {
     region->add_req(null_ctl);
     phi_result->add_req(kit->intcon(0));
   }
@@ -1214,9 +1214,9 @@ ValueTypeNode* ValueTypeNode::buffer(GraphKit* kit, bool safe_for_replace) {
   }
 
   // Check if value type is already buffered
-  Node* not_buffered_ctl = kit->boottom();
+  Node* not_buffered_ctl = kit->bottom();
   Node* not_null_oop = kit->null_check_oop(get_oop(), &not_buffered_ctl, /* never_see_null = */ false, safe_for_replace);
-  if (not_buffered_ctl->is_boottom()) {
+  if (not_buffered_ctl->is_bottom()) {
     // Already buffered
     ValueTypeNode* vt = clone_if_required(&kit->gvn(), kit->map(), safe_for_replace);
     vt->set_is_buffered(kit->gvn());
@@ -1230,12 +1230,12 @@ ValueTypeNode* ValueTypeNode::buffer(GraphKit* kit, bool safe_for_replace) {
   kit->set_control(not_buffered_ctl);
 
   // Value type is not buffered, check if it is null.
-  Node* null_ctl = kit->boottom();
+  Node* null_ctl = kit->bottom();
   kit->null_check_common(get_null_marker(), T_INT, false, &null_ctl);
-  bool null_free = null_ctl->is_boottom();
+  bool null_free = null_ctl->is_bottom();
 
   RegionNode* region = new RegionNode(4);
-  PhiNode* oop = PhiNode::make(region, not_null_oop, type()->meeet_speculative(null_free ? TypePtr::NOTNULL : TypePtr::TOOP));
+  PhiNode* oop = PhiNode::make(region, not_null_oop, type()->meet_speculative(null_free ? TypePtr::NOTNULL : TypePtr::TOP));
 
   // ValueType is already buffered
   region->init_req(1, buffered_ctl);
@@ -1246,7 +1246,7 @@ ValueTypeNode* ValueTypeNode::buffer(GraphKit* kit, bool safe_for_replace) {
   oop->init_req(2, kit->gvn().zerocon(T_OBJECT));
 
   PhiNode* io  = PhiNode::make(region, kit->i_o(), Type::ABIO);
-  PhiNode* mem = PhiNode::make(region, kit->merged_memory(), Type::MEMORY, TypePtr::TOOP);
+  PhiNode* mem = PhiNode::make(region, kit->merged_memory(), Type::MEMORY, TypePtr::TOP);
 
   if (!kit->stopped()) {
     assert(!is_allocated(&kit->gvn()), "already buffered");
@@ -1302,7 +1302,7 @@ bool ValueTypeNode::is_allocated(PhaseGVN* phase) const {
     return true;
   }
   Node* oop = get_oop();
-  const Type* oop_type = (phase != nullptr) ? phase->type(oop) : oop->toop_type();
+  const Type* oop_type = (phase != nullptr) ? phase->type(oop) : oop->top_type();
   return !oop_type->maybe_null();
 }
 
@@ -1316,7 +1316,7 @@ static void replace_proj(Compile* C, CallNode* call, uint& proj_idx, Node* value
     }
     C->gvn_replace_by(pn, value);
     C->initial_gvn()->hash_delete(pn);
-    pn->set_req(0, C->boottom());
+    pn->set_req(0, C->bottom());
   }
   proj_idx += type2size[bt];
 }
@@ -1452,7 +1452,7 @@ Node* ValueTypeNode::Ideal(PhaseGVN* phase, bool can_reshape) {
           if (res != nullptr && res->is_CheckCastPP()) {
             // Replace allocation by oop and unlink AllocateNode
             replace_allocation(igvn, res, oop);
-            igvn->replace_input_of(alloc, AllocateNode::ValueType, igvn->C->boottom());
+            igvn->replace_input_of(alloc, AllocateNode::ValueType, igvn->C->bottom());
             --i; --imax;
           }
         }
@@ -1549,7 +1549,7 @@ ValueTypeNode* ValueTypeNode::make_from_oop_impl(GraphKit* kit, Node* oop, ciVal
 
   if (gvn.type(oop)->maybe_null()) {
     // Add a null check because the oop may be null
-    Node* null_ctl = kit->boottom();
+    Node* null_ctl = kit->bottom();
     Node* not_null_oop = kit->null_check_oop(oop, &null_ctl);
     if (kit->stopped()) {
       // Constant null
@@ -1564,7 +1564,7 @@ ValueTypeNode* ValueTypeNode::make_from_oop_impl(GraphKit* kit, Node* oop, ciVal
     Node* payload_ptr = kit->basic_plus_adr(not_null_oop, vk->payload_offset());
     vt->load(kit, not_null_oop, payload_ptr, true, true, IN_HEAP | MO_UNORDERED);
 
-    if (null_ctl != kit->boottom()) {
+    if (null_ctl != kit->bottom()) {
       ValueTypeNode* null_vt = make_null_impl(gvn, vk);
       Node* region = new RegionNode(3);
       region->init_req(1, kit->control());
@@ -1613,7 +1613,7 @@ ValueTypeNode* ValueTypeNode::make_from_flat_impl(GraphKit* kit, ciValueKlass* v
     if (!null_free) {
       int nm_offset = vk->null_marker_offset_in_payload();
       Node* nm_ptr = kit->basic_plus_adr(base, ptr, nm_offset);
-      const TypePtr* nm_ptr_type = (decorators & C2_MISMATCHED) == 0 ? gvn.type(nm_ptr)->is_ptr() : TypeRawPtr::TOOP;
+      const TypePtr* nm_ptr_type = (decorators & C2_MISMATCHED) == 0 ? gvn.type(nm_ptr)->is_ptr() : TypeRawPtr::TOP;
       Node* nm_value = kit->access_load_at(base, nm_ptr, nm_ptr_type, TypeInt::BOOL, T_BOOLEAN, decorators);
       vt->set_req(NullMarker, nm_value);
     }
@@ -1643,7 +1643,7 @@ ValueTypeNode* ValueTypeNode::make_from_flat_array(GraphKit* kit, ciValueKlass* 
   Node* input_memory_state = kit->reset_memory();
   kit->set_all_memory(input_memory_state);
 
-  PhiNode* mem = PhiNode::make(region, input_memory_state, Type::MEMORY, TypePtr::TOOP);
+  PhiNode* mem = PhiNode::make(region, input_memory_state, Type::MEMORY, TypePtr::TOP);
   gvn.set_type(mem, Type::MEMORY);
   kit->record_for_igvn(mem);
 
@@ -1842,7 +1842,7 @@ void ValueTypeNode::pass_fields(GraphKit* kit, Node* n, uint& base_input, bool i
       // Initialize call/return arguments
       n->init_req(base_input++, arg);
       if (field->type()->size() == 2) {
-        n->init_req(base_input++, kit->boottom());
+        n->init_req(base_input++, kit->bottom());
       }
     }
   }
@@ -1869,9 +1869,9 @@ void ValueTypeNode::initialize_fields(GraphKit* kit, MultiNode* multi, uint& bas
       // Will only be initialized below, use dummy node for now
       null_marker = new Node(1);
       null_marker->init_req(0, kit->control()); // Add an input to prevent dummy from being dead
-      gvn.set_type_toop(null_marker);
+      gvn.set_type_top(null_marker);
     }
-    Node* null_ctrl = kit->boottom();
+    Node* null_ctrl = kit->bottom();
     kit->null_check_common(null_marker, T_INT, false, &null_ctrl);
     Node* non_null_ctrl = kit->control();
     null_check_region = new RegionNode(3);
@@ -2014,11 +2014,11 @@ const Type* ValueTypeNode::Value(PhaseGVN* phase) const {
     assert(false, "Unbuffered value type should not have known instance id");
   }
 #endif
-  if (toop == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (toop == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
   const Type* t = toop->filter_speculative(_type);
-  // Because of contradicting type profiling, we can end up with boottom as speculative type,
+  // Because of contradicting type profiling, we can end up with bottom as speculative type,
   // which would then get removed by cleanup_speculative. In this case we have to run filter_speculative
   // again, otherwise we would break the idempotence of Value
   if (t->speculative() == nullptr && toop->speculative() != nullptr) {
@@ -2029,11 +2029,11 @@ const Type* ValueTypeNode::Value(PhaseGVN* phase) const {
     t = _type;
   }
   const Type* tinit = phase->type(in(NullMarker));
-  if (tinit == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (tinit == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
   if (tinit->isa_int() && tinit->is_int()->is_con(1)) {
-    t = t->meeet_speculative(TypePtr::NOTNULL);
+    t = t->meet_speculative(TypePtr::NOTNULL);
   }
   return t;
 }
@@ -2046,10 +2046,10 @@ ValueTypeNode* LoadFlatNode::load(GraphKit* kit, ciValueKlass* vk, Node* base, N
 
   LoadFlatNode* load = new LoadFlatNode(vk, type, null_free, decorators);
   load->init_req(TypeFunc::Control, kit->control());
-  load->init_req(TypeFunc::I_O, kit->boottom());
+  load->init_req(TypeFunc::I_O, kit->bottom());
   load->init_req(TypeFunc::Memory, kit->reset_memory());
   load->init_req(TypeFunc::FramePtr, kit->frameptr());
-  load->init_req(TypeFunc::ReturnAdr, kit->boottom());
+  load->init_req(TypeFunc::ReturnAdr, kit->bottom());
 
   load->init_req(TypeFunc::Parms, base);
   load->init_req(TypeFunc::Parms + 1, ptr);
@@ -2165,7 +2165,7 @@ void LoadFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
 
   BasicType payload_bt = _vk->atomic_size_to_basic_type(_null_free);
   kit.insert_mem_bar(Op_MemBarCPUOrder);
-  Node* payload = kit.access_load_at(base, ptr, TypeRawPtr::TOOP, Type::get_const_basic_type(payload_bt), payload_bt,
+  Node* payload = kit.access_load_at(base, ptr, TypeRawPtr::TOP, Type::get_const_basic_type(payload_bt), payload_bt,
                                      _decorators | C2_MISMATCHED | C2_CONTROL_DEPENDENT_LOAD | C2_UNKNOWN_CONTROL_LOAD, kit.control());
   kit.insert_mem_bar(Op_MemBarCPUOrder);
 
@@ -2303,10 +2303,10 @@ void StoreFlatNode::store(GraphKit* kit, Node* base, Node* ptr, ValueTypeNode* v
   value = value->allocate_fields(kit);
   StoreFlatNode* store = new StoreFlatNode(null_free, decorators);
   store->init_req(TypeFunc::Control, kit->control());
-  store->init_req(TypeFunc::I_O, kit->boottom());
+  store->init_req(TypeFunc::I_O, kit->bottom());
   store->init_req(TypeFunc::Memory, kit->reset_memory());
   store->init_req(TypeFunc::FramePtr, kit->frameptr());
-  store->init_req(TypeFunc::ReturnAdr, kit->boottom());
+  store->init_req(TypeFunc::ReturnAdr, kit->bottom());
 
   store->init_req(TypeFunc::Parms, base);
   store->init_req(TypeFunc::Parms + 1, ptr);
@@ -2393,7 +2393,7 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
     assert(oop_off_2 == -1 || !UseG1GC, "sanity");
     // ZGC does not support compressed oops, so only one oop can be in the payload which is written by a "normal" oop store.
     assert((oop_off_1 == -1 && oop_off_2 == -1) || !UseZGC, "ZGC does not support embedded oops in flat fields");
-    kit.access_store_at(base, ptr, TypeRawPtr::TOOP, payload, Type::get_const_basic_type(payload_bt), payload_bt, _decorators | C2_MISMATCHED, true, value);
+    kit.access_store_at(base, ptr, TypeRawPtr::TOP, payload, Type::get_const_basic_type(payload_bt), payload_bt, _decorators | C2_MISMATCHED, true, value);
   } else {
     // Contains oops and requires late barrier expansion. Emit a special store node that allows to emit GC barriers in the backend.
     assert(UseG1GC, "Unexpected GC");
@@ -2402,8 +2402,8 @@ void StoreFlatNode::expand_atomic(PhaseIterGVN& igvn) const {
     Node* oop_offset = (oop_off_2 == -1) ? igvn.intcon(oop_off_1) : nullptr;
     Node* mem = kit.reset_memory();
     kit.set_all_memory(mem);
-    Node* store = igvn.transform(new StoreLSpecialNode(kit.control(), mem, ptr, TypeRawPtr::TOOP, payload, oop_offset, MemNode::unordered));
-    kit.set_memory(store, TypeRawPtr::TOOP);
+    Node* store = igvn.transform(new StoreLSpecialNode(kit.control(), mem, ptr, TypeRawPtr::TOP, payload, oop_offset, MemNode::unordered));
+    kit.set_memory(store, TypeRawPtr::TOP);
   }
   kit.insert_mem_bar(Op_MemBarCPUOrder);
 
@@ -2502,21 +2502,21 @@ Node* StoreFlatNode::set_payload_value(PhaseIterGVN& igvn, BasicType payload_bt,
 }
 
 const Type* LoadFlatNode::Value(PhaseGVN* phase) const {
-  if (phase->type(in(TypeFunc::Control)) == Type::BOOTTOM || phase->type(in(TypeFunc::Memory)) == Type::BOOTTOM ||
-      phase->type(base()) == Type::BOOTTOM || phase->type(ptr()) == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (phase->type(in(TypeFunc::Control)) == Type::BOTTOM || phase->type(in(TypeFunc::Memory)) == Type::BOTTOM ||
+      phase->type(base()) == Type::BOTTOM || phase->type(ptr()) == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
-  return toop_type();
+  return top_type();
 }
 
 const Type* StoreFlatNode::Value(PhaseGVN* phase) const {
   Node* val = in(TypeFunc::Parms + 2);
-  if (phase->type(in(TypeFunc::Control)) == Type::BOOTTOM || phase->type(in(TypeFunc::Memory)) == Type::BOOTTOM ||
-      phase->type(base()) == Type::BOOTTOM || phase->type(ptr()) == Type::BOOTTOM || phase->type(val) == Type::BOOTTOM) {
-    return Type::BOOTTOM;
+  if (phase->type(in(TypeFunc::Control)) == Type::BOTTOM || phase->type(in(TypeFunc::Memory)) == Type::BOTTOM ||
+      phase->type(base()) == Type::BOTTOM || phase->type(ptr()) == Type::BOTTOM || phase->type(val) == Type::BOTTOM) {
+    return Type::BOTTOM;
   }
   assert(val->is_ValueType(), "must be ValueTypeNode: %s", val->Name());
-  return toop_type();
+  return top_type();
 }
 
 bool LoadFlatNode::is_mismatched() const {

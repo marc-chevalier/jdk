@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8353180
- * @summary Test that jooining TypeAry*Ptr works with new layouts and does not trigger "not monotonic" assert.
+ * @summary Test that joining TypeAry*Ptr works with new layouts and does not trigger "not monotonic" assert.
  * @modules java.base/jdk.internal.value
  *          java.base/jdk.internal.vm.annotation
  * @enablePreview
@@ -37,7 +37,7 @@ package compiler.valhalla.valuetypes;
 
 import jdk.internal.value.ValueClass;
 
-public class TestJooiningAryPtr {
+public class TestJoiningAryPtr {
     static V vFld = new V(34);
 
     static V[] vArrFlat = new V[100];
@@ -63,9 +63,9 @@ public class TestJooiningAryPtr {
     }
 
     static void testConstantDifferentNullNess() {
-        // Jooining:     ConP(flat+nullable)   ConP(flat+null-free)
+        // Joining:      ConP(flat+nullable)   ConP(flat+null-free)
         V[] arr = flag ? vArrFinalNullable   : vArrFinalNullFree;
-        // Phi for arr after jooin: flat+maybe-null-free+exact
+        // Phi for arr after join: flat+maybe-null-free+exact
         // -> Wrongly set to exact even though it's maybe null free only.
         //    This causes an assertion failure during CCP.
         vFld = arr[2];

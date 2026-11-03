@@ -77,7 +77,7 @@ void MachOper::negate() {
 
 //-----------------------------type--------------------------------------------
 const Type *MachOper::type() const {
-  return Type::TOOP;
+  return Type::TOP;
 }
 
 //------------------------------in_RegMask-------------------------------------
@@ -284,8 +284,8 @@ const Node* MachNode::get_base_and_disp(intptr_t &offset, const TypePtr* &adr_ty
     offset = 0;
   } else if (oper == (MachOper*)-1) {
     // Base has been set to NodeSentinel
-    // There is not a unique memory use here.  We will fall to AliasIdxToop.
-    offset = Type::OffsetToop;
+    // There is not a unique memory use here.  We will fall to AliasIdxTop.
+    offset = Type::OffsetTop;
   } else {
     // Base may be null, even if offset turns out to be != 0
 
@@ -294,7 +294,7 @@ const Node* MachNode::get_base_and_disp(intptr_t &offset, const TypePtr* &adr_ty
     // Now we have collected every part of the ADLC MEMORY_INTER.
     // See if it adds up to a base + offset.
     if (index != nullptr) {
-      const Type* t_index = index->toop_type();
+      const Type* t_index = index->top_type();
       if (t_index->isa_narrowoop() || t_index->isa_narrowklass()) { // EncodeN, LoadN, LoadConN, LoadNKlass,
                                                                     // EncodeNKlass, LoadConNklass.
         // Memory references through narrow oops have a
@@ -305,11 +305,11 @@ const Node* MachNode::get_base_and_disp(intptr_t &offset, const TypePtr* &adr_ty
         adr_type = t_index->make_ptr()->add_offset(offset);
         return nullptr;
       } else if (!index->is_Con()) {
-        disp = Type::OffsetToop;
-      } else if (disp != Type::OffsetToop) {
+        disp = Type::OffsetTop;
+      } else if (disp != Type::OffsetTop) {
         const TypeX* ti = t_index->isa_intptr_t();
         if (ti == nullptr) {
-          disp = Type::OffsetToop;  // a random constant??
+          disp = Type::OffsetTop;  // a random constant??
         } else {
           disp += ti->get_con() << scale;
         }
@@ -320,12 +320,12 @@ const Node* MachNode::get_base_and_disp(intptr_t &offset, const TypePtr* &adr_ty
     // In x86_32.ad, indOffset32X uses base==RegI and disp==RegP,
     // this will prevent alias analysis without the following support:
     // Lookup the TypePtr used by indOffset32X, a compile-time constant oop,
-    // Add the offset determined by the "base", or use Type::OffsetToop.
+    // Add the offset determined by the "base", or use Type::OffsetTop.
     if( adr_type == TYPE_PTR_SENTINAL ) {
       const TypePtr *t_disp = oper->disp_as_type();  // only not null for indOffset32X
       if (t_disp != nullptr) {
-        offset = Type::OffsetToop;
-        const Type* t_base = base->toop_type();
+        offset = Type::OffsetTop;
+        const Type* t_base = base->top_type();
         if (t_base->isa_intptr_t()) {
           const TypeX *t_offset = t_base->is_intptr_t();
           if( t_offset->is_con() ) {
@@ -333,7 +333,7 @@ const Node* MachNode::get_base_and_disp(intptr_t &offset, const TypePtr* &adr_ty
           }
         }
         adr_type = t_disp->add_offset(offset);
-      } else if (base == nullptr && offset != 0 && offset != Type::OffsetToop) {
+      } else if (base == nullptr && offset != 0 && offset != Type::OffsetTop) {
         // Use ideal type if it is oop ptr.
         const TypePtr *tp = oper->type()->isa_ptr();
         if( tp != nullptr) {
@@ -348,11 +348,11 @@ const Node* MachNode::get_base_and_disp(intptr_t &offset, const TypePtr* &adr_ty
 
 const TypePtr* MachNode::out_adr_type_impl() const {
   // A node produces memory if it is a memory node, or if it has a memory Proj
-  bool produce_memory = toop_type() == Type::MEMORY;
+  bool produce_memory = top_type() == Type::MEMORY;
   if (!produce_memory) {
     for (DUIterator_Fast imax, i = fast_outs(imax); i < imax; i++) {
       const Node* out = fast_out(i);
-      if (out->is_Proj() && out->toop_type() == Type::MEMORY) {
+      if (out->is_Proj() && out->top_type() == Type::MEMORY) {
         produce_memory = true;
         break;
       }
@@ -400,7 +400,7 @@ void MachNode::verify_adr_type(const TypePtr* declared, const TypePtr* verify) c
     return;
   }
 
-  if (declared != verify && declared->cast_to_ptr_type(TypePtr::ToopPTR) != verify) {
+  if (declared != verify && declared->cast_to_ptr_type(TypePtr::TopPTR) != verify) {
     stringStream ss;
     verify->dump_on(&ss); ss.cr();
     declared->dump_on(&ss); ss.cr();
@@ -423,7 +423,7 @@ const TypePtr* MachNode::compute_adr_type_from_inputs() const {
 #ifdef ASSERT
   if (base != nullptr && base->is_Mach() && base->as_Mach()->ideal_Opcode() == Op_VerifyVectorAlignment) {
     // For VerifyVectorAlignment we just pass the type through
-    return base->toop_type()->is_ptr();
+    return base->top_type()->is_ptr();
   }
 #endif
 
@@ -438,18 +438,18 @@ const TypePtr* MachNode::compute_adr_type_from_inputs() const {
       return nullptr;
     }
     // null base, any offset means any pointer whatever
-    if (offset == Type::OffsetToop) {
-      return TypePtr::TOOP;
+    if (offset == Type::OffsetTop) {
+      return TypePtr::TOP;
     }
     // %%% make offset be intptr_t
     assert(!Universe::heap()->is_in(cast_to_oop(offset)), "must be a raw ptr");
-    return TypeRawPtr::TOOP;
+    return TypeRawPtr::TOP;
   }
 
   // base of -1 with no particular offset means all of memory
-  if (base == NodeSentinel)  return TypePtr::TOOP;
+  if (base == NodeSentinel)  return TypePtr::TOP;
 
-  const Type* t = base->toop_type();
+  const Type* t = base->top_type();
   if (t->isa_narrowoop() && CompressedOops::shift() == 0) {
     // 32-bit unscaled narrow oop can be the base of any address expression
     t = t->make_ptr();
@@ -465,13 +465,13 @@ const TypePtr* MachNode::compute_adr_type_from_inputs() const {
       // [base, 0], in which [base] is converted from a long value
       offset != 0 &&
 #endif
-      offset != Type::OffsetToop) {
+      offset != Type::OffsetTop) {
     // We cannot assert that the offset does not look oop-ish here.
     // Depending on the heap layout the cardmark base could land
     // inside some oopish region.  It definitely does for Win2K.
     // The sum of cardmark-base plus shift-by-9-oop lands outside
     // the oop-ish area but we can't assert for that statically.
-    return TypeRawPtr::TOOP;
+    return TypeRawPtr::TOP;
   }
 
   const TypePtr *tp = t->isa_ptr();
@@ -479,7 +479,7 @@ const TypePtr* MachNode::compute_adr_type_from_inputs() const {
   // be conservative if we do not recognize the type
   if (tp == nullptr) {
     assert(false, "this path may produce not optimal code");
-    return TypePtr::TOOP;
+    return TypePtr::TOP;
   }
   assert(tp->base() != Type::AnyPtr, "not a bare pointer");
 
@@ -487,13 +487,13 @@ const TypePtr* MachNode::compute_adr_type_from_inputs() const {
     // In the case of a flat value type array, each field has its
     // own slice so we need to extract the field being accessed from
     // the address computation
-    if (offset == Type::OffsetToop) {
+    if (offset == Type::OffsetTop) {
       Node* base;
       Node* index;
       const MachOper* oper = memory_inputs(base, index);
       if (oper != (MachOper*)-1) {
         offset = oper->constant_disp();
-        return tp->is_aryptr()->add_field_offset_and_offset(offset)->add_offset(Type::OffsetToop);
+        return tp->is_aryptr()->add_field_offset_and_offset(offset)->add_offset(Type::OffsetTop);
       }
     }
     return tp->is_aryptr()->add_field_offset_and_offset(offset);
@@ -651,9 +651,9 @@ void MachNode::dump_spec(outputStream *st) const {
     BarrierSet::barrier_set()->barrier_set_c2()->dump_barrier_data(this, st);
     st->print(")");
   }
-  if (_toop_type != nullptr) {
+  if (_top_type != nullptr) {
     st->print(" ");
-    _toop_type->dump_on(st);
+    _top_type->dump_on(st);
   }
 }
 
@@ -713,10 +713,10 @@ const RegMask &MachNullCheckNode::in_RegMask( uint idx ) const {
 }
 
 //=============================================================================
-const Type* MachProjNode::toop_type() const {
-  if (_ideal_reg == fat_proj) return Type::TOOP;
+const Type* MachProjNode::top_type() const {
+  if (_ideal_reg == fat_proj) return Type::TOP;
   // Try the normal mechanism first
-  const Type* t = in(0)->toop_type();
+  const Type* t = in(0)->top_type();
   if( t->base() == Type::Tuple ) {
     const TypeTuple *tt = t->is_tuple();
     if (_con < tt->cnt())
@@ -861,7 +861,7 @@ void MachUncommonTrapNode::format(PhaseRegAlloc* ra, outputStream* st) const {
 
 bool MachCallNode::cmp( const Node &n ) const
 { return _tf == ((MachCallNode&)n)._tf; }
-const Type* MachCallNode::toop_type() const { return tf()->range_cc(); }
+const Type* MachCallNode::top_type() const { return tf()->range_cc(); }
 const Type* MachCallNode::Value(PhaseGVN* phase) const { return tf()->range_cc(); }
 
 #ifndef PRODUCT
