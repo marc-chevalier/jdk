@@ -24,7 +24,7 @@
 /**
  * @test
  * @bug 8279062
- * @summary C2: assert(t->jooin(t0) == t) failed: Not monotonic after JDK-8278413
+ * @summary C2: assert(t->join(t0) == t) failed: Not monotonic after JDK-8278413
  *
  * @run main/othervm -XX:-BackgroundCompilation TestCCPAllocateArray
  *

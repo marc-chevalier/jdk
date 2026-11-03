@@ -27,7 +27,7 @@
  * @requires vm.compiler2.enabled & vm.debug
  * @summary C2 using negative array length as index, using a.length.
  *          AllocateArrayNode::make_ideal_length create CastIINode to not negative range.
- *          Apply transform in GraphKit::load_array_length will convert array load index type to boottom.
+ *          Apply transform in GraphKit::load_array_length will convert array load index type to bottom.
  *          This cause assert in Parse::array_addressing, it expect index type is int.
  * @run main/othervm -XX:-PrintCompilation compiler.arraycopy.TestNegArrayLengthAsIndex1
  */

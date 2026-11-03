@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Red Hat, Inc. All rights reserved.
+ * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,36 +23,33 @@
 
 /*
  * @test
- * @bug 8319372
- * @summary CastII because of condition guarding it becomes boottom
- * @run main/othervm -Xcomp -XX:CompileOnly=${test.main.class}::* -XX:-TieredCompilation ${test.main.class}
+ * @bug 8325030 8362832
+ * @summary Regression test for an assert triggered during allocation elimination because bottom is found during
+ * constructing new phis.
+ * @run main/othervm -XX:-ProfileExceptionHandlers ${test.main.class}
  */
 
-public class TestBoottomCastIIOnUndetectedDeadPath3 {
+package compiler.macronodes;
 
-    static long test() {
-        int x = 6, y = 5;
-        int[] iArr = new int[200];
-        for (int i = 129; i > 5; i -= 2) { // OSR compiled
-            try {
-                y = iArr[i - 1];
-                x = iArr[i + 1];
-                x = 1 / i;
-            } catch (ArithmeticException a_e) {
-            }
-        }
-        Foo.empty();
-        return x + y;
+public class TestBottomInMacroElimination {
+    public static class A {
+        int a;
     }
 
     public static void main(String[] strArr) {
-        new TestBoottomCastIIOnUndetectedDeadPath3();
-        for (int i = 0; i < 2000; i++) {
-            test();
+        int i2 = 0;
+        for (int i = 0; i < 50; ++i) {
+            try {
+                synchronized (new A()) {
+                    synchronized (TestBottomInMacroElimination.class) {
+                        for (int var19 = 0; var19 < Integer.valueOf(i2);) {
+                            Integer.valueOf(var19);
+                        }
+                    }
+                }
+                for (int var8 = 0; var8 < 10000; ++var8) ;
+            } catch (ArithmeticException a_e) {
+            }
         }
     }
-}
-
-class Foo {
-    public static void empty() {}
 }

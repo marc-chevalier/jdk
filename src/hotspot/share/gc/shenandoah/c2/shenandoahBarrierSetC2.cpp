@@ -319,10 +319,10 @@ uint8_t ShenandoahBarrierSetC2::refine_store(Node* n, uint8_t bd) {
   assert(newval != nullptr, "Should be present");
 
   // Type system tells us something about nullity?
-  const Type* newval_toop = newval->toop_type();
-  assert(newval_toop->isa_oopptr() || newval_toop->isa_narrowoop() ||
-         newval_toop == TypePtr::NULL_PTR, "Should be an oop store");
-  const TypePtr* newval_type = newval_toop->make_ptr();
+  const Type* newval_top = newval->top_type();
+  assert(newval_top->isa_oopptr() || newval_top->isa_narrowoop() ||
+         newval_top == TypePtr::NULL_PTR, "Should be an oop store");
+  const TypePtr* newval_type = newval_top->make_ptr();
   assert(newval_type != nullptr, "Should have been filtered before");
   TypePtr::PTR newval_type_ptr = newval_type->ptr();
   if (newval_type_ptr == TypePtr::Null) {
@@ -625,8 +625,8 @@ void ShenandoahBarrierSetC2::clone(GraphKit* kit, Node* src_base, Node* dst_base
   ac->set_clone_array();
   Node* n = kit->gvn().transform(ac);
   if (n == ac) {
-    ac->set_out_adr_type(TypeRawPtr::TOOP);
-    kit->set_predefined_output_for_runtime_call(ac, ac->in(TypeFunc::Memory), TypeRawPtr::TOOP);
+    ac->set_out_adr_type(TypeRawPtr::TOP);
+    kit->set_predefined_output_for_runtime_call(ac, ac->in(TypeFunc::Memory), TypeRawPtr::TOP);
   } else {
     kit->set_all_memory(n);
   }
@@ -679,11 +679,11 @@ void ShenandoahBarrierSetC2::clone_at_expansion(PhaseMacroExpand* phase, ArrayCo
   Node* const call = phase->make_leaf_call(ctrl, mem,
       OptoRuntime::fast_arraycopy_Type(),
       copyfunc_addr, copyfunc_name,
-      TypeRawPtr::TOOP,
+      TypeRawPtr::TOP,
       phase->basic_plus_adr(src, src_offset),
       phase->basic_plus_adr(dest, dest_offset),
       length,
-      phase->boottom()
+      phase->bottom()
   );
   phase->transform_later(call);
 

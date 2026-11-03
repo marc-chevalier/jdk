@@ -590,15 +590,15 @@ void IdealGraphPrinter::visit_node(Node* n, bool edges) {
     Compile::current()->_in_dump_cnt++;
     print_prop(NODE_NAME_PROPERTY, (const char *)node->Name());
     print_prop("idx", node->_idx);
-    const Type* t = node->toop_type();
+    const Type* t = node->top_type();
     print_prop("type", t->msg());
     if (t->category() != Type::Category::Control &&
         t->category() != Type::Category::Memory) {
       // Print detailed type information for nodes whose type is not trivial.
       buffer[0] = 0;
-      stringStream toop_type_stream(buffer, sizeof(buffer) - 1);
-      t->dump_on(&toop_type_stream);
-      print_prop("toop_type", buffer);
+      stringStream top_type_stream(buffer, sizeof(buffer) - 1);
+      t->dump_on(&top_type_stream);
+      print_prop("top_type", buffer);
       if (C->types() != nullptr && C->matcher() == nullptr) {
         // Phase types maintained during optimization (GVN, IGVN, CCP) are
         // available and valid (not in code generation phase).
@@ -741,7 +741,7 @@ void IdealGraphPrinter::visit_node(Node* n, bool edges) {
         } else {
           print_prop(short_name, "I");
         }
-      } else if (t == Type::BOOTTOM) {
+      } else if (t == Type::BOTTOM) {
         print_prop(short_name, "^");
       } else if (t->base() == Type::Long && t->is_long()->is_con()) {
         const TypeLong *typeLong = t->is_long();

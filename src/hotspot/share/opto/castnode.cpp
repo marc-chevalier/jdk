@@ -42,8 +42,7 @@ const ConstraintCastNode::DependencyType ConstraintCastNode::DependencyType::Flo
 const ConstraintCastNode::DependencyType ConstraintCastNode::DependencyType::NonFloatingNarrowing(false, true, "non-floating narrowing dependency"); // pinned, narrows type
 const ConstraintCastNode::DependencyType ConstraintCastNode::DependencyType::NonFloatingNonNarrowing(false, false, "non-floating non-narrowing dependency"); // pinned, doesn't narrow type
 
-//=============================================================================
-// If input is already higher or equal to cast type, then this is an identity.
+// If the input type is a subset of the cast's type, then this is an identity.
 Node* ConstraintCastNode::Identity(PhaseGVN* phase) {
   if (!_dependency.narrows_type()) {
     // If this cast doesn't carry a type dependency (i.e. not used for type narrowing), we cannot optimize it.
@@ -61,9 +60,9 @@ Node* ConstraintCastNode::Identity(PhaseGVN* phase) {
 }
 
 //------------------------------Value------------------------------------------
-// Take 'meeet' of input and cast-constraint type
+// Take 'meet' of input and cast-constraint type
 const Type* ConstraintCastNode::Value(PhaseGVN* phase) const {
-  if (in(0) && phase->type(in(0)) == Type::BOOTTOM) return Type::BOOTTOM;
+  if (in(0) && phase->type(in(0)) == Type::BOTTOM) return Type::BOTTOM;
 
   const Type* in_type = phase->type(in(1));
   const Type* ft = in_type->filter_speculative(_type);
@@ -86,19 +85,19 @@ const Type* ConstraintCastNode::Value(PhaseGVN* phase) const {
   switch (Opcode()) {
     case Op_CastII:
     {
-      if (in_type == Type::BOOTTOM) {
-        assert(ft == Type::BOOTTOM, "special case #1");
+      if (in_type == Type::BOTTOM) {
+        assert(ft == Type::BOTTOM, "special case #1");
       }
-      const Type* rt = in_type->meeet_speculative(_type);
+      const Type* rt = in_type->meet_speculative(_type);
       if (rt->empty()) {
-        assert(ft == Type::BOOTTOM, "special case #2");
+        assert(ft == Type::BOTTOM, "special case #2");
       }
       break;
     }
     case Op_CastPP:
     if (in_type == TypePtr::NULL_PTR &&
         _type->isa_ptr() && _type->is_ptr()->_ptr == TypePtr::NotNull) {
-      assert(ft == Type::BOOTTOM, "special case #3");
+      assert(ft == Type::BOTTOM, "special case #3");
       break;
     }
   }
@@ -120,7 +119,7 @@ Node *ConstraintCastNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     return ideal_cast_of_value_type_node(phase);
   }
 
-  if (in(1) != nullptr && phase->type(in(1)) != Type::BOOTTOM) {
+  if (in(1) != nullptr && phase->type(in(1)) != Type::BOTTOM) {
     return TypeNode::Ideal(phase, can_reshape);
   }
 
@@ -224,7 +223,7 @@ bool ConstraintCastNode::is_subseteq_types(PhaseGVN* phase, const Node* other) c
 
 Node* ConstraintCastNode::pin_node_under_control_impl() const {
   assert(_dependency.is_floating(), "already pinned");
-  return make_cast_for_type(in(0), in(1), toop_type(), _dependency.with_pinned_dependency(), _extra_types);
+  return make_cast_for_type(in(0), in(1), top_type(), _dependency.with_pinned_dependency(), _extra_types);
 }
 
 Node* ConstraintCastNode::ideal_cast_of_value_type_node(PhaseGVN* phase) {
@@ -233,24 +232,24 @@ Node* ConstraintCastNode::ideal_cast_of_value_type_node(PhaseGVN* phase) {
     return nullptr;
   }
 
-  const Type* meeet = vt->type()->filter(type());
-  if (meeet == Type::BOOTTOM) {
+  const Type* meet = vt->type()->filter(type());
+  if (meet == Type::BOTTOM) {
     // Do not push a dead Cast since its type can be unrelated
     return nullptr;
   }
 
-  if (meeet == vt->type()->remove_speculative()) {
+  if (meet == vt->type()->remove_speculative()) {
     // Redundant cast, let Identity handle
     return nullptr;
   }
 
-  if (meeet == TypePtr::NULL_PTR) {
+  if (meet == TypePtr::NULL_PTR) {
     // Will collapse to the constant null
     return nullptr;
   }
 
   // The only possible case left is that the cast is a cast to not-null
-  assert(meeet == vt->type()->filter(TypePtr::NOTNULL), "must be");
+  assert(meet == vt->type()->filter(TypePtr::NOTNULL), "must be");
   ValueTypeNode* res = vt->clone()->as_ValueType();
   res->set_null_marker(*phase);
 
@@ -346,7 +345,7 @@ void CastIINode::dump_spec(outputStream* st) const {
 
 CastIINode* CastIINode::pin_node_under_control_impl() const {
   assert(_dependency.is_floating(), "already pinned");
-  return new CastIINode(in(0), in(1), toop_type(), _dependency.with_pinned_dependency(), _range_check_dependency, _extra_types);
+  return new CastIINode(in(0), in(1), top_type(), _dependency.with_pinned_dependency(), _range_check_dependency, _extra_types);
 }
 
 void CastIINode::remove_range_check_cast(Compile* C) {
@@ -453,7 +452,7 @@ Node* CastLLNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   if (in1 != nullptr && in1->Opcode() == Op_ConvI2L) {
     const Type* t = Value(phase);
     const Type* t_in = phase->type(in1);
-    if (t != Type::BOOTTOM && t_in != Type::BOOTTOM) {
+    if (t != Type::BOTTOM && t_in != Type::BOTTOM) {
       const TypeLong* tl = t->is_long();
       const TypeLong* t_in_l = t_in->is_long();
       assert(t_in_l->contains(tl), "CastLL type should be narrower than or equal to the type of its input");
@@ -475,9 +474,7 @@ Node* CastLLNode::Ideal(PhaseGVN* phase, bool can_reshape) {
   return nullptr;
 }
 
-//=============================================================================
-//------------------------------Identity---------------------------------------
-// If input is already higher or equal to cast type, then this is an identity.
+// If the input type is a subset of the cast(s type, then this is an identity.
 Node* CheckCastPPNode::Identity(PhaseGVN* phase) {
   if (in(1)->is_ValueType() && _type->isa_instptr() && phase->type(in(1))->value_klass()->is_subtype_of(_type->is_instptr()->instance_klass())) {
     return in(1);
@@ -488,7 +485,7 @@ Node* CheckCastPPNode::Identity(PhaseGVN* phase) {
 // CastPPNodes are removed before matching, while alias classes are needed in global code motion.
 // As a result, it is not valid for a CastPPNode to change the oop such that the derived pointers
 // lie in different alias classes with and without the node. For example, a CastPPNode c may not
-// cast an Object to a Toop[], because later removal of c would affect the alias class of c's
+// cast an Object to a Top[], because later removal of c would affect the alias class of c's
 // array length field (c + arrayOopDesc::length_offset_in_bytes()).
 //
 // This function verifies that a CastPPNode on an oop does not violate the aforementioned property.
@@ -498,7 +495,7 @@ Node* CheckCastPPNode::Identity(PhaseGVN* phase) {
 // reshaping.
 void CastPPNode::verify_type(const Type* in_type, const Type* out_type) {
 #ifdef ASSERT
-  out_type = out_type->meeet(in_type);
+  out_type = out_type->meet(in_type);
   if (in_type->empty() || out_type->empty()) {
     return;
   }
@@ -522,13 +519,12 @@ void CastPPNode::verify_type(const Type* in_type, const Type* out_type) {
 #endif // ASSERT
 }
 
-//------------------------------Value------------------------------------------
-// Take 'meeet' of input and cast-up type, unless working with an Interface
+// Take the meet of the input and cast's type, unless working with an Interface.
 const Type* CheckCastPPNode::Value(PhaseGVN* phase) const {
-  if (in(0) && phase->type(in(0)) == Type::BOOTTOM) return Type::BOOTTOM;
+  if (in(0) && phase->type(in(0)) == Type::BOTTOM) return Type::BOTTOM;
 
   const Type *inn = phase->type(in(1));
-  if (inn == Type::BOOTTOM) return Type::BOOTTOM;  // No information yet
+  if (inn == Type::BOTTOM) return Type::BOTTOM;  // No information yet
 
   if (inn->isa_oopptr() && _type->isa_oopptr()) {
     return ConstraintCastNode::Value(phase);
@@ -545,19 +541,19 @@ const Type* CheckCastPPNode::Value(PhaseGVN* phase) const {
       // a dying data path while the corresponding flat/null-free check is not folded.
       my_type = my_type->is_aryptr()->update_properties(in_type->is_aryptr());
       if (my_type == nullptr) {
-        return Type::BOOTTOM; // Inconsistent properties
+        return Type::BOTTOM; // Inconsistent properties
       }
     }
     TypePtr::PTR in_ptr = in_type->ptr();
     if (in_ptr == TypePtr::Null) {
       // A null input cast to a type that cannot be null (e.g. NotNull) describes
-      // an impossible value: the meeet is empty, so the result must be BOOTTOM.
-      if (my_type->meeet_ptr(TypePtr::Null) == TypePtr::BootPTR) {
-        return Type::BOOTTOM;
+      // an impossible value: the meet is empty, so the result must be BOTTOM.
+      if (my_type->meet_ptr(TypePtr::Null) == TypePtr::BotPTR) {
+        return Type::BOTTOM;
       }
       result = in_type;
     } else if (in_ptr != TypePtr::Constant) {
-      result = my_type->cast_to_ptr_type(my_type->meeet_ptr(in_ptr));
+      result = my_type->cast_to_ptr_type(my_type->meet_ptr(in_ptr));
     }
   }
 
@@ -566,25 +562,25 @@ const Type* CheckCastPPNode::Value(PhaseGVN* phase) const {
 
 Node* CheckCastPPNode::pin_node_under_control_impl() const {
   assert(_dependency.is_floating(), "already pinned");
-  return new CheckCastPPNode(in(0), in(1), toop_type(), _dependency.with_pinned_dependency(), _extra_types);
+  return new CheckCastPPNode(in(0), in(1), top_type(), _dependency.with_pinned_dependency(), _extra_types);
 }
 
 //=============================================================================
 //------------------------------Value------------------------------------------
 const Type* CastX2PNode::Value(PhaseGVN* phase) const {
   const Type* t = phase->type(in(1));
-  if (t == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t == Type::BOTTOM) return Type::BOTTOM;
   if (t->base() == Type_X && t->singleton()) {
     uintptr_t bits = (uintptr_t) t->is_intptr_t()->get_con();
     if (bits == 0)   return TypePtr::NULL_PTR;
     return TypeRawPtr::make((address) bits);
   }
-  return CastX2PNode::toop_type();
+  return CastX2PNode::top_type();
 }
 
 //------------------------------Idealize---------------------------------------
 static inline bool fits_in_int(const Type* t, bool but_not_min_int = false) {
-  if (t == Type::BOOTTOM)  return false;
+  if (t == Type::BOTTOM)  return false;
   const TypeX* tl = t->is_intptr_t();
   jint lo = min_jint;
   jint hi = max_jint;
@@ -642,12 +638,12 @@ Node* CastX2PNode::Identity(PhaseGVN* phase) {
 //------------------------------Value------------------------------------------
 const Type* CastP2XNode::Value(PhaseGVN* phase) const {
   const Type* t = phase->type(in(1));
-  if (t == Type::BOOTTOM) return Type::BOOTTOM;
+  if (t == Type::BOTTOM) return Type::BOTTOM;
   if (t->base() == Type::RawPtr && t->singleton()) {
     uintptr_t bits = (uintptr_t) t->is_rawptr()->get_con();
     return TypeX::make(bits);
   }
-  return CastP2XNode::toop_type();
+  return CastP2XNode::top_type();
 }
 
 Node *CastP2XNode::Ideal(PhaseGVN *phase, bool can_reshape) {
@@ -756,10 +752,10 @@ Node* ConstraintCastNode::optimize_integer_cast(PhaseGVN* phase, BasicType bt) {
     return res;
   }
   const Type* t = Value(phase);
-  if (t != Type::BOOTTOM && phase->C->post_loop_opts_phase()) {
-    const Type* toop_t = toop_type();
-    const TypeInteger* wide_t = widen_type(phase, toop_t, bt);
-    if (wide_t != toop_t) {
+  if (t != Type::BOTTOM && phase->C->post_loop_opts_phase()) {
+    const Type* top_t = top_type();
+    const TypeInteger* wide_t = widen_type(phase, top_t, bt);
+    if (wide_t != top_t) {
       // Widening the type of the Cast (to allow some commoning) causes the Cast to change how it can be optimized (if
       // type of its input is narrower than the Cast's type, we can't remove it to not loose the control dependency).
       return make_with(in(1), wide_t, _dependency.with_non_narrowing());
