@@ -146,7 +146,7 @@ class StringConcat : public ResourceObj {
         Node* v2 = cmp->in(2);
         // Null check of the return of toString which can simply be skipped.
         if (b->_test._test == BoolTest::ne &&
-            v2->toop_type() == TypePtr::NULL_PTR &&
+            v2->top_type() == TypePtr::NULL_PTR &&
             value->in(true_path)->Opcode() == Op_CastPP &&
             value->in(true_path)->in(1) == v1 &&
             v1->is_Proj() && is_SB_toString(v1->in(0))) {
@@ -216,7 +216,7 @@ class StringConcat : public ResourceObj {
       const TypePtr* no_memory_effects = nullptr;
       Compile* C = _stringopts->C;
       CallStaticJavaNode* call = new CallStaticJavaNode(call_type, call_addr, "uncommon_trap",
-                                                        no_memory_effects, TypePtr::TOOP);
+                                                        no_memory_effects, TypePtr::TOP);
       for (int e = 0; e < TypeFunc::Parms; e++) {
         call->init_req(e, uct->in(e));
       }
@@ -259,7 +259,7 @@ void StringConcat::eliminate_unneeded_control() {
       Compile* C = _stringopts->C;
       C->gvn_replace_by(n, n->in(0)->in(0));
       // get rid of the other projection
-      C->gvn_replace_by(n->in(0)->as_If()->false_proj(), C->boottom());
+      C->gvn_replace_by(n->in(0)->as_If()->false_proj(), C->bottom());
     } else if (n->is_Region()) {
       Node* iff = n->in(1)->in(0);
       assert(n->req() == 3 && n->in(2)->in(0) == iff, "not a diamond");
@@ -275,9 +275,9 @@ void StringConcat::eliminate_unneeded_control() {
       assert(bol->is_Bool(), "unexpected if shape");
       Node* cmp = bol->in(1);
       assert(cmp->is_Cmp(), "unexpected if shape");
-      if (cmp->in(1)->is_boottom() || cmp->in(2)->is_boottom()) {
+      if (cmp->in(1)->is_bottom() || cmp->in(2)->is_bottom()) {
         // This region should lose its Phis. They are removed either in PhaseRemoveUseless (for data phis) or in IGVN
-        // (for memory phis). During IGVN, there is a chance that the If folds to boottom before the Region is processed
+        // (for memory phis). During IGVN, there is a chance that the If folds to bottom before the Region is processed
         // which then causes a reachable part of the graph to become dead. To prevent this, set the boolean input of
         // the If to a constant to nicely let the diamond Region/If fold away.
         Compile* C = _stringopts->C;
@@ -410,13 +410,13 @@ void StringConcat::eliminate_call(CallNode* call) {
     C->gvn_replace_by(projs->fallthrough_memproj, call->in(TypeFunc::Memory));
   }
   if (projs->catchall_memproj != nullptr) {
-    C->gvn_replace_by(projs->catchall_memproj, C->boottom());
+    C->gvn_replace_by(projs->catchall_memproj, C->bottom());
   }
   if (projs->fallthrough_ioproj != nullptr) {
     C->gvn_replace_by(projs->fallthrough_ioproj, call->in(TypeFunc::I_O));
   }
   if (projs->catchall_ioproj != nullptr) {
-    C->gvn_replace_by(projs->catchall_ioproj, C->boottom());
+    C->gvn_replace_by(projs->catchall_ioproj, C->bottom());
   }
   if (projs->catchall_catchproj != nullptr) {
     // EA can't cope with the partially collapsed graph this
@@ -428,13 +428,13 @@ void StringConcat::eliminate_call(CallNode* call) {
         _stringopts->record_dead_node(use);
       }
     }
-    C->gvn_replace_by(projs->catchall_catchproj, C->boottom());
+    C->gvn_replace_by(projs->catchall_catchproj, C->bottom());
   }
   if (projs->resproj[0] != nullptr) {
     assert(projs->nb_resproj == 1, "unexpected number of results");
-    C->gvn_replace_by(projs->resproj[0], C->boottom());
+    C->gvn_replace_by(projs->resproj[0], C->bottom());
   }
-  C->gvn_replace_by(call, C->boottom());
+  C->gvn_replace_by(call, C->bottom());
 }
 
 void StringConcat::eliminate_initialize(InitializeNode* init) {
@@ -448,7 +448,7 @@ void StringConcat::eliminate_initialize(InitializeNode* init) {
   }
   Node* mem = init->in(TypeFunc::Memory);
   init->replace_mem_projs_by(mem, C);
-  C->gvn_replace_by(init, C->boottom());
+  C->gvn_replace_by(init, C->bottom());
   init->disconnect_inputs(C);
 }
 
@@ -554,7 +554,7 @@ StringConcat* PhaseStringOpts::build_candidate(CallStaticJavaNode* call) {
       }
       // Find the constructor call
       Node* result = alloc->result_cast();
-      if (result == nullptr || !result->is_CheckCastPP() || alloc->in(TypeFunc::Memory)->is_boottom()) {
+      if (result == nullptr || !result->is_CheckCastPP() || alloc->in(TypeFunc::Memory)->is_bottom()) {
         // strange looking allocation
 #ifndef PRODUCT
         if (PrintOptimizeStringConcat) {
@@ -662,7 +662,7 @@ StringConcat* PhaseStringOpts::build_candidate(CallStaticJavaNode* call) {
                 cnode->method()->signature()->as_symbol() == int_sig)) {
       sc->add_control(cnode);
       Node* arg = cnode->in(TypeFunc::Parms + 1);
-      if (arg == nullptr || arg->is_boottom()) {
+      if (arg == nullptr || arg->is_bottom()) {
 #ifndef PRODUCT
         if (PrintOptimizeStringConcat) {
           tty->print("giving up because the call is effectively dead");
@@ -811,7 +811,7 @@ void PhaseStringOpts::remove_dead_nodes() {
       case Op_Region: {
         uint i = 1;
         for (i = 1; i < use->req(); i++) {
-          if (use->in(i) != C->boottom()) {
+          if (use->in(i) != C->bottom()) {
             break;
           }
         }
@@ -822,7 +822,7 @@ void PhaseStringOpts::remove_dead_nodes() {
               dead_worklist.push(m);
             }
           }
-          C->gvn_replace_by(use, C->boottom());
+          C->gvn_replace_by(use, C->bottom());
         }
         break;
       }
@@ -836,12 +836,12 @@ void PhaseStringOpts::remove_dead_nodes() {
             dead_worklist.push(m);
           }
         }
-        C->gvn_replace_by(use, C->boottom());
+        C->gvn_replace_by(use, C->bottom());
         break;
       }
       case Op_Phi:
-        if (use->in(0) == C->boottom()) {
-          C->gvn_replace_by(use, C->boottom());
+        if (use->in(0) == C->bottom()) {
+          C->gvn_replace_by(use, C->bottom());
         }
         break;
     }
@@ -859,7 +859,7 @@ bool StringConcat::validate_mem_flow() {
     Node* curr = _control.at(i);
     if (curr->is_Call() && curr != _begin) { // For all calls except the first allocation
       // Now here's the main invariant in our case:
-      // For memory between the constructor, and appends, and toString we should only see toop memory,
+      // For memory between the constructor, and appends, and toString we should only see top memory,
       // produced by the previous call we know about.
       if (!_constructors.contains(curr)) {
         NOT_PRODUCT(path.push(curr);)
@@ -869,7 +869,7 @@ bool StringConcat::validate_mem_flow() {
         NOT_PRODUCT(path.push(mem);)
         while (mem->is_MergeMem()) {
           for (uint i = 1; i < mem->req(); i++) {
-            if (i != Compile::AliasIdxToop && mem->in(i) != C->boottom()) {
+            if (i != Compile::AliasIdxTop && mem->in(i) != C->bottom()) {
 #ifndef PRODUCT
               if (PrintOptimizeStringConcat) {
                 tty->print("fusion has incorrect memory flow (side effects) for ");
@@ -880,8 +880,8 @@ bool StringConcat::validate_mem_flow() {
               return false;
             }
           }
-          // skip through a potential MergeMem chain, linked through Toop
-          mem = mem->in(Compile::AliasIdxToop);
+          // skip through a potential MergeMem chain, linked through Top
+          mem = mem->in(Compile::AliasIdxTop);
           NOT_PRODUCT(path.push(mem);)
         }
         // now let it fall through, and see if we have a projection
@@ -1064,7 +1064,7 @@ bool StringConcat::validate_control_flow() {
       // Either a null check of the return of append which can simply be eliminated,
       // or possibly of a toString during stacked concats.
       if (b->_test._test == BoolTest::ne &&
-          v2->toop_type() == TypePtr::NULL_PTR &&
+          v2->top_type() == TypePtr::NULL_PTR &&
           v1->is_Proj() && ctrl_path.member(v1->in(0))) {
         if (!is_SB_toString(v1->in(0))) {
           // append type
@@ -1485,8 +1485,8 @@ void PhaseStringOpts::getChars(GraphKit& kit, Node* arg, Node* dst_array, BasicT
 
   kit.set_control(__ IfTrue(iff));
   if (kit.stopped()) {
-    final_merge->init_req(merge_index + 1, C->boottom());
-    final_mem->init_req(merge_index + 1, C->boottom());
+    final_merge->init_req(merge_index + 1, C->bottom());
+    final_mem->init_req(merge_index + 1, C->bottom());
   } else {
     Node* index = __ SubI(charPos, __ intcon((bt == T_BYTE) ? 1 : 2));
     st = __ store_to_memory(kit.control(), kit.array_element_address(dst_array, index, T_BYTE),
@@ -1579,7 +1579,7 @@ void PhaseStringOpts::arraycopy(GraphKit& kit, IdealKit& ideal, Node* src_array,
   Node* extra = nullptr;
 #ifdef _LP64
   count = __ ConvI2L(count);
-  extra = C->boottom();
+  extra = C->bottom();
 #endif
 
   Node* src_ptr = __ array_element_address(src_array, __ intcon(0), T_BYTE);
@@ -1862,7 +1862,7 @@ void PhaseStringOpts::replace_string_concat(StringConcat* sc) {
   }
   // blow away old allocation arguments
   for (uint i1 = TypeFunc::Parms; i1 < jvms->debug_start(); i1++) {
-    map->init_req(i1, C->boottom());
+    map->init_req(i1, C->bottom());
   }
   // Copy the rest of the inputs for the JVMState
   for (uint i1 = jvms->debug_start(); i1 < sc->begin()->req(); i1++) {
@@ -1981,7 +1981,7 @@ void PhaseStringOpts::replace_string_concat(StringConcat* sc) {
           RegionNode *r = new RegionNode(3);
           kit.gvn().set_type(r, Type::CONTROL);
           Node *phi = new PhiNode(r, type);
-          kit.gvn().set_type(phi, phi->toop_type());
+          kit.gvn().set_type(phi, phi->top_type());
           Node* p = __ Bool(__ CmpP(arg, kit.null()), BoolTest::ne);
           IfNode* iff = kit.create_and_map_if(kit.control(), p, PROB_MIN, COUNT_UNKNOWN);
           Node* notnull = __ IfTrue(iff);

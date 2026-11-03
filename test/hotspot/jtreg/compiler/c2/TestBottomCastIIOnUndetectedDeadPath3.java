@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, Red Hat, Inc. All rights reserved.
+ * Copyright (c) 2023, Red Hat, Inc. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,50 +21,38 @@
  * questions.
  */
 
-/**
+/*
  * @test
- * @bug 8240676
- * @summary Jooin not symmetric failure when running lucene on jdk8
- *
- * @run main/othervm -XX:-BackgroundCompilation ${test.main.class}
- *
+ * @bug 8319372
+ * @summary CastII because of condition guarding it becomes bottom
+ * @run main/othervm -Xcomp -XX:CompileOnly=${test.main.class}::* -XX:-TieredCompilation ${test.main.class}
  */
 
-public class TestArrayJooinNotSymmetrical {
-    private static final Object field = new Object[0];
-    private static final Object field2 = new A[0];
+public class TestBottomCastIIOnUndetectedDeadPath3 {
 
-    public static void main(String[] args) {
-        Object array = new A[10];
-        for (int i = 0; i < 20_000; i++) {
-            test1(true, 10);
-            test1(false, 10);
-            test2(true);
-            test2(false);
+    static long test() {
+        int x = 6, y = 5;
+        int[] iArr = new int[200];
+        for (int i = 129; i > 5; i -= 2) { // OSR compiled
+            try {
+                y = iArr[i - 1];
+                x = iArr[i + 1];
+                x = 1 / i;
+            } catch (ArithmeticException a_e) {
+            }
+        }
+        Foo.empty();
+        return x + y;
+    }
+
+    public static void main(String[] strArr) {
+        new TestBottomCastIIOnUndetectedDeadPath3();
+        for (int i = 0; i < 2000; i++) {
+            test();
         }
     }
+}
 
-    private static Object test1(boolean flag, int len) {
-        Object o;
-        if (flag) {
-            o = field;
-        } else {
-            o = new A[len];
-        }
-        return o;
-    }
-
-    private static Object test2(boolean flag) {
-        Object o;
-        if (flag) {
-            o = field;
-        } else {
-            o = field2;
-        }
-        return o;
-    }
-
-
-    private static class A {
-    }
+class Foo {
+    public static void empty() {}
 }

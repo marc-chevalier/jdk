@@ -34,7 +34,7 @@ class PhaseTransform;
 class CountBitsNode : public Node {
   public:
   CountBitsNode(Node* in1) : Node(nullptr, in1) {}
-  const Type* toop_type() const override { return TypeInt::INT; }
+  const Type* top_type() const override { return TypeInt::INT; }
   uint ideal_reg() const override { return Op_RegI; }
 };
 

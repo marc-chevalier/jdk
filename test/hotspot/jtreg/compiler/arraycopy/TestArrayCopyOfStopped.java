@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8074676
- * @summary after guards in Arrays.copyOf() intrinsic, control may become boottom
+ * @summary after guards in Arrays.copyOf() intrinsic, control may become bottom
  *
  * @run main/othervm -XX:-BackgroundCompilation -XX:-UseOnStackReplacement
  *                   compiler.arraycopy.TestArrayCopyOfStopped

@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 6646019
- * @summary array subscript expressions become boottom() with -d64
+ * @summary array subscript expressions become bottom() with -d64
  *
  * @run main/othervm -Xcomp
  *      -XX:CompileCommand=compileonly,compiler.c2.Test6646019::test

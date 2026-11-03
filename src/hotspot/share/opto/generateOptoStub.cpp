@@ -52,7 +52,7 @@ void GraphKit::gen_stub(address C_function,
 
   // The procedure start
   StartNode* start = new StartNode(root(), jdomain);
-  _gvn.set_type_toop(start);
+  _gvn.set_type_top(start);
 
   // Make a map, with JVM state
   uint parm_cnt = jdomain->cnt();
@@ -77,7 +77,7 @@ void GraphKit::gen_stub(address C_function,
     map()->init_req(i, _gvn.transform(new ParmNode(start, i)));
   }
   for ( ; i<map()->req(); i++) {
-    map()->init_req(i, boottom());      // For nicer debugging
+    map()->init_req(i, bottom());      // For nicer debugging
   }
 
   // GraphKit requires memory to be a MergeMemNode:
@@ -86,7 +86,7 @@ void GraphKit::gen_stub(address C_function,
   // Get base of thread-local storage area
   Node* thread = _gvn.transform(new ThreadLocalNode());
 
-  const int NoAlias = Compile::AliasIdxToop;
+  const int NoAlias = Compile::AliasIdxTop;
 
   Node* adr_last_Java_pc = off_heap_plus_addr(thread,
                                               in_bytes(JavaThread::frame_anchor_offset()) +
@@ -122,10 +122,10 @@ void GraphKit::gen_stub(address C_function,
       fields[cnt] = f;
     }
   }
-  fields[cnt++] = TypeRawPtr::TOOP; // Thread-local storage
+  fields[cnt++] = TypeRawPtr::TOP; // Thread-local storage
   // Also pass in the caller's PC, if asked for.
   if (return_pc) {
-    fields[cnt++] = TypeRawPtr::TOOP; // Return PC
+    fields[cnt++] = TypeRawPtr::TOP; // Return PC
   }
   const TypeTuple* domain = TypeTuple::make(cnt, fields);
 
@@ -134,7 +134,7 @@ void GraphKit::gen_stub(address C_function,
   // return the oop through TLS for runtime calls.
   // Also, C routines returning integer subword values leave the high
   // order bits dirty; these must be cleaned up by explicit sign extension.
-  const Type* retval = (jrange->cnt() == TypeFunc::Parms) ? Type::BOOTTOM : jrange->field_at(TypeFunc::Parms);
+  const Type* retval = (jrange->cnt() == TypeFunc::Parms) ? Type::BOTTOM : jrange->field_at(TypeFunc::Parms);
   // Make a private copy of jrange->fields();
   const Type **rfields = TypeTuple::fields(jrange->cnt() - TypeFunc::Parms);
   // Fixup oop returns
@@ -142,7 +142,7 @@ void GraphKit::gen_stub(address C_function,
   if (retval_ptr) {
     assert( pass_tls, "Oop must be returned thru TLS" );
     // Fancy-jumps return address; others return void
-    rfields[TypeFunc::Parms] = is_fancy_jump ? TypeRawPtr::TOOP : Type::BOOTTOM;
+    rfields[TypeFunc::Parms] = is_fancy_jump ? TypeRawPtr::TOP : Type::BOTTOM;
 
   } else if (retval->isa_int()) { // Returning any integer subtype?
     // "Fatten" byte, char & short return types to 'int' to show that
@@ -163,7 +163,7 @@ void GraphKit::gen_stub(address C_function,
 
   //-----------------------------
   // Make the call node.
-  CallRuntimeNode* call = new CallRuntimeNode(c_sig, C_function, name, TypePtr::TOOP, TypePtr::TOOP, new (C) JVMState(0));
+  CallRuntimeNode* call = new CallRuntimeNode(c_sig, C_function, name, TypePtr::TOP, TypePtr::TOP, new (C) JVMState(0));
   //-----------------------------
 
   // Fix-up the debug info for the call.
@@ -176,12 +176,12 @@ void GraphKit::gen_stub(address C_function,
     call->init_req(cnt++, map()->in(i));
   }
   // A little too aggressive on the parm copy; return address is not an input.
-  call->set_req(TypeFunc::ReturnAdr, boottom());
+  call->set_req(TypeFunc::ReturnAdr, bottom());
   for (; i < parm_cnt; i++) { // Regular input arguments.
     const Type *f = jdomain->field_at(i);
     if (CCallingConventionRequiresIntsAsLongs && f->isa_int()) {
       call->init_req(cnt++, _gvn.transform(new ConvI2LNode(map()->in(i))));
-      call->init_req(cnt++, boottom());
+      call->init_req(cnt++, bottom());
     } else {
       call->init_req(cnt++, map()->in(i));
     }
@@ -201,7 +201,7 @@ void GraphKit::gen_stub(address C_function,
   if (range->cnt() > TypeFunc::Parms) {
     Node* retnode = _gvn.transform( new ProjNode(call,TypeFunc::Parms) );
     // C-land is allowed to return sub-word values.  Convert to integer type.
-    assert(retval != Type::BOOTTOM, "");
+    assert(retval != Type::BOTTOM, "");
     if (retval == TypeInt::BOOL) {
       retnode = _gvn.transform( new AndINode(retnode, intcon(0xFF)) );
     } else if (retval == TypeInt::CHAR) {
@@ -228,7 +228,7 @@ void GraphKit::gen_stub(address C_function,
   // Runtime call returning oop in TLS?  Fetch it out
   if( pass_tls ) {
     Node* adr = off_heap_plus_addr(thread, in_bytes(JavaThread::vm_result_oop_offset()));
-    Node* vm_result = make_load(nullptr, adr, TypeOopPtr::TOOP, T_OBJECT, MemNode::unordered);
+    Node* vm_result = make_load(nullptr, adr, TypeOopPtr::TOP, T_OBJECT, MemNode::unordered);
     map()->set_req(TypeFunc::Parms, vm_result); // vm_result passed as result
     // clear thread-local-storage(tls)
     store_to_memory(control(), adr, null(), T_ADDRESS, MemNode::unordered);
@@ -237,7 +237,7 @@ void GraphKit::gen_stub(address C_function,
   //-----------------------------
   // check exception
   Node* adr = off_heap_plus_addr(thread, in_bytes(Thread::pending_exception_offset()));
-  Node* pending = make_load(nullptr, adr, TypeOopPtr::TOOP, T_OBJECT, MemNode::unordered);
+  Node* pending = make_load(nullptr, adr, TypeOopPtr::TOP, T_OBJECT, MemNode::unordered);
 
   Node* exit_memory = reset_memory();
 

@@ -25,7 +25,7 @@
 /**
  * @test
  * @bug 8267988
- * @summary C2: assert(!addp->is_AddP() || addp->in(AddPNode::Base)->is_boottom() || addp->in(AddPNode::Base) == n->in(AddPNode::Base)) failed: Base pointers must match (addp 1301)
+ * @summary C2: assert(!addp->is_AddP() || addp->in(AddPNode::Base)->is_bottom() || addp->in(AddPNode::Base) == n->in(AddPNode::Base)) failed: Base pointers must match (addp 1301)
  *
  * @run main/othervm -Xcomp -XX:CompileOnly=TestAddPChainWithDifferentBase::* TestAddPChainWithDifferentBase
  *
