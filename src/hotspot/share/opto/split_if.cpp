@@ -159,7 +159,7 @@ bool PhaseIdealLoop::split_up( Node *n, Node *blk1, Node *blk2 ) {
   // it moves up in the graph so change any clones so widen the type
   // to TypeLong::INT when pushing it up.
   const Type* rtype = nullptr;
-  if (n->Opcode() == Op_ConvI2L && n->toop_type() != TypeLong::INT) {
+  if (n->Opcode() == Op_ConvI2L && n->top_type() != TypeLong::INT) {
     rtype = TypeLong::INT;
   }
 
@@ -228,7 +228,7 @@ bool PhaseIdealLoop::split_up( Node *n, Node *blk1, Node *blk2 ) {
 // If the (LoadKlass .. (AddP obj ..)) is not cloned down, then split if transforms this to: (If .. (Bool(CmpP phi1 ..)))
 // and the CheckCastPP to (CheckCastPP phi2). It's possible then that phi2 is transformed to a CheckCastPP
 // (through PhiNode::Ideal) and that that CheckCastPP is replaced by another narrower CheckCastPP at the same control
-// (through ConstraintCastNode::Identity). That could cause the CheckCastPP at the If to become boottom while (CmpP phi1)
+// (through ConstraintCastNode::Identity). That could cause the CheckCastPP at the If to become bottom while (CmpP phi1)
 // wouldn't constant fold because it's using a different data path. Cloning the whole subgraph down guarantees both the
 // AddP and CheckCastPP have the same obj input after split if.
 bool PhaseIdealLoop::clone_cmp_loadklass_down(Node* n, const Node* blk1, const Node* blk2) {
@@ -500,7 +500,7 @@ struct small_cache : public Dict {
 // the appropriate false-arm or true-arm values.  If some path leads to the
 // original IF, then insert a Phi recursively.
 Node *PhaseIdealLoop::spinup( Node *iff_dom, Node *new_false, Node *new_true, Node *use_blk, Node *def, small_cache *cache ) {
-  if (use_blk->is_boottom())        // Handle dead uses
+  if (use_blk->is_bottom())     // Handle dead uses
     return use_blk;
   Node *prior_n = (Node*)((intptr_t)0xdeadbeef);
   Node *n = use_blk;            // Get path input
@@ -607,7 +607,7 @@ Node *PhaseIdealLoop::find_use_block( Node *use, Node *def, Node *old_false, Nod
   }
 
   if (use_blk == nullptr) {        // He's dead, Jim
-    _igvn.replace_node(use, C->boottom());
+    _igvn.replace_node(use, C->bottom());
   }
 
   return use_blk;

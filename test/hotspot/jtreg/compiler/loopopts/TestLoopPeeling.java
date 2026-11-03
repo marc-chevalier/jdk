@@ -84,7 +84,7 @@ public class TestLoopPeeling {
                 // This store and the corresponding range check are moved out of the
                 // loop and both used after main loop and the peeled iteration exit.
                 // For the peeled iteration, storeIndex is always -1 and the ConvI2L
-                // is replaced by BOOTTOM. However, the range check is not folded because
+                // is replaced by BOTTOM. However, the range check is not folded because
                 // we don't do the split if optimization in PhaseIdealLoop2.
                 // As a result, we have a (dead) control path from the peeled iteration
                 // to the StoreI but the data path is removed.
@@ -105,7 +105,7 @@ public class TestLoopPeeling {
         // where the CastII is range check dependent and has type int:>=0.
         // The CastII gets pushed through the AddI and its type is changed to int:>=1
         // which does not overlap with the input type of storeIndex (int:<=0).
-        // The CastII is replaced by BOOTTOM causing a cascade of other eliminations.
+        // The CastII is replaced by BOTTOM causing a cascade of other eliminations.
         // Since the control path through the range check CmpU(AddI(storeIndex, -1))
         // is not eliminated, the graph is in a corrupted state. We fail once we merge
         // with the result of Load2 because we get data from a non-dominating region.
@@ -147,7 +147,7 @@ public class TestLoopPeeling {
                 // This allocation and the corresponding size check are moved out of the
                 // loop and both used after main loop and the peeled iteration exit.
                 // For the peeled iteration, allocationCount is always -1 and the ConvI2L
-                // is replaced by BOOTTOM. However, the size check is not folded because
+                // is replaced by BOTTOM. However, the size check is not folded because
                 // we don't do the split if optimization in PhaseIdealLoop2.
                 // As a result, we have a (dead) control path from the peeled iteration
                 // to the allocation but the data path is removed.

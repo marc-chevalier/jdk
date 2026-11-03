@@ -24,7 +24,7 @@
 /**
  * @test
  * @bug 8265938
- * @summary Test conditional move optimization with a BOOTTOM PhiNode.
+ * @summary Test conditional move optimization with a BOTTOM PhiNode.
  * @library /test/lib
  * @run main/othervm -XX:CompileCommand=compileonly,compiler.loopopts.TestCMoveWithDeadPhi::test
  *                   compiler.loopopts.TestCMoveWithDeadPhi

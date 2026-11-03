@@ -1,6 +1,6 @@
-// Remove all nodes except control, mixed, and nodes of 'toop' type that are
+// Remove all nodes except control, mixed, and nodes of 'top' type that are
 // successors of control nodes (typically 'Halt', 'Return', etc.).
 remove(not(or([matches("name", "Root"),
                matches("category", "control|mixed"),
-               and([matches("type", "toop"),
+               and([matches("type", "top"),
                     successorOf(matches("type", "control"))])])));

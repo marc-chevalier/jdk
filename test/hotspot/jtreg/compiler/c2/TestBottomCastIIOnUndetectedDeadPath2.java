@@ -24,7 +24,7 @@
 /*
  * @test
  * @bug 8319372
- * @summary CastII because of condition guarding it becomes boottom
+ * @summary CastII because of condition guarding it becomes bottom
  * @requires vm.compiler2.enabled
  * @run main/othervm -XX:CompileCommand=quiet -XX:CompileCommand=compileonly,${test.main.class}::test -XX:-TieredCompilation
  *                   -Xbatch -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN -XX:StressSeed=256120824 ${test.main.class}
@@ -32,7 +32,7 @@
  *                   -Xbatch -XX:+UnlockDiagnosticVMOptions -XX:+StressIGVN ${test.main.class}
  */
 
-public class TestBoottomCastIIOnUndetectedDeadPath2 {
+public class TestBottomCastIIOnUndetectedDeadPath2 {
     static int array[] = new int[100];
 
     static int test() {
