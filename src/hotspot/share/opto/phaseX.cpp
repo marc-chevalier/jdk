@@ -1793,6 +1793,9 @@ void PhaseIterGVN::verify_Ideal_for(Node* n, bool can_reshape, bool deep_revisit
     return;
   }
 
+  bool is_add_sub = n->Opcode() == Op_AddI || n->Opcode() == Op_AddL || n->Opcode() == Op_SubI || n->Opcode() == Op_SubL;
+  BasicType bt = n->Opcode() == Op_AddI || n->Opcode() == Op_SubI ? T_INT : T_LONG;
+
   // We just saw a new Idealization which was not done during IGVN.
   stringStream ss; // Print as a block without tty lock.
   ss.cr();
@@ -1803,9 +1806,17 @@ void PhaseIterGVN::verify_Ideal_for(Node* n, bool can_reshape, bool deep_revisit
     ss.print_cr("The node was replaced by Ideal.");
     ss.print_cr("Old node:");
     n->dump_bfs(1, nullptr, "", &ss);
+    if (is_add_sub) {
+      ss.print_cr("As linear combination:");
+      AddNode::dump_sub_graph(*this, bt, ss, n);
+    }
   }
   ss.print_cr("The result after Ideal:");
   i->dump_bfs(1, nullptr, "", &ss);
+  if (is_add_sub) {
+    ss.print_cr("As linear combination:");
+    AddNode::dump_sub_graph(*this, bt, ss, n);
+  }
   tty->print_cr("%s", ss.as_string());
 
   assert(false, "Missed Ideal optimization opportunity in PhaseIterGVN for %s", n->Name());

@@ -624,9 +624,13 @@ private:
     }
   };
 
-  [[nodiscard]] bool is_constant(BasicType bt, Node* n) const {
-    const TypeInteger* t = gvn_.type(n)->isa_integer(bt);
+  [[nodiscard]] static bool is_constant(const PhaseGVN& gvn, BasicType bt, Node* n) {
+    const TypeInteger* t = gvn.type(n)->isa_integer(bt);
     return t != nullptr && t->is_con();
+  }
+
+  [[nodiscard]] bool is_constant(BasicType bt, Node* n) const {
+    return is_constant(gvn_, bt, n);
   }
 
   [[nodiscard]] bool is_int_constant(Node* n) const {
@@ -984,7 +988,7 @@ private:
         ss.print("%d",  nodes_left_to_insert.at(i)->_idx);
       }
       ss.print("]; subgraph: ");
-      dump_sub_graph(bt, &ss, replaced);
+      dump_sub_graph(bt, ss, replaced);
       assert(nodes_left_to_insert.size() == 0, "should have been consumed: %s", ss.base());
       assert(constant_inserted, "should have been inserted: %s", ss.base());
     }
@@ -1177,48 +1181,53 @@ private:
     }
     return true;
   }
-
-  void dump_sub_graph(BasicType bt, outputStream* out, Node* n) const {
+public:
+  static void dump_sub_graph(const PhaseGVN& gvn, BasicType bt, outputStream& out, Node* n) {
     int op = n->Opcode();
     if (op == Op_Add(bt)) {
-      out->print("[%d](", n->_idx);
-      dump_sub_graph(bt, out,n->in(1));
-      out->print(" + ");
-      dump_sub_graph(bt, out, n->in(2));
-      out->print(")");
+      out.print("[%d](", n->_idx);
+      dump_sub_graph(gvn, bt, out,n->in(1));
+      out.print(" + ");
+      dump_sub_graph(gvn, bt, out, n->in(2));
+      out.print(")");
     } else if (op == Op_Sub(bt)) {
-      out->print("[%d](", n->_idx);
-      dump_sub_graph(bt, out,n->in(1));
-      out->print(" - ");
-      dump_sub_graph(bt, out, n->in(2));
-      out->print(")");
+      out.print("[%d](", n->_idx);
+      dump_sub_graph(gvn, bt, out,n->in(1));
+      out.print(" - ");
+      dump_sub_graph(gvn, bt, out, n->in(2));
+      out.print(")");
     } else if (op == Op_LShift(bt)) {
-      out->print("[%d](", n->_idx);
-      dump_sub_graph(bt, out,n->in(1));
-      out->print(" << ");
-      dump_sub_graph(T_INT, out, n->in(2));
-      out->print(")");
+      out.print("[%d](", n->_idx);
+      dump_sub_graph(gvn, bt, out,n->in(1));
+      out.print(" << ");
+      dump_sub_graph(gvn, T_INT, out, n->in(2));
+      out.print(")");
     } else if (op == Op_Mul(bt)) {
-      out->print("[%d](", n->_idx);
-      dump_sub_graph(bt, out, n->in(1));
-      out->print(" * ");
-      dump_sub_graph(bt, out, n->in(2));
-      out->print(")");
-    } else if (is_constant(bt, n)) {
-      const TypeInteger* t = gvn_.type(n)->isa_integer(bt);
+      out.print("[%d](", n->_idx);
+      dump_sub_graph(gvn, bt, out, n->in(1));
+      out.print(" * ");
+      dump_sub_graph(gvn, bt, out, n->in(2));
+      out.print(")");
+    } else if (is_constant(gvn, bt, n)) {
+      const TypeInteger* t = gvn.type(n)->isa_integer(bt);
       if (const TypeInt* ti = t->isa_int(); ti != nullptr) {
-        out->print("[%d]%d", n->_idx, ti->get_con());
+        out.print("[%d]%d", n->_idx, ti->get_con());
       } else {
         const TypeLong* tl = t->is_long();
-        out->print("[%d]%ldL", n->_idx, tl->get_con());
+        out.print("[%d]%ldL", n->_idx, tl->get_con());
       }
     } else {
 #ifdef PRODUCT
-      out->print("<%d>", n->_idx);
+      out.print("<%d>", n->_idx);
 #else
-      out->print("<%d %s>", n->_idx, n->Name());
+      out.print("<%d %s>", n->_idx, n->Name());
 #endif
     }
+  }
+
+private:
+  void dump_sub_graph(BasicType bt, outputStream& out, Node* n) const {
+    dump_sub_graph(gvn_, bt, out, n);
   }
 
   // Is it nothing more than a "a +/- b" where we can't do anything with "a" and "b"?
@@ -1255,7 +1264,7 @@ public:
 #ifndef PRODUCT
     if (print_steps_) {
       tty->print("Subgraph: ");
-      dump_sub_graph(bt_at_n, tty, n);
+      dump_sub_graph(bt_at_n, *tty, n);
       if (gvn_.is_IterGVN()) {
         tty->print_cr("; phase=IGVN");
       } else {
@@ -1430,7 +1439,7 @@ public:
             tty->print("  Rebuilding combination ");
             combination.dump(tty);
             tty->print(" on pattern ");
-            dump_sub_graph(bt, tty, node);
+            dump_sub_graph(bt, *tty, node);
             tty->print_cr(" for node %d: lhs.improved_=%d; rhs.improved_=%d; improved=%d", node->_idx, lhs.improved_, rhs.improved_, improved);
           }
 #endif
@@ -1493,7 +1502,7 @@ public:
 #ifndef PRODUCT
     if (print_steps_) {
       tty->print_cr("Done: progress=%d; %d ==> %d", progress, n->_idx, new_n->_idx);
-      dump_sub_graph(bt_at_n, tty, new_n);
+      dump_sub_graph(bt_at_n, *tty, new_n);
       tty->cr();
     }
 #endif
@@ -1685,6 +1694,10 @@ Node* AddNode::IdealIL(PhaseGVN* phase, bool can_reshape, BasicType bt) {
 #endif
 
   return AddNode::Ideal(phase, can_reshape);
+}
+
+void AddNode::dump_sub_graph(const PhaseGVN& gvn, BasicType bt, outputStream& out, Node* n) {
+  LinearCombination::dump_sub_graph(gvn, bt, out, n);
 }
 
 Node* AddNode::simplify_whole_tree(bool can_reshape, PhaseGVN* phase, BasicType bt, Node* n) {
