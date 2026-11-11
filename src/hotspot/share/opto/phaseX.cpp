@@ -2441,9 +2441,17 @@ static void add_transitive_usages_through_linear_trees(Node* use, Unique_Node_Li
     for (DUIterator_Fast ioutmax, iout = n->fast_outs(ioutmax); iout < ioutmax; iout++) {
       Node* u = n->fast_out(iout);
       if (is_root_candidate(u)) {
+        // u is an Add/Sub
+        // Optimizing u (or under) will take care of n.
+        // We don't need to put n on the worklist
         n_will_be_traversed_from_use = true;
         traverse_list.push(u);
-      } else {
+      } else if (can_be_traversed_but_not_root(u)) {
+        // u is an LShift/Mul
+        // If there is an Add/Sub (transitively) under u, passing only by LShift/Mul, then
+        // optimizing the said Add/Sub will take care of n, and we don't need to put
+        // n directly on the worklist.
+        // Otherwise, we need n on the worklist.
         auto is_boundary = [&](const Node* x) -> bool {
           return !can_be_traversed_but_not_root(x);
         };
