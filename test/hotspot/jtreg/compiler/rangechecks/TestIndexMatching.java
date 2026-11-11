@@ -749,7 +749,7 @@ public class TestIndexMatching {
     @IR(counts = {IRNode.COUNTED_LOOP, ">0"})
     static void testLongIndexIntIVWithShortSubOfShiftsScaling() {
         for (int iv = 0; iv <= intVar100; iv++) {
-            Objects.checkIndex((long)((iv << 33) - (iv << 0)), longVar10000);
+            Objects.checkIndex((long)((iv << 36) - (iv << 1)), longVar10000);
         }
     }
 
